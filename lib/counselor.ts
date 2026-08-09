@@ -59,6 +59,18 @@ export interface CounselorResponse {
   nudge?: string;
 }
 
+export interface EssayFeedback {
+  /** Observations on structure, specificity, voice. Questions, not rewrites. */
+  observations: { area: "structure" | "specificity" | "voice"; note: string }[];
+  questions: string[];
+}
+
+export interface InterviewFeedback {
+  strengths: string[];
+  toWorkOn: string[];
+  followUp: string;
+}
+
 export interface CounselorService {
   chat(req: CounselorRequest): Promise<CounselorResponse>;
   greet(profile: Profile): Promise<CounselorMessage>;
@@ -67,6 +79,19 @@ export interface CounselorService {
   generateThroughline(profile: StudentProfile): Promise<Throughline>;
   /** One-line, profile-specific reason a school fits. */
   whyThisSchool(profile: StudentProfile, school: School): Promise<string>;
+  /** Critiques and asks questions. NEVER writes the essay. */
+  essayFeedback(
+    profile: StudentProfile,
+    promptText: string,
+    essayText: string
+  ): Promise<EssayFeedback>;
+  /** Mock-interview turn: next question + feedback on the last answer. */
+  interviewTurn(
+    profile: StudentProfile,
+    school: School | null,
+    question: string,
+    answer: string
+  ): Promise<InterviewFeedback>;
 }
 
 /* ————————————— Mock implementation ————————————— */
@@ -172,6 +197,59 @@ const mockCounselor: CounselorService = {
         ? ["Depth over breadth", "Self-directed learning"]
         : ["3 years of robotics, 2 as lead", "AP CS + AP Physics pairing", "Self-taught web development", "Tutoring younger students"],
       stillForming,
+    };
+  },
+
+  async essayFeedback(_profile, _promptText, essayText) {
+    await delay(900);
+    const words = essayText.trim().split(/\s+/).filter(Boolean).length;
+    return {
+      observations: [
+        {
+          area: "structure",
+          note:
+            words < 150
+              ? "This is still early — right now it reads like an opening in search of a middle. Where does the story go after this moment?"
+              : "The opening earns attention, but the middle section summarizes where it could show. One scene, told slowly, would do more than three told quickly.",
+        },
+        {
+          area: "specificity",
+          note: "The strongest sentence here is the most concrete one. Notice which sentence that is — then ask why the others aren't doing that.",
+        },
+        {
+          area: "voice",
+          note: "Parts of this sound like you talking; parts sound like an essay trying to impress. Read it aloud — you'll hear exactly where the seam is.",
+        },
+      ],
+      questions: [
+        "What detail from this experience do you remember that nobody else would?",
+        "If you couldn't mention the achievement itself, what would you say you learned?",
+        "What's the sentence you're proudest of? What's the one you secretly know is filler?",
+      ],
+    };
+  },
+
+  async interviewTurn(_profile, school, _question, answer) {
+    await delay(800);
+    const short = answer.trim().split(/\s+/).filter(Boolean).length < 40;
+    return {
+      strengths: short
+        ? ["You answered directly, without padding — that's rarer than you'd think."]
+        : [
+            "You gave a real example rather than an abstraction.",
+            "Your energy came through — interviewers remember that more than polish.",
+          ],
+      toWorkOn: short
+        ? [
+            "This answer needs one concrete story. Interviews are remembered in scenes, not summaries.",
+            "Try the rule of one: one example, told with detail, beats three mentioned in passing.",
+          ]
+        : [
+            "Trim the wind-up — start with the example, then explain why it matters.",
+          ],
+      followUp: school
+        ? `Good. Next: ${school.shortName} interviewers often ask — "What would you add to our campus that isn't already here?" Take a minute before answering.`
+        : `Next question: "Tell me about a time you changed your mind about something that mattered to you."`,
     };
   },
 

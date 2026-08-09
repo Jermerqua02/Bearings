@@ -208,6 +208,86 @@ export interface WeeklyCheckIn {
   dismissed: boolean;
 }
 
+/* ————————————— Application data ————————————— */
+
+export interface Essay {
+  id: string;
+  title: string;
+  promptText: string;
+  schoolId?: string; // undefined = personal statement
+  wordLimit: number;
+  text: string;
+  versions: { id: string; text: string; savedAt: string }[];
+}
+
+export interface Recommender {
+  id: string;
+  name: string;
+  roleTitle: string; // "AP Bio teacher"
+  type: "teacher" | "counselor" | "other";
+  schoolIds: string[];
+  status: "invited" | "in-progress" | "submitted";
+}
+
+export interface UniversalProfile {
+  legalName: string;
+  preferredName: string;
+  dateOfBirth: string;
+  email: string;
+  phone: string;
+  address: string;
+  citizenship: string;
+  demographics: string;
+  parentEducation: string;
+  highSchoolName: string;
+  highSchoolCity: string;
+  gradYear: string;
+  honors: string[];
+  additionalInfo: string;
+}
+
+export interface AidStatus {
+  fafsa: "not-started" | "in-progress" | "submitted";
+  cssProfile: "not-needed" | "not-started" | "in-progress" | "submitted";
+}
+
+export interface AidOffer {
+  schoolId: string;
+  coa: number; // total cost of attendance / yr
+  grants: number; // free money / yr
+  loans: number; // offered loans / yr
+  workStudy: number; // per yr
+}
+
+export interface CoursePlanEntry {
+  id: string;
+  year: GradeLevel;
+  subject:
+    | "English"
+    | "Math"
+    | "Science"
+    | "Social Studies"
+    | "Language"
+    | "Arts"
+    | "Elective";
+  name: string;
+  level: "regular" | "honors" | "ap" | "ib";
+  status: "completed" | "in-progress" | "planned";
+  grade?: string; // letter grade if completed
+}
+
+export interface Opportunity {
+  id: string;
+  name: string;
+  org: string;
+  type: "program" | "internship" | "research" | "job" | "volunteering";
+  cost: "free" | "low-cost" | "paid" | "stipend";
+  selective: boolean;
+  location: string;
+  interests: string[];
+  description: string;
+}
+
 /* ————————————— Helpers ————————————— */
 
 /** Derive the app's mode from grade level and time of year. */
