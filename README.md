@@ -4,17 +4,21 @@ An AI college counselor for high school students and their parents. Honest expec
 
 ## Status
 
-**Foundation pass (Pass 1) complete:**
+**All 12 screens built (mocked data, stubbed AI):**
 
-- Design system — Swiss/editorial tokens, type scale, UI primitives
-- Navigation shell — desktop header + mobile bottom tabs, grade-aware mode label
-- Landing page (logged out)
-- Conversational onboarding — student & parent branches, ends with an editable "here's what I'm hearing" profile summary
-- Typed domain model (`lib/types.ts`)
-- Seed data: 40 colleges with full fields (`lib/data/schools.ts`)
-- AI service stub (`lib/counselor.ts`) — all model calls behind one typed module with mock responses; swap in real APIs by editing this one file
+- Landing page + conversational onboarding (student & parent branches, editable AI summary)
+- Counselor — full-screen chat, rich inline cards, thread sidebar, editable "About you" panel, nudges
+- School explorer — filter rail, sort, grid/list views, Counselor Picks, mobile bottom-sheet filters
+- School detail — profile-specific "why this fits," your numbers plotted on mid-50% ranges, net-price-by-income, the city as a first-class section
+- My list — drag-and-drop tier columns, balance meter, compare mode (up to 4)
+- Application manager — tracker pipeline, universal profile, essay workspace with AI critique (never writes), recommenders, deadline timeline, aid tracker
+- Planner — four-year course grid with GPA/rigor read, activity log, opportunity finder (free options first)
+- Interview prep — primer, question banks, mock interview turns with feedback
+- Decision center — calm decision tracker, true-cost aid comparison, appeal guidance, waitlist toolkit, choice worksheet, May 1 checklist
+- Dashboard — separate student and parent variants, weekly check-in ritual with history
+- Settings — parent linking with explicit privacy boundaries, notifications, JSON export, delete
 
-Remaining passes: Counselor chat · School explorer · School detail · My list · Application manager · Dashboard · Planner · Interview prep · Decision center · Parent mode pass · Mobile polish.
+Not yet: real AI (stubbed in `lib/counselor.ts`), real school data, persistence/auth, map view, voice interviews.
 
 ## Run it
 
