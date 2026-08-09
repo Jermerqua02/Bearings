@@ -13,6 +13,8 @@ import Chip from "@/components/ui/Chip";
 import SectionLabel from "@/components/ui/SectionLabel";
 import { summarizeProfileAction } from "@/lib/actions/counselor";
 import { completeOnboardingAction } from "@/lib/actions/onboarding";
+import { localSummary } from "@/lib/onboarding-summary";
+import ReadAloud from "@/components/ReadAloud";
 import { useApp } from "@/lib/profile-context";
 import type {
   GradeLevel,
@@ -354,8 +356,9 @@ function OnboardingFlow() {
     if (steps[nextIndex] === "summary") {
       setLoadingSummary(true);
       setSaveError(null);
+      const profile = buildProfile(answers);
       try {
-        const saved = await completeOnboardingAction(buildProfile(answers));
+        const saved = await completeOnboardingAction(profile);
         if (!saved.ok) {
           // A failed save is worth stopping for — going on would lose the
           // answers silently.
@@ -364,12 +367,13 @@ function OnboardingFlow() {
           return;
         }
         const text = await summarizeProfileAction();
-        setSummary(text);
+        setSummary(text?.trim() || localSummary(profile));
       } catch (err) {
         console.error("[onboarding] summary failed:", err);
         // The profile is saved by this point; only the AI flourish failed.
-        // Move on with a plain summary rather than trapping them here.
-        setSummary(null);
+        // Fall back to a summary composed from their own answers rather
+        // than leaving the screen on its loading placeholder forever.
+        setSummary(localSummary(profile));
       } finally {
         setLoadingSummary(false);
       }
@@ -709,13 +713,18 @@ function OnboardingFlow() {
           {loadingSummary || summary === null ? (
             <p className="text-gray-mid">Putting this into words…</p>
           ) : (
-            <textarea
-              value={summary}
-              onChange={(e) => setSummary(e.target.value)}
-              rows={8}
-              aria-label="Your profile summary — editable"
-              className="w-full bg-transparent text-[1.05rem] leading-relaxed outline-none resize-none"
-            />
+            <>
+              <textarea
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+                rows={8}
+                aria-label="Your profile summary — editable"
+                className="w-full bg-transparent text-[1.05rem] leading-relaxed outline-none resize-none"
+              />
+              <div className="pt-3 mt-1 border-t border-hairline">
+                <ReadAloud text={summary} />
+              </div>
+            </>
           )}
         </Card>
         <p className="text-[0.9rem] text-gray-mid mb-8">

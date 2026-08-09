@@ -52,7 +52,9 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(railway deployment *)",
-      "Bash(echo \"BUILD_EXIT=$?\")"
+      "Bash(echo \"BUILD_EXIT=$?\")",
+      "Skill(claude-api)",
+      "Bash(git check-ignore *)"
     ]
   },
   "enabledMcpjsonServers": [

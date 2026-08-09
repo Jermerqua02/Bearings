@@ -18,6 +18,11 @@ const STUDENT_ONLY = ["/counselor", "/interviews"];
 const PROTECTED = [
   "/admin",
   "/dashboard",
+  // Onboarding writes a profile row against the signed-in user, so it needs a
+  // session like any other authenticated route. Without this a signed-out
+  // visitor could walk the whole questionnaire and only discover at the last
+  // step that there was no account to save it to.
+  "/onboarding",
   "/counselor",
   "/explore",
   "/list",
@@ -57,6 +62,7 @@ export const config = {
   matcher: [
     "/admin/:path*",
     "/dashboard/:path*",
+    "/onboarding/:path*",
     "/counselor/:path*",
     "/explore/:path*",
     "/list/:path*",
