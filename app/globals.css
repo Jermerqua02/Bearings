@@ -1,0 +1,161 @@
+@import "tailwindcss";
+
+/* ————————————————————————————————————————
+   Northstar design tokens
+   Swiss / editorial. Near-white paper, near-black ink,
+   grays doing the work, one accent (deep ink blue).
+   ———————————————————————————————————————— */
+
+@theme {
+  /* Color */
+  --color-paper: #fafafa;
+  --color-surface: #ffffff;
+  --color-ink: #111111;
+  --color-gray-strong: #6b6b6b;
+  --color-gray-mid: #9a9a9a;
+  --color-hairline: #e5e5e5;
+  --color-fill: #f1f1f0;
+
+  --color-accent: #1b3a6b;
+  --color-accent-hover: #16305a;
+  --color-accent-soft: #eef2f8;
+
+  /* Chance tiers — muted, non-alarming. Never traffic lights. */
+  --color-reach: #6e7b8c; /* soft slate */
+  --color-reach-soft: #eef1f4;
+  --color-target: #5f7d64; /* muted green */
+  --color-target-soft: #eef3ef;
+  --color-likely: #a08653; /* warm sand */
+  --color-likely-soft: #f6f1e7;
+
+  /* Type */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system,
+    "Helvetica Neue", Arial, sans-serif;
+
+  /* Motion */
+  --ease-quiet: cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+/* Base */
+html {
+  background: var(--color-paper);
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #ffffff;
+}
+
+/* Focus visibility — accessibility is not optional */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ————————————————————————————————————————
+   Editorial type utilities
+   ———————————————————————————————————————— */
+
+/* Display headlines: big, tight, slightly negative tracking */
+.headline-xl {
+  font-size: clamp(2.25rem, 6vw, 5.5rem); /* 36 → 88px */
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  font-weight: 600;
+}
+
+.headline-lg {
+  font-size: clamp(1.875rem, 4vw, 3.5rem); /* 30 → 56px */
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+}
+
+.headline-md {
+  font-size: clamp(1.5rem, 2.5vw, 2.25rem); /* 24 → 36px */
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+/* Two-tone treatment: key words in ink, rest in mid-gray.
+   Wrap the muted portion in .tone-muted. */
+.tone-muted {
+  color: var(--color-gray-mid);
+}
+
+/* Small uppercase labels */
+.label-caps {
+  font-size: 0.72rem; /* ~11.5px */
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-gray-strong);
+  font-weight: 500;
+}
+
+/* Calm body copy */
+.body-copy {
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  max-width: 68ch;
+  color: var(--color-gray-strong);
+}
+
+/* Numeric index on cards: 01, 02, 03 */
+.card-index {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  color: var(--color-gray-mid);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ————————————————————————————————————————
+   Quiet motion
+   ———————————————————————————————————————— */
+
+.transition-quiet {
+  transition: all 200ms var(--ease-quiet);
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 250ms var(--ease-quiet) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
+  .transition-quiet {
+    transition: none;
+  }
+}
+
+/* Hide scrollbars on horizontal carousels without breaking scroll */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
