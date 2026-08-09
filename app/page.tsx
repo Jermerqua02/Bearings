@@ -1,19 +1,27 @@
 import Link from "next/link";
+import Image from "next/image";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 
 /* Landing / marketing (logged out).
-   Editorial, Swiss, calm. One value line, one CTA, two entry paths.
-   No fake stats, no testimonials, no urgency — by design. */
+   Gallery-editorial: oversized two-tone lead, full-bleed visual band,
+   numbered stage rail. No fake stats, no testimonials, no urgency. */
+
+const stages = [
+  { n: "01", name: "Explore", href: "/explore", src: "/stage-explore.jpg" },
+  { n: "02", name: "List", href: "/list", src: "/stage-list.jpg" },
+  { n: "03", name: "Apply", href: "/apply", src: "/stage-apply.jpg" },
+  { n: "04", name: "Decide", href: "/decide", src: "/stage-decide.jpg" },
+];
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-paper">
       {/* Header */}
-      <header className="border-b border-hairline">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 h-16 flex items-center justify-between">
+      <header className="sticky top-0 z-30 border-b border-hairline bg-paper/85 backdrop-blur-md">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 h-16 flex items-center justify-between">
           <span className="text-[1.05rem] font-semibold tracking-tight">
             Northstar
           </span>
@@ -31,40 +39,102 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="max-w-6xl mx-auto px-5 md:px-6 pt-16 md:pt-28 pb-16 md:pb-24">
-        <SectionLabel className="mb-6">
-          An honest college counselor, always available
-        </SectionLabel>
-        <TwoTone as="h1" size="xl" className="max-w-4xl mb-8">
-          <em>Your profile</em> deserves a list that&apos;s{" "}
-          <em>as realistic as it is exciting.</em>
-        </TwoTone>
-        <p className="body-copy mb-10">
-          A good counselor reads your actual grades, interests, and budget —
-          then tells you the truth, kindly. Most families can&apos;t hire one.
-          Northstar is that counselor: it knows your profile, remembers what
-          you&apos;ve said, and gets more specific over time.
-        </p>
+      {/* Hero — oversized editorial lead */}
+      <section className="max-w-[1400px] mx-auto px-5 md:px-10 pt-16 md:pt-28 pb-12 md:pb-16">
+        <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+          <div className="lg:col-span-3">
+            <SectionLabel>An honest college counselor</SectionLabel>
+            <div className="hidden lg:block mt-6 h-px bg-hairline" />
+            <p className="hidden lg:block mt-6 text-[0.85rem] leading-relaxed text-gray-mid">
+              Always available. Never grading you out of 100.
+            </p>
+          </div>
+          <div className="lg:col-span-9">
+            <TwoTone as="h1" size="xl" className="max-w-[24ch] lg:max-w-none">
+              <em>Your profile deserves a list</em> that&apos;s as realistic as
+              it is exciting — grades, budget, and geography read honestly, then
+              translated into schools worth your time.
+            </TwoTone>
+            <div className="mt-10 flex flex-col sm:flex-row gap-3">
+              <Button href="/onboarding?role=student" variant="primary" size="lg">
+                I&apos;m a student
+              </Button>
+              <Button href="/onboarding?role=parent" variant="outline" size="lg">
+                I&apos;m a parent
+              </Button>
+            </div>
+          </div>
+        </div>
+      </section>
 
-        {/* Two entry paths */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <Button href="/onboarding?role=student" variant="primary" size="lg">
-            I&apos;m a student
-          </Button>
-          <Button href="/onboarding?role=parent" variant="outline" size="lg">
-            I&apos;m a parent
-          </Button>
+      {/* Full-bleed visual band */}
+      <section className="pb-16 md:pb-24">
+        <div className="w-full overflow-hidden bg-fill">
+          <Image
+            src="/hero-band.jpg"
+            alt="Light-filled university library atrium"
+            width={1920}
+            height={820}
+            priority
+            sizes="100vw"
+            className="w-full h-[46vh] md:h-[64vh] max-h-[680px] object-cover"
+          />
+        </div>
+      </section>
+
+      {/* Stage rail */}
+      <section className="border-t border-hairline">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
+            <div>
+              <SectionLabel className="mb-4">The path</SectionLabel>
+              <TwoTone as="h2" size="lg" className="max-w-3xl">
+                Four stages. <em>One plan you can actually follow.</em>
+              </TwoTone>
+            </div>
+            <Link
+              href="/dashboard"
+              className="self-start md:self-end shrink-0 whitespace-nowrap px-6 py-2 border border-ink rounded-full text-[0.7rem] font-semibold uppercase tracking-[0.18em] hover:bg-ink hover:text-paper transition-quiet"
+            >
+              See all
+            </Link>
+          </div>
+
+          <div className="flex gap-4 md:gap-6 overflow-x-auto no-scrollbar snap-x -mx-5 px-5 md:mx-0 md:px-0">
+            {stages.map((s) => (
+              <Link
+                key={s.n}
+                href={s.href}
+                className="group shrink-0 w-[70vw] sm:w-[42vw] lg:w-[calc((100%-4.5rem)/4)] snap-start"
+              >
+                <div className="relative aspect-[3/4] overflow-hidden bg-fill border border-hairline">
+                  <Image
+                    src={s.src}
+                    alt={s.name}
+                    fill
+                    sizes="(max-width: 640px) 70vw, (max-width: 1024px) 42vw, 25vw"
+                    className="object-cover transition-transform duration-700 ease-quiet group-hover:scale-[1.04]"
+                  />
+                  <span className="absolute top-5 left-5 text-[0.7rem] font-semibold uppercase tracking-[0.18em]">
+                    {s.name}
+                  </span>
+                  <span className="absolute bottom-5 left-5 text-[0.7rem] text-gray-strong tabular-nums">
+                    {s.n}
+                  </span>
+                </div>
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* What a counselor actually does */}
       <section className="border-t border-hairline">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-16 md:py-24">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24">
           <TwoTone as="h2" size="lg" className="max-w-3xl mb-12">
             Three things change everything. <em>A real counselor does all three.</em>
           </TwoTone>
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-3 border-t border-hairline">
             {[
               {
                 index: "01",
@@ -82,15 +152,18 @@ export default function LandingPage() {
                 body: "Deadlines, essays, recommendations, aid forms — sequenced into small, doable steps, so senior fall feels like a plan instead of a panic.",
               },
             ].map((item) => (
-              <Card key={item.index} className="p-7">
+              <div
+                key={item.index}
+                className="pt-8 pb-10 border-b border-hairline md:border-b-0 md:pr-8 md:[&:not(:last-child)]:border-r md:[&:not(:first-child)]:pl-8"
+              >
                 <span className="card-index">{item.index}</span>
-                <h3 className="text-[1.15rem] font-semibold mt-4 mb-3">
+                <h3 className="text-[1.15rem] font-semibold mt-5 mb-3">
                   {item.title}
                 </h3>
-                <p className="text-[0.98rem] leading-relaxed text-gray-strong">
+                <p className="text-[0.98rem] leading-relaxed text-gray-strong max-w-sm">
                   {item.body}
                 </p>
-              </Card>
+              </div>
             ))}
           </div>
         </div>
@@ -98,7 +171,7 @@ export default function LandingPage() {
 
       {/* Throughline */}
       <section className="border-t border-hairline bg-surface">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-start">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24 grid md:grid-cols-2 gap-12 items-start">
           <div>
             <SectionLabel className="mb-4">The Throughline</SectionLabel>
             <TwoTone as="h2" size="lg" className="mb-6">
@@ -138,7 +211,7 @@ export default function LandingPage() {
 
       {/* Students & parents */}
       <section className="border-t border-hairline">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-16 md:py-24">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24">
           <TwoTone as="h2" size="lg" className="max-w-3xl mb-12">
             Built for students. <em>Built for parents too</em> — differently.
           </TwoTone>
@@ -168,7 +241,7 @@ export default function LandingPage() {
 
       {/* Money, honestly */}
       <section className="border-t border-hairline bg-surface">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-16 md:py-24">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24">
           <div className="max-w-3xl">
             <SectionLabel className="mb-4">Financial reality, early</SectionLabel>
             <TwoTone as="h2" size="lg" className="mb-6">
@@ -186,7 +259,7 @@ export default function LandingPage() {
 
       {/* Final CTA */}
       <section className="border-t border-hairline">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-16 md:py-24 text-center">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-16 md:py-24 text-center">
           <TwoTone as="h2" size="lg" className="mb-8 mx-auto max-w-2xl">
             <em>Fifteen minutes</em> to a counselor who knows you.
           </TwoTone>
@@ -203,7 +276,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="border-t border-hairline">
-        <div className="max-w-6xl mx-auto px-5 md:px-6 py-10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+        <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
           <span className="text-[0.9rem] text-gray-mid">Northstar</span>
           <p className="text-[0.8rem] text-gray-mid max-w-md">
             Most of our users are minors. We never sell or share student data —
