@@ -752,3 +752,28 @@ export const recentlyViewed = pgTable(
   },
   (t) => [unique("recently_viewed_unique").on(t.userId, t.schoolId)],
 );
+
+/**
+ * Cache for whyThisSchool.
+ *
+ * That call fired on every school-detail page view with no caching, so a
+ * student browsing 40 schools triggered 40 completions. The explanation is
+ * profile-specific, so profileHash invalidates it when the inputs it depends
+ * on change rather than on a timer.
+ */
+export const schoolExplanations = pgTable(
+  "school_explanation",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    studentId: text("student_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    schoolId: text("school_id")
+      .notNull()
+      .references(() => schools.id, { onDelete: "cascade" }),
+    text: text("text").notNull(),
+    profileHash: text("profile_hash").notNull(),
+    ...timestamps,
+  },
+  (t) => [unique("school_explanation_unique").on(t.studentId, t.schoolId)],
+);
