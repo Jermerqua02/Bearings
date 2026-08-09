@@ -3,10 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useApp } from "@/lib/profile-context";
-import { gradeModeLabel } from "@/lib/types";
+import { gradeModeLabel, type Role } from "@/lib/types";
 
 /* Primary nav — desktop header + mobile bottom tab bar.
-   Mobile tabs: Home · Explore · Counselor · List · Apply (per spec). */
+   Mobile tabs: Home · Explore · Counselor · List · Apply (per spec).
+   Parents see a reduced set: the counselor and interview routes are
+   student-private, so the nav must not link to them. */
+
+/** Kept in sync with STUDENT_ONLY_ROUTES in lib/auth/policy.ts. */
+const STUDENT_ONLY_HREFS = new Set(["/counselor", "/interviews"]);
 
 const tabs = [
   { href: "/dashboard", label: "Home" },
@@ -74,11 +79,19 @@ function TabIcon({ label, active }: { label: string; active: boolean }) {
   }
 }
 
-export default function AppNav() {
+export default function AppNav({ role, name }: { role: Role; name: string }) {
   const pathname = usePathname();
   const { mode, profile } = useApp();
 
   const isActive = (href: string) => pathname.startsWith(href);
+
+  // A parent's nav must not advertise routes the boundary denies them. This
+  // was identical for both roles before, linking parents straight to the
+  // counselor and interview pages.
+  const visibleTabs = role === "parent" ? tabs.filter((t) => !STUDENT_ONLY_HREFS.has(t.href)) : tabs;
+  const visibleSecondary =
+    role === "parent" ? secondary.filter((t) => !STUDENT_ONLY_HREFS.has(t.href)) : secondary;
+  const initial = (profile?.firstName ?? name).charAt(0);
 
   return (
     <>
@@ -93,7 +106,7 @@ export default function AppNav() {
               Northstar
             </Link>
             <nav aria-label="Primary" className="flex items-center gap-6">
-              {[...tabs.slice(1), ...secondary].map((t) => (
+              {[...visibleTabs.slice(1), ...visibleSecondary].map((t) => (
                 <Link
                   key={t.href}
                   href={t.href}
@@ -114,11 +127,9 @@ export default function AppNav() {
             <span className="label-caps" title="Your current mode">
               {gradeModeLabel[mode]} mode
             </span>
-            {profile && (
-              <span className="w-8 h-8 rounded-full bg-fill border border-hairline flex items-center justify-center text-[0.8rem] font-medium">
-                {profile.firstName.charAt(0)}
-              </span>
-            )}
+            <span className="w-8 h-8 rounded-full bg-fill border border-hairline flex items-center justify-center text-[0.8rem] font-medium">
+              {initial}
+            </span>
           </div>
         </div>
       </header>
@@ -129,7 +140,7 @@ export default function AppNav() {
         className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-paper/95 backdrop-blur border-t border-hairline"
       >
         <div className="grid grid-cols-5">
-          {tabs.map((t) => {
+          {visibleTabs.map((t) => {
             const active = isActive(t.href);
             return (
               <Link
