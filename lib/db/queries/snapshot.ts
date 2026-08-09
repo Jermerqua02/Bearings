@@ -112,18 +112,18 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 
 export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
   const studentId =
-    viewer.role === "student" ? viewer.userId : await linkedStudentIdFor(viewer.userId);
+    // A parent reads their linked student; everyone else reads their own
+    // records. Admin is included here deliberately — an operator who walks
+    // onboarding to test the product should see what they just entered, and
+    // reading your *own* rows is not what the privacy boundary guards.
+    // Cross-account admin reads go through lib/db/queries/admin.ts.
+    viewer.role === "parent" ? await linkedStudentIdFor(viewer.userId) : viewer.userId;
 
   const snap = emptySnapshot(viewer.role);
   snap.subjectStudentId = studentId;
   snap.parentLinked =
     viewer.role === "parent" ? Boolean(studentId) : await hasActiveLink(viewer.userId);
 
-  if (viewer.role === "admin") {
-    // Admins have no student records of their own, and the admin surface
-    // reads through lib/db/queries/admin.ts, never this snapshot.
-    return snap;
-  }
   if (viewer.role === "parent" && !studentId) {
     snap.profile = await loadParentProfile(viewer.userId);
     return snap;

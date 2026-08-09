@@ -18,8 +18,11 @@ export default async function OnboardingLayout({
   const viewer = await getViewer();
   if (!viewer) redirect("/sign-up");
 
-  // An admin has no student profile of their own to build.
-  if (viewer.role === "admin") redirect("/admin");
+  // Admins are deliberately allowed through. An earlier version bounced
+  // them to /admin on the theory that an operator has no profile of their
+  // own to build — which turns out to block the one person most likely to
+  // walk this flow: the owner, testing their own product. Admin is a set of
+  // extra powers, not a different kind of account.
 
   return <>{children}</>;
 }

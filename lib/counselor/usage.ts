@@ -26,7 +26,8 @@ export type AiFeature =
   | "interview"
   | "why_school"
   | "throughline"
-  | "summarize";
+  | "summarize"
+  | "speech";
 
 export interface UsageCounts {
   input_tokens?: number;
@@ -53,7 +54,13 @@ export async function recordUsage(
   userId: string,
   feature: AiFeature,
   usage: UsageCounts,
-  model = RATES.model,
+  model: string = RATES.model,
+  /**
+   * Precomputed cost, for calls priced by someone other than Anthropic —
+   * speech runs on Gemini and is billed per audio token, so the rate table
+   * above doesn't describe it. Omit for Claude calls.
+   */
+  costOverride?: number,
 ): Promise<void> {
   try {
     await db.insert(aiUsage).values({
@@ -64,7 +71,7 @@ export async function recordUsage(
       outputTokens: usage.output_tokens ?? 0,
       cacheReadTokens: usage.cache_read_input_tokens ?? 0,
       cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
-      costMillicents: costMillicents(usage),
+      costMillicents: costOverride ?? costMillicents(usage),
     });
   } catch (err) {
     console.error("[ai-usage] failed to record:", err);

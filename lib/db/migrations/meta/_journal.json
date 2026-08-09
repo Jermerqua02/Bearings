@@ -43,6 +43,13 @@
       "when": 1786309153062,
       "tag": "0005_late_scorpion",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1786315361957,
+      "tag": "0006_yellow_sue_storm",
+      "breakpoints": true
     }
   ]
 }

@@ -796,6 +796,9 @@ export const aiFeatureEnum = pgEnum("ai_feature", [
   "why_school",
   "throughline",
   "summarize",
+  // Text-to-speech. Priced per audio output token by a different provider
+  // (Gemini), which is why lib/costs.ts keeps a separate rate for it.
+  "speech",
 ]);
 
 export const aiUsage = pgTable(

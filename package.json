@@ -14,13 +14,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:seed": "tsx scripts/seed.ts",
-    "test:boundary": "tsx scripts/test-boundary.ts",
+    "db:seed": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed.ts",
+    "test:boundary": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-boundary.ts",
     "test:legal": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-legal.ts",
     "test:onboarding": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-onboarding.ts",
     "test:admin": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-admin.ts",
-    "admin:grant": "tsx scripts/grant-admin.ts",
-    "admin:password": "tsx scripts/set-password.ts"
+    "admin:grant": "NODE_OPTIONS=--conditions=react-server tsx scripts/grant-admin.ts",
+    "admin:password": "NODE_OPTIONS=--conditions=react-server tsx scripts/set-password.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

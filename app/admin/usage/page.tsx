@@ -37,6 +37,7 @@ const FEATURE_LABEL: Record<string, string> = {
   why_school: "Why this school",
   throughline: "Throughline",
   summarize: "Summarize",
+  speech: "Read aloud (Gemini)",
 };
 
 export default async function AdminCostsPage({

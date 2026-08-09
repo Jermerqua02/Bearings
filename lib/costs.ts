@@ -57,6 +57,22 @@ export const MONTHLY_INFRA_USD = 20;
  */
 export const ACTIVE_WINDOW_DAYS = 30;
 
+/**
+ * Gemini TTS, US dollars per million tokens. Text in, audio out — the audio
+ * side is what costs, and it is billed per audio token rather than per
+ * character or second. Verify against the Google AI pricing page.
+ */
+export const SPEECH_INPUT_PER_MTOK = 0.5;
+export const SPEECH_OUTPUT_PER_MTOK = 10;
+
+/** What one speech synthesis cost, in millicents. */
+export function speechCostMillicents(inputTokens: number, outputTokens: number): number {
+  const dollars =
+    (inputTokens / 1e6) * SPEECH_INPUT_PER_MTOK +
+    (outputTokens / 1e6) * SPEECH_OUTPUT_PER_MTOK;
+  return millicentsFromUsd(dollars);
+}
+
 /** Storage cost for a number of bytes held for one month. */
 export function storageMillicentsPerMonth(bytes: number): number {
   const gb = bytes / 1_000_000_000;
