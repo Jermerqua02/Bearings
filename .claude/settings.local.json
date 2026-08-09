@@ -49,7 +49,10 @@
       "Bash(docker info *)",
       "Bash(open -a Docker)",
       "Bash(NODE_OPTIONS=\"--conditions=react-server\" npx tsx scripts/test-legal.ts)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(railway deployment *)",
+      "Bash(echo \"BUILD_EXIT=$?\")"
     ]
   },
   "enabledMcpjsonServers": [

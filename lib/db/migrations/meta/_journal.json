@@ -36,6 +36,13 @@
       "when": 1786306363549,
       "tag": "0004_careless_praxagora",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1786309153062,
+      "tag": "0005_late_scorpion",
+      "breakpoints": true
     }
   ]
 }

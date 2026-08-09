@@ -12,6 +12,7 @@ import Card from "@/components/ui/Card";
 import Chip from "@/components/ui/Chip";
 import SectionLabel from "@/components/ui/SectionLabel";
 import { summarizeProfileAction } from "@/lib/actions/counselor";
+import { completeOnboardingAction } from "@/lib/actions/onboarding";
 import { useApp } from "@/lib/profile-context";
 import type {
   GradeLevel,
@@ -321,6 +322,7 @@ function OnboardingFlow() {
   const [stepIndex, setStepIndex] = useState(0);
   const [summary, setSummary] = useState<string | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const steps = useMemo(() => stepsFor(answers.role), [answers.role]);
   const step = steps[Math.min(stepIndex, steps.length - 1)];
@@ -343,13 +345,36 @@ function OnboardingFlow() {
 
   const goNext = async () => {
     const nextIndex = stepIndex + 1;
+
+    // The summary step is the first moment we have every answer, so it is
+    // where the profile gets written. Everything below is wrapped: an AI
+    // call that throws must not strand the user on the last question, which
+    // is exactly what happened before — no catch meant setStepIndex() never
+    // ran and the flow froze with nothing on screen to explain it.
     if (steps[nextIndex] === "summary") {
       setLoadingSummary(true);
-      const profile = buildProfile(answers);
-      const text = await summarizeProfileAction();
-      setSummary(text);
-      setLoadingSummary(false);
+      setSaveError(null);
+      try {
+        const saved = await completeOnboardingAction(buildProfile(answers));
+        if (!saved.ok) {
+          // A failed save is worth stopping for — going on would lose the
+          // answers silently.
+          setSaveError(saved.error || "We couldn't save your answers.");
+          setLoadingSummary(false);
+          return;
+        }
+        const text = await summarizeProfileAction();
+        setSummary(text);
+      } catch (err) {
+        console.error("[onboarding] summary failed:", err);
+        // The profile is saved by this point; only the AI flourish failed.
+        // Move on with a plain summary rather than trapping them here.
+        setSummary(null);
+      } finally {
+        setLoadingSummary(false);
+      }
     }
+
     setStepIndex(nextIndex);
   };
 
@@ -359,6 +384,8 @@ function OnboardingFlow() {
   };
 
   const finish = () => {
+    // Already persisted at the summary step; this keeps the in-memory copy
+    // in step so the dashboard renders without a round trip.
     setProfile(buildProfile(answers));
     router.push("/dashboard");
   };
@@ -728,15 +755,20 @@ function OnboardingFlow() {
           variant="primary"
           size="lg"
           onClick={goNext}
-          disabled={!content.valid}
+          disabled={!content.valid || loadingSummary}
           className={!content.valid ? "opacity-40 pointer-events-none" : ""}
         >
-          Continue
+          {loadingSummary ? "Saving…" : "Continue"}
         </Button>
         <Button variant="ghost" size="lg" onClick={goBack}>
           Back
         </Button>
       </div>
+      {saveError && (
+        <p role="alert" className="mt-4 text-[0.9rem] text-gray-strong border-l-2 border-ink pl-3">
+          {saveError}
+        </p>
+      )}
     </div>
   );
 }

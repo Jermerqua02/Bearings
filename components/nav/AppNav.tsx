@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import AccountMenu from "@/components/nav/AccountMenu";
 import { useApp } from "@/lib/profile-context";
 import { gradeModeLabel, type Role } from "@/lib/types";
 
@@ -79,7 +80,15 @@ function TabIcon({ label, active }: { label: string; active: boolean }) {
   }
 }
 
-export default function AppNav({ role, name }: { role: Role; name: string }) {
+export default function AppNav({
+  role,
+  name,
+  email,
+}: {
+  role: Role;
+  name: string;
+  email: string;
+}) {
   const pathname = usePathname();
   const { mode, profile } = useApp();
 
@@ -127,9 +136,22 @@ export default function AppNav({ role, name }: { role: Role; name: string }) {
             <span className="label-caps" title="Your current mode">
               {gradeModeLabel[mode]} mode
             </span>
-            <span className="w-8 h-8 rounded-full bg-fill border border-hairline flex items-center justify-center text-[0.8rem] font-medium">
-              {initial}
-            </span>
+            <AccountMenu name={name} email={email} role={role} initial={initial} />
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile header — exists so the account menu, Settings and sign-out are
+          reachable on a phone. The bottom tab bar has room for five
+          destinations and none of them were these. */}
+      <header className="md:hidden sticky top-0 z-40 bg-paper/95 backdrop-blur border-b border-hairline">
+        <div className="px-5 h-14 flex items-center justify-between">
+          <Link href="/dashboard" className="text-[1rem] font-semibold tracking-tight">
+            Northstar
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="label-caps">{gradeModeLabel[mode]}</span>
+            <AccountMenu name={name} email={email} role={role} initial={initial} />
           </div>
         </div>
       </header>

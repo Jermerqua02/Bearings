@@ -857,3 +857,60 @@ export const legalConsents = pgTable(
     unique("legal_consent_unique").on(t.userId, t.document, t.version),
   ],
 );
+
+/* ————————————————————————————————————————
+   Admin settings.
+
+   A single row (id = "singleton") holding operator-tunable values that
+   would otherwise be constants requiring a deploy to change — the cost
+   budget and its alert thresholds.
+
+   Rates in lib/costs.ts stay in code because they are facts about what
+   vendors charge. What lives here is policy: what *we* consider too much.
+   ———————————————————————————————————————— */
+export const adminSettings = pgTable("admin_settings", {
+  id: text("id").primaryKey().default("singleton"),
+  /** Monthly all-in budget in whole US dollars. */
+  monthlyBudgetUsd: integer("monthly_budget_usd").notNull().default(25),
+  /** Percentages of budget that trigger an alert, e.g. [80, 100]. */
+  alertThresholds: integer("alert_thresholds").array().notNull().default([80, 100]),
+  /** Blank means every admin. */
+  alertEmail: text("alert_email").notNull().default(""),
+  alertsEnabled: boolean("alerts_enabled").notNull().default(true),
+  /** Set when an alert fires, so the same threshold isn't re-sent all month. */
+  lastAlertAt: timestamp("last_alert_at", { withTimezone: true }),
+  lastAlertThreshold: integer("last_alert_threshold"),
+  ...timestamps,
+});
+
+/* ————————————————————————————————————————
+   Feedback.
+
+   In-product reports from users. Deliberately its own table rather than a
+   counselor thread: this is operational, an admin reads it by design, and
+   conflating it with the private counselor conversation would put admin
+   eyes on the wrong side of the privacy boundary.
+   ———————————————————————————————————————— */
+export const feedbackStatusEnum = pgEnum("feedback_status", ["open", "resolved"]);
+
+export const feedback = pgTable(
+  "feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // Kept on user delete so a report doesn't vanish mid-investigation;
+    // the author reference is nulled instead.
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    /** Denormalized so a resolved report still says who sent it. */
+    email: text("email").notNull().default(""),
+    message: text("message").notNull(),
+    /** Where they were when they sent it. */
+    path: text("path").notNull().default(""),
+    status: feedbackStatusEnum("status").notNull().default("open"),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [
+    index("feedback_status_idx").on(t.status),
+    index("feedback_created_idx").on(t.createdAt),
+  ],
+);

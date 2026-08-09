@@ -6,12 +6,16 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
-import { signIn } from "@/lib/auth-client";
+import { signIn, signOut, useSession } from "@/lib/auth-client";
 
 export default function SignInForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") ?? "/dashboard";
+  const justCreated = params.get("created") === "1";
+
+  const { data: session } = useSession();
+  const signedInAs = session?.user?.email ?? null;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -20,16 +24,36 @@ export default function SignInForm() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
     setError(null);
-    const { error: err } = await signIn.email({ email, password });
-    if (err) {
-      setError(err.message ?? "Could not sign in.");
-      setBusy(false);
-      return;
+
+    let leaving = false;
+    try {
+      // Sign out any existing session first. Without this, submitting the
+      // form while already signed in silently kept the old session and just
+      // navigated — which looked like "it goes straight to the dashboard"
+      // and made switching accounts impossible.
+      if (signedInAs) await signOut().catch(() => {});
+
+      const { error: err } = await signIn.email({ email, password });
+      if (err) {
+        setError(err.message || "Could not sign in. Check your email and password.");
+        return;
+      }
+      leaving = true;
+      router.push(next);
+      router.refresh();
+    } catch (err) {
+      console.error("[sign-in] unexpected failure:", err);
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "We couldn't reach the server. Check your connection and try again.",
+      );
+    } finally {
+      if (!leaving) setBusy(false);
     }
-    router.push(next);
-    router.refresh();
   }
 
   return (
@@ -48,6 +72,44 @@ export default function SignInForm() {
           <TwoTone as="h1" size="lg" className="mb-8">
             <em>Sign in</em> to pick up where you left off.
           </TwoTone>
+
+          {justCreated && (
+            <p className="mb-6 text-[0.9rem] text-gray-strong border-l-2 border-ink pl-3">
+              Your account was created. Sign in to continue.
+            </p>
+          )}
+
+          {/* Already signed in. Say so plainly and offer both doors, rather
+              than showing a form that appears to do nothing. */}
+          {signedInAs && (
+            <div className="mb-6 border border-hairline rounded-lg bg-surface p-4">
+              <p className="text-[0.9rem] mb-3">
+                You&apos;re signed in as{" "}
+                <span className="font-medium">{signedInAs}</span>.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  href={next}
+                  className="text-[0.9rem] text-ink underline underline-offset-4"
+                >
+                  Continue to {next === "/admin" ? "admin" : "your dashboard"}
+                </Link>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await signOut().catch(() => {});
+                    window.location.href = "/sign-in";
+                  }}
+                  className="text-[0.9rem] text-gray-mid hover:text-ink underline underline-offset-4 transition-quiet"
+                >
+                  Sign out
+                </button>
+              </div>
+              <p className="text-[0.8rem] text-gray-mid mt-3">
+                Or sign in below as someone else.
+              </p>
+            </div>
+          )}
 
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
             <label className="flex flex-col gap-2">
