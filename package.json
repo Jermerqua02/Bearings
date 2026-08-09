@@ -17,13 +17,15 @@
     "test:boundary": "tsx scripts/test-boundary.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@better-auth/drizzle-adapter": "1.6.25",
     "better-auth": "1.6.25",
     "drizzle-orm": "^0.45.2",
     "next": "^15.3.0",
     "postgres": "^3.4.9",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",
