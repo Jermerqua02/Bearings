@@ -16,6 +16,7 @@ import { getSessionCookie } from "better-auth/cookies";
 
 const STUDENT_ONLY = ["/counselor", "/interviews"];
 const PROTECTED = [
+  "/admin",
   "/dashboard",
   "/counselor",
   "/explore",
@@ -54,6 +55,7 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/admin/:path*",
     "/dashboard/:path*",
     "/counselor/:path*",
     "/explore/:path*",

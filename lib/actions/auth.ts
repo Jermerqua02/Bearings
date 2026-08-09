@@ -15,9 +15,10 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
-import type { Role } from "@/lib/types";
+import { SELF_ASSIGNABLE_ROLES, type SelfAssignableRole } from "@/lib/types";
 
-const ROLES: readonly Role[] = ["student", "parent"];
+/** Never widen this to include "admin". See SELF_ASSIGNABLE_ROLES. */
+const ROLES: readonly SelfAssignableRole[] = SELF_ASSIGNABLE_ROLES;
 
 export type SignUpResult = { ok: true } | { ok: false; error: string };
 
@@ -36,10 +37,10 @@ export async function signUpWithRole(input: {
   }
 
   // Never trust the wire value — narrow to the two roles that exist.
-  if (!ROLES.includes(input.role as Role)) {
+  if (!ROLES.includes(input.role as SelfAssignableRole)) {
     return { ok: false, error: "Choose whether you're a student or a parent." };
   }
-  const role = input.role as Role;
+  const role = input.role as SelfAssignableRole;
 
   try {
     const result = await auth.api.signUpEmail({

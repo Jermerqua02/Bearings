@@ -15,7 +15,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "tsx scripts/seed.ts",
-    "test:boundary": "tsx scripts/test-boundary.ts"
+    "test:boundary": "tsx scripts/test-boundary.ts",
+    "admin:grant": "tsx scripts/grant-admin.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

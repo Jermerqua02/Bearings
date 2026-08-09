@@ -2,7 +2,19 @@
    Northstar domain model
    ———————————————————————————————————————— */
 
-export type Role = "student" | "parent";
+export type Role = "student" | "parent" | "admin";
+
+/**
+ * The roles a person may choose for themselves at signup.
+ *
+ * Deliberately NOT derived from Role. Admin is granted out of band by
+ * scripts/grant-admin.ts or by an existing admin — deriving this list from
+ * the type would have made "admin" self-assignable the moment it was added,
+ * which is the same shape as the role-escalation hole found in Better Auth's
+ * additionalFields.
+ */
+export const SELF_ASSIGNABLE_ROLES = ["student", "parent"] as const;
+export type SelfAssignableRole = (typeof SELF_ASSIGNABLE_ROLES)[number];
 
 export type GradeLevel = 9 | 10 | 11 | 12;
 

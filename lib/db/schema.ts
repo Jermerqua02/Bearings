@@ -31,7 +31,7 @@ import {
 
 /* ————————————— Enums ————————————— */
 
-export const roleEnum = pgEnum("role", ["student", "parent"]);
+export const roleEnum = pgEnum("role", ["student", "parent", "admin"]);
 export const gradeModeEnum = pgEnum("grade_mode", ["build", "explore", "apply", "decide"]);
 export const chanceTierEnum = pgEnum("chance_tier", ["reach", "target", "likely"]);
 export const testPolicyEnum = pgEnum("test_policy", ["required", "optional", "blind"]);

@@ -29,6 +29,7 @@ import { db as _db } from "@/lib/db";
 import { parentProfiles } from "@/lib/db/schema";
 import type {
   Activity,
+  Role,
   AidOffer,
   AidStatus,
   CoursePlanEntry,
@@ -56,7 +57,7 @@ export interface AppSnapshot {
   parentLinked: boolean;
   /** Whose records these are. A parent is viewing their linked student's. */
   subjectStudentId: string | null;
-  viewerRole: "student" | "parent";
+  viewerRole: Role;
 }
 
 export const emptyUniversal: UniversalProfile = {
@@ -77,11 +78,11 @@ export const emptyUniversal: UniversalProfile = {
 };
 
 /** The shape a signed-out visitor gets, so public pages still render. */
-export function emptySnapshotFor(role: "student" | "parent" | null): AppSnapshot {
+export function emptySnapshotFor(role: Role | null): AppSnapshot {
   return emptySnapshot(role ?? "student");
 }
 
-function emptySnapshot(role: "student" | "parent"): AppSnapshot {
+function emptySnapshot(role: Role): AppSnapshot {
   return {
     profile: null,
     list: [],
@@ -118,6 +119,11 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
   snap.parentLinked =
     viewer.role === "parent" ? Boolean(studentId) : await hasActiveLink(viewer.userId);
 
+  if (viewer.role === "admin") {
+    // Admins have no student records of their own, and the admin surface
+    // reads through lib/db/queries/admin.ts, never this snapshot.
+    return snap;
+  }
   if (viewer.role === "parent" && !studentId) {
     snap.profile = await loadParentProfile(viewer.userId);
     return snap;
