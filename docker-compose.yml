@@ -1,0 +1,31 @@
+# Local development database.
+#
+# Railway Postgres stays private (no public TCP proxy) and is used when
+# deployed. This container is the dev equivalent; the same Drizzle migrations
+# run against both, so schemas don't drift.
+#
+#   docker compose up -d
+#   docker compose down          # stop, keep data
+#   docker compose down -v       # stop and wipe the volume
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: bearings-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bearings
+      POSTGRES_PASSWORD: bearings_local_dev
+      POSTGRES_DB: bearings
+    ports:
+      - "5433:5432" # 5433 on the host, to avoid clashing with a local Postgres
+    volumes:
+      - bearings_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bearings -d bearings"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bearings_pgdata:
