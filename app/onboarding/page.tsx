@@ -11,7 +11,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Chip from "@/components/ui/Chip";
 import SectionLabel from "@/components/ui/SectionLabel";
-import { counselor } from "@/lib/counselor";
+import { summarizeProfileAction } from "@/lib/actions/counselor";
 import { useApp } from "@/lib/profile-context";
 import type {
   GradeLevel,
@@ -346,7 +346,7 @@ function OnboardingFlow() {
     if (steps[nextIndex] === "summary") {
       setLoadingSummary(true);
       const profile = buildProfile(answers);
-      const text = await counselor.summarizeProfile(profile);
+      const text = await summarizeProfileAction();
       setSummary(text);
       setLoadingSummary(false);
     }

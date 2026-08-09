@@ -8,7 +8,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
-import { counselor, type InterviewFeedback } from "@/lib/counselor";
+import { type InterviewFeedback } from "@/lib/counselor";
+import { interviewTurnAction } from "@/lib/actions/counselor";
 import { getSchool } from "@/lib/data/schools";
 import { useApp } from "@/lib/profile-context";
 import type { School } from "@/lib/types";
@@ -55,7 +56,7 @@ export default function InterviewsPage() {
   const submit = async () => {
     if (!student || !answer.trim() || busy) return;
     setBusy(true);
-    const fb = await counselor.interviewTurn(student, school, question, answer);
+    const fb = await interviewTurnAction({ schoolId: school?.id ?? null, question, answer });
     setTurns((prev) => [...prev, { question, answer, feedback: fb }]);
     setAnswer("");
     const next = fb.followUp.match(/"([^"]+)"/)?.[1];

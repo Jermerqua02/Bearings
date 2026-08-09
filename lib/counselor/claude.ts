@@ -24,6 +24,7 @@ import type {
 import type { Profile, School, StudentProfile, Throughline } from "@/lib/types";
 import { chatSystemPrompt, RENDER_CARDS_TOOL, schoolContextNote } from "./prompt";
 import { enforceNeverWrites } from "./guardrails";
+import { recordUsage, type AiFeature, type UsageCounts } from "./usage";
 
 const MODEL = "claude-opus-5";
 
@@ -110,7 +111,7 @@ async function askJson<T>(
   userText: string,
   schema: Record<string, unknown>,
   maxTokens = 1024,
-): Promise<T> {
+): Promise<{ data: T; usage: UsageCounts }> {
   const res = await anthropic().messages.create({
     model: MODEL,
     max_tokens: maxTokens,
@@ -120,13 +121,19 @@ async function askJson<T>(
     messages: [{ role: "user", content: userText }],
   });
   const text = textOf(res.content);
-  return JSON.parse(text) as T;
+  return { data: JSON.parse(text) as T, usage: res.usage as UsageCounts };
 }
 
 export function createClaudeCounselor(deps: {
   /** Valid school ids, for pruning hallucinated references. */
   knownSchoolIds: () => Promise<Set<string>>;
+  /** Who to bill this call to. Every call is metered. */
+  userId: string;
 }): CounselorService {
+  const meter = (feature: AiFeature, usage: UsageCounts | undefined) => {
+    if (usage) void recordUsage(deps.userId, feature, usage);
+  };
+
   return {
     async chat(req: CounselorRequest): Promise<CounselorResponse> {
       const contextNote = req.context?.screen
@@ -143,6 +150,7 @@ export function createClaudeCounselor(deps: {
         [...history, { role: "user", content: req.message }],
         { tools: [RENDER_CARDS_TOOL], maxTokens: 2048 },
       );
+      meter("chat", res.usage as UsageCounts);
 
       if (res.stop_reason === "refusal") {
         return {
@@ -181,6 +189,7 @@ export function createClaudeCounselor(deps: {
         ],
         { maxTokens: 400, effort: "low" },
       );
+      meter("greet", res.usage as UsageCounts);
       return {
         id: messageId(),
         author: "counselor",
@@ -201,6 +210,7 @@ export function createClaudeCounselor(deps: {
         ],
         { maxTokens: 400, effort: "low" },
       );
+      meter("summarize", res.usage as UsageCounts);
       return textOf(res.content);
     },
 
@@ -215,7 +225,7 @@ export function createClaudeCounselor(deps: {
           stillForming: { type: "boolean" },
         },
       };
-      return askJson<Throughline>(
+      const { data, usage } = await askJson<Throughline>(
         chatSystemPrompt(profile, ""),
         `Find the thread connecting this student's coursework, activities, and interests into one coherent story — the thing an admissions reader would remember.
 
@@ -224,6 +234,8 @@ Write "paragraph" in second person, addressed to the student. Give 3–4 short "
 This is self-understanding, not positioning. Never compare them to other applicants.`,
         schema,
       );
+      meter("throughline", usage);
+      return data;
     },
 
     async whyThisSchool(profile: StudentProfile, school: School): Promise<string> {
@@ -237,6 +249,7 @@ This is self-understanding, not positioning. Never compare them to other applica
         ],
         { maxTokens: 250, effort: "low" },
       );
+      meter("why_school", res.usage as UsageCounts);
       return textOf(res.content);
     },
 
@@ -266,7 +279,7 @@ This is self-understanding, not positioning. Never compare them to other applica
         },
       };
 
-      const raw = await askJson<EssayFeedback>(
+      const { data: raw, usage } = await askJson<EssayFeedback>(
         `${chatSystemPrompt(profile, "")}
 
 You are reading a draft. You critique and you ask questions. You NEVER write
@@ -291,6 +304,7 @@ Give observations on structure, specificity, and voice, and questions that would
 
       // The prompt asks; this enforces. A helpful model will still slip a
       // suggested line into a note.
+      meter("essay_feedback", usage);
       const { feedback, violations } = enforceNeverWrites(raw, essayText);
       if (violations.length) {
         console.warn("[essay-guardrail]", violations.join("; "));
@@ -317,7 +331,7 @@ Give observations on structure, specificity, and voice, and questions that would
         },
       };
 
-      const res = await askJson<InterviewFeedback & { nextQuestion: string }>(
+      const { data: turn, usage } = await askJson<InterviewFeedback & { nextQuestion: string }>(
         chatSystemPrompt(profile, schoolContextNote(school)),
         `Mock interview${school ? ` for ${school.name}` : ""}.
 
@@ -331,7 +345,8 @@ followUp.`,
         schema,
         1200,
       );
-      return res;
+      meter("interview", usage);
+      return turn;
     },
   };
 }

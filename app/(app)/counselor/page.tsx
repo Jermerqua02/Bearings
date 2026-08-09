@@ -21,6 +21,12 @@ import {
   type CounselorCard,
   type CounselorMessage,
 } from "@/lib/counselor";
+import {
+  chatAction,
+  createThreadAction,
+  greetAction,
+  listThreadsAction,
+} from "@/lib/actions/counselor";
 import { getSchool } from "@/lib/data/schools";
 import { useApp } from "@/lib/profile-context";
 import type { ChanceTier } from "@/lib/types";
@@ -271,12 +277,14 @@ function CounselorInner() {
 
   const startThread = useCallback(async () => {
     if (!profile) return;
-    const greeting = await counselor.greet(profile);
-    if (contextSchool) {
-      greeting.text = `Let's talk about ${contextSchool.name}. I've pulled up what I know — and what I know about you. What's on your mind: fit, cost, chances, or something else?`;
-    }
+    // The thread is created server-side so it persists; the id comes back
+    // from the database rather than being minted in the browser.
+    const id = await createThreadAction(
+      contextSchool ? `About ${contextSchool.shortName}` : undefined,
+    );
+    const greeting = await greetAction(id);
     const t: Thread = {
-      id: `t-${Date.now()}`,
+      id,
       title: contextSchool ? `About ${contextSchool.shortName}` : "New conversation",
       messages: [greeting],
     };
@@ -287,7 +295,17 @@ function CounselorInner() {
   useEffect(() => {
     if (!startedRef.current && profile) {
       startedRef.current = true;
-      void startThread();
+      // Resume persisted conversations; only start a new one if there are none.
+      void listThreadsAction()
+        .then((saved) => {
+          if (saved.length > 0 && !contextSchool) {
+            setThreads(saved);
+            setActiveId(saved[saved.length - 1].id);
+            return;
+          }
+          return startThread();
+        })
+        .catch(() => void startThread());
     }
   }, [profile, startThread]);
 
@@ -319,21 +337,20 @@ function CounselorInner() {
     );
     setInput("");
     setBusy(true);
-    const res = await counselor.chat({
-      profile,
+    // No profile and no history on the wire — the server reads both from
+    // the session and the database.
+    const reply = await chatAction({
       threadId: active.id,
       message: text.trim(),
       context: contextSchool ? { schoolId: contextSchool.id } : undefined,
-      history: active.messages,
     });
     setThreads((prev) =>
       prev.map((t) =>
         t.id === active.id
-          ? { ...t, messages: [...t.messages, res.message] }
+          ? { ...t, messages: [...t.messages, reply] }
           : t
       )
     );
-    if (res.nudge) setNudge(res.nudge);
     setBusy(false);
   };
 

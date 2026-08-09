@@ -25,7 +25,13 @@
       "Bash(railway status *)",
       "Bash(railway link *)",
       "Bash(railway logs *)",
-      "Bash(railway service *)"
+      "Bash(railway service *)",
+      "Bash(node -e \"require\\('@next/env'\\).loadEnvConfig\\(process.cwd\\(\\)\\);const k=process.env.ANTHROPIC_API_KEY;console.log\\(k?'local key: present':'local key: absent'\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const v=JSON.parse\\(s\\);console.log\\('railway ANTHROPIC_API_KEY:', 'ANTHROPIC_API_KEY' in v?'set':'not set'\\)}\\)\")",
+      "Bash(npx drizzle-kit *)",
+      "Bash(docker compose *)",
+      "Bash(npx tsx -e ' *)",
+      "Bash(node *)"
     ]
   },
   "enabledMcpjsonServers": [

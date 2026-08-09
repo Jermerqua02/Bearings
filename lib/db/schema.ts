@@ -777,3 +777,45 @@ export const schoolExplanations = pgTable(
   },
   (t) => [unique("school_explanation_unique").on(t.studentId, t.schoolId)],
 );
+
+/* ————————————————————————————————————————
+   AI usage.
+
+   Every Claude call records what it cost. lib/counselor/claude.ts already
+   receives usage on each response and discarded it. This is what makes AI
+   spend visible per user and per feature, and it's the data a per-user rate
+   limit would need.
+   ———————————————————————————————————————— */
+
+export const aiFeatureEnum = pgEnum("ai_feature", [
+  "chat",
+  "greet",
+  "essay_feedback",
+  "interview",
+  "why_school",
+  "throughline",
+  "summarize",
+]);
+
+export const aiUsage = pgTable(
+  "ai_usage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    feature: aiFeatureEnum("feature").notNull(),
+    model: text("model").notNull(),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    cacheReadTokens: integer("cache_read_tokens").notNull().default(0),
+    cacheCreationTokens: integer("cache_creation_tokens").notNull().default(0),
+    /** Tenths of a cent, so sub-cent calls don't round to zero. */
+    costMillicents: integer("cost_millicents").notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    index("ai_usage_user_idx").on(t.userId),
+    index("ai_usage_created_idx").on(t.createdAt),
+  ],
+);

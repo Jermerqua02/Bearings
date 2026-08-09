@@ -36,7 +36,14 @@ async function knownSchoolIds(): Promise<Set<string>> {
   return knownIds;
 }
 
-const service = createClaudeCounselor({ knownSchoolIds });
+/**
+ * A per-request service instance. Every call is metered against the caller,
+ * so the factory needs the viewer's id — which is why this is built per
+ * request rather than once at module scope.
+ */
+function serviceFor(userId: string) {
+  return createClaudeCounselor({ knownSchoolIds, userId });
+}
 
 /** The viewer's profile, read from the session — never from the client. */
 async function sessionProfile() {
@@ -107,8 +114,8 @@ async function persist(threadId: string, msg: CounselorMessage) {
 /* ————————————— Chat ————————————— */
 
 export async function greetAction(threadId: string): Promise<CounselorMessage> {
-  const { profile } = await sessionProfile();
-  const msg = await service.greet(profile);
+  const { viewer, profile } = await sessionProfile();
+  const msg = await serviceFor(viewer.userId).greet(profile);
   await persist(threadId, msg);
   return msg;
 }
@@ -143,7 +150,7 @@ export async function chatAction(input: {
     createdAt: new Date().toISOString(),
   });
 
-  const res = await service.chat({
+  const res = await serviceFor(s.userId).chat({
     profile,
     threadId: input.threadId,
     message: input.message,
@@ -194,7 +201,7 @@ export async function whyThisSchoolAction(schoolId: string): Promise<string> {
 
   if (cached && cached.profileHash === hash) return cached.text;
 
-  const text = await service.whyThisSchool(profile, school as School);
+  const text = await serviceFor(viewer.userId).whyThisSchool(profile, school as School);
 
   await db
     .insert(schoolExplanations)
@@ -233,11 +240,11 @@ export async function essayFeedbackAction(input: {
   promptText: string;
   essayText: string;
 }): Promise<EssayFeedback> {
-  const { profile } = await sessionProfile();
+  const { viewer, profile } = await sessionProfile();
   if (profile.role !== "student") {
     return { observations: [], questions: [] };
   }
-  return service.essayFeedback(profile as StudentProfile, input.promptText, input.essayText);
+  return serviceFor(viewer.userId).essayFeedback(profile as StudentProfile, input.promptText, input.essayText);
 }
 
 export async function interviewTurnAction(input: {
@@ -245,15 +252,15 @@ export async function interviewTurnAction(input: {
   question: string;
   answer: string;
 }): Promise<InterviewFeedback & { nextQuestion?: string }> {
-  const { profile } = await sessionProfile();
+  const { viewer, profile } = await sessionProfile();
   if (profile.role !== "student") {
     return { strengths: [], toWorkOn: [], followUp: "" };
   }
   const school = input.schoolId ? ((getSchool(input.schoolId) ?? null) as School | null) : null;
-  return service.interviewTurn(profile as StudentProfile, school, input.question, input.answer);
+  return serviceFor(viewer.userId).interviewTurn(profile as StudentProfile, school, input.question, input.answer);
 }
 
 export async function summarizeProfileAction(): Promise<string> {
-  const { profile } = await sessionProfile();
-  return service.summarizeProfile(profile);
+  const { viewer, profile } = await sessionProfile();
+  return serviceFor(viewer.userId).summarizeProfile(profile);
 }

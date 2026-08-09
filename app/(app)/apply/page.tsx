@@ -9,7 +9,8 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
-import { counselor, type EssayFeedback } from "@/lib/counselor";
+import { type EssayFeedback } from "@/lib/counselor";
+import { essayFeedbackAction } from "@/lib/actions/counselor";
 import { getSchool } from "@/lib/data/schools";
 import { daysUntil, nextDeadline } from "@/lib/match";
 import { useApp } from "@/lib/profile-context";
@@ -322,7 +323,7 @@ function EssaysTab() {
     if (!student || !active || !active.text.trim()) return;
     setCritiquing(true);
     setFeedback(null);
-    const fb = await counselor.essayFeedback(student, active.promptText, active.text);
+    const fb = await essayFeedbackAction({ promptText: active.promptText, essayText: active.text });
     setFeedback(fb);
     setCritiquing(false);
   };

@@ -12,7 +12,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
-import { counselor } from "@/lib/counselor";
+import { whyThisSchoolAction } from "@/lib/actions/counselor";
 import { getSchool } from "@/lib/data/schools";
 import { chanceTier, fit, nextDeadline } from "@/lib/match";
 import { useApp } from "@/lib/profile-context";
@@ -82,7 +82,7 @@ export default function SchoolDetailPage() {
   useEffect(() => {
     let live = true;
     if (student && school) {
-      void counselor.whyThisSchool(student, school).then((t) => {
+      void whyThisSchoolAction(school.id).then((t) => {
         if (live) setWhy(t);
       });
     }
