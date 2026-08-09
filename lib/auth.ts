@@ -11,6 +11,7 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { nextCookies } from "better-auth/next-js";
 import { db } from "@/lib/db";
 import { accounts, sessions, users, verifications } from "@/lib/db/schema";
+import { passwordResetEmail, sendEmail } from "@/lib/email";
 
 if (!process.env.BETTER_AUTH_SECRET) {
   throw new Error(
@@ -36,10 +37,25 @@ export const auth = betterAuth({
 
   emailAndPassword: {
     enabled: true,
-    // Email delivery isn't wired yet; turning verification on before it is
-    // would lock every new account out.
+    // Email verification is separate from password reset and still isn't
+    // wired; turning it on before it is would lock every new account out.
     requireEmailVerification: false,
     minPasswordLength: 10,
+
+    // Until this existed there was no account recovery at all — a
+    // forgotten password meant the account was gone, and most of our users
+    // are teenagers on shared devices.
+    sendResetPassword: async ({ user, url }) => {
+      const mail = passwordResetEmail(url, user.name);
+      const sent = await sendEmail({ ...mail, to: user.email });
+      if (!sent) {
+        // Deliberately not thrown. Better Auth returns success either way
+        // so the response can't be used to discover which addresses are
+        // registered; the log is where an operator finds out.
+        console.error(`[auth] could not send reset email to ${user.email}`);
+      }
+    },
+    resetPasswordTokenExpiresIn: 60 * 60, // one hour
   },
 
   user: {

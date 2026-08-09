@@ -13,6 +13,7 @@ export default function SignInForm() {
   const params = useSearchParams();
   const next = params.get("next") ?? "/dashboard";
   const justCreated = params.get("created") === "1";
+  const justReset = params.get("reset") === "1";
 
   const { data: session } = useSession();
   const signedInAs = session?.user?.email ?? null;
@@ -76,6 +77,12 @@ export default function SignInForm() {
           {justCreated && (
             <p className="mb-6 text-[0.9rem] text-gray-strong border-l-2 border-ink pl-3">
               Your account was created. Sign in to continue.
+            </p>
+          )}
+
+          {justReset && (
+            <p className="mb-6 text-[0.9rem] text-gray-strong border-l-2 border-ink pl-3">
+              Your password has been changed. Sign in with the new one.
             </p>
           )}
 
@@ -151,6 +158,14 @@ export default function SignInForm() {
             New here?{" "}
             <Link href="/sign-up" className="text-ink underline underline-offset-4">
               Create an account
+            </Link>
+          </p>
+          <p className="mt-3 text-[0.9rem] text-gray-mid">
+            <Link
+              href="/forgot-password"
+              className="text-gray-mid hover:text-ink underline underline-offset-4 transition-quiet"
+            >
+              Forgot your password?
             </Link>
           </p>
         </div>
