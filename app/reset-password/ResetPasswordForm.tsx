@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
-import { resetPassword } from "@/lib/auth-client";
+import { requestPasswordReset, resetPassword } from "@/lib/auth-client";
 
 const MIN_LENGTH = 10;
 
@@ -21,6 +21,27 @@ export default function ResetPasswordForm() {
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Resending, for when the link that brought them here has expired.
+  const [resendEmail, setResendEmail] = useState("");
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+
+  async function onResend(e: React.FormEvent) {
+    e.preventDefault();
+    if (resending) return;
+    setResending(true);
+    try {
+      await requestPasswordReset({ email: resendEmail, redirectTo: "/reset-password" });
+    } catch (err) {
+      console.error("[reset-password] resend failed:", err);
+    } finally {
+      // Same answer either way — see the note in ForgotPasswordForm about
+      // not turning this into a way to discover who has an account.
+      setResending(false);
+      setResent(true);
+    }
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -86,12 +107,37 @@ export default function ResetPasswordForm() {
                 This link has expired or has already been used. Reset links are
                 good for one hour and one use.
               </p>
-              <Link
-                href="/forgot-password"
-                className="text-[0.95rem] text-ink underline underline-offset-4"
-              >
-                Send me a new one
-              </Link>
+
+              {/* Resend inline. This used to be a link to /forgot-password,
+                  which reads as "send me one" but actually just navigates to
+                  an empty form — click it expecting an email and nothing
+                  happens. One field, one button, sends immediately. */}
+              {resent ? (
+                <p className="text-[0.95rem] leading-relaxed">
+                  Sent. Check your inbox — and your spam folder, since this is
+                  the first mail you&apos;ll have had from us.
+                </p>
+              ) : (
+                <form onSubmit={onResend} className="flex flex-col gap-3">
+                  <label className="flex flex-col gap-2">
+                    <span className="text-[0.85rem] text-gray-strong">
+                      Your email
+                    </span>
+                    <input
+                      type="email"
+                      required
+                      autoFocus
+                      autoComplete="email"
+                      value={resendEmail}
+                      onChange={(e) => setResendEmail(e.target.value)}
+                      className="px-4 py-3 border border-hairline rounded-lg bg-surface text-[0.95rem] focus:outline-none focus:border-ink transition-quiet"
+                    />
+                  </label>
+                  <Button type="submit" variant="primary" size="lg" disabled={resending}>
+                    {resending ? "Sending…" : "Send me a new link"}
+                  </Button>
+                </form>
+              )}
             </>
           ) : (
             <form onSubmit={onSubmit} className="flex flex-col gap-4">

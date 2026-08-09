@@ -29,12 +29,25 @@ export const COMPANY = {
 
   /* —— Review these four before launch —————————————————————————— */
 
-  /** Postal address. Required by CAN-SPAM and by most app stores. */
-  address: FILL_ME("Prompt LLC mailing address"),
+  /**
+   * Postal address. Required by CAN-SPAM on commercial email, expected by
+   * app stores, and the address a legal notice would be served to.
+   *
+   * This is currently a home address. It appears publicly in two documents
+   * on the open web. A registered-agent service, PO box, or virtual office
+   * would serve the same legal purpose without publishing where the owner
+   * lives — worth changing before this gets real traffic.
+   */
+  address: "11504 NE 103rd St, Kirkland, WA 98033",
   /** The US state whose law governs, and whose courts hear disputes. */
-  governingLawState: FILL_ME("state, e.g. Washington"),
-  /** The county + state for the venue clause. */
-  venue: FILL_ME("county and state"),
+  governingLawState: "Washington",
+  /**
+   * Venue: where a dispute is physically heard — the county and state an
+   * arbitration or lawsuit would take place in. Kirkland is in King County,
+   * so a dispute stays local rather than dragging either party across the
+   * country, which is the point of naming one.
+   */
+  venue: "King County, Washington",
 
   /* ——————————————————————————————————————————————————————————— */
 
@@ -45,7 +58,7 @@ export const COMPANY = {
 
 /** Bump when the substance changes. Stored with every acceptance. */
 export const TERMS_VERSION = "2026-08-09";
-export const PRIVACY_VERSION = "2026-08-09";
+export const PRIVACY_VERSION = "2026-08-09.2";
 
 /** Shown at the top of each document. Keep in step with the versions above. */
 export const TERMS_EFFECTIVE = "August 9, 2026";

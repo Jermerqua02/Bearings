@@ -124,6 +124,16 @@ export default function PrivacyPage() {
           third-party AI model provider, currently Anthropic, PBC, which
           processes it and returns a response.
         </p>
+        <p>
+          <strong>Read-aloud is separate.</strong> If you press &ldquo;Read
+          aloud&rdquo; to hear your profile summary spoken, the text of that
+          summary is sent to Google (Gemini) to synthesize the audio, because our
+          primary provider does not offer speech. Nothing else is sent — not your
+          essays, not your counselor conversations — and it happens only when you
+          press the button. If you would rather nothing leave your device, your
+          browser can read the text aloud itself; the feature falls back to that
+          automatically when the hosted voice is unavailable.
+        </p>
         <Bullets
           items={[
             <>
@@ -163,8 +173,10 @@ export default function PrivacyPage() {
             <>
               <strong>Service providers</strong> that run the product on our
               behalf, bound by contract to use it only for that purpose: our
-              hosting and database provider (Railway), and our AI model provider
-              (Anthropic). Each receives the minimum needed.
+              hosting and database provider (Railway), our AI model provider
+              (Anthropic), our email provider (Resend, for password resets and
+              notifications), and Google (Gemini) for read-aloud speech only.
+              Each receives the minimum needed for its job.
             </>,
             <>
               <strong>A linked parent or guardian,</strong> within the limits in
