@@ -23,6 +23,7 @@ import {
 } from "@/lib/db/schema";
 import { requireStudent, requireViewer } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
 import type { CounselorCard, CounselorMessage, EssayFeedback, InterviewFeedback } from "@/lib/counselor";
 import type { School, StudentProfile } from "@/lib/types";
@@ -44,6 +45,25 @@ async function knownSchoolIds(): Promise<Set<string>> {
  */
 function serviceFor(userId: string) {
   return createClaudeCounselor({ knownSchoolIds, userId });
+}
+
+/**
+ * Every AI call passes through here, so the spend guard goes here too —
+ * one place rather than eight call sites, none of which can be forgotten.
+ *
+ * Throws rather than returning a result, because the callers return domain
+ * shapes (a message, a feedback object) with nowhere sensible to put "you
+ * are going too fast". The thrown message is written to be shown.
+ */
+async function guardedServiceFor(userId: string, feature: string) {
+  const rate = await checkRateLimit(userId, feature);
+  if (!rate.allowed) {
+    const minutes = Math.ceil(rate.retryAfterSeconds / 60);
+    throw new Error(
+      `You've reached the limit for this feature (${rate.limit} an hour). Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`,
+    );
+  }
+  return serviceFor(userId);
 }
 
 /** The viewer's profile, read from the session — never from the client. */
@@ -149,7 +169,7 @@ async function listSummaryFor(studentId: string): Promise<string> {
 
 export async function greetAction(threadId: string): Promise<CounselorMessage> {
   const { viewer, profile } = await sessionProfile();
-  const msg = await serviceFor(viewer.userId).greet(profile);
+  const msg = await (await guardedServiceFor(viewer.userId, "greet")).greet(profile);
   await persist(threadId, msg);
   return msg;
 }
@@ -184,7 +204,7 @@ export async function chatAction(input: {
     createdAt: new Date().toISOString(),
   });
 
-  const res = await serviceFor(s.userId).chat({
+  const res = await (await guardedServiceFor(s.userId, "chat")).chat({
     profile,
     threadId: input.threadId,
     message: input.message,
@@ -235,7 +255,7 @@ export async function whyThisSchoolAction(schoolId: string): Promise<string> {
 
   if (cached && cached.profileHash === hash) return cached.text;
 
-  const text = await serviceFor(viewer.userId).whyThisSchool(profile, school as School);
+  const text = await (await guardedServiceFor(viewer.userId, "why_school")).whyThisSchool(profile, school as School);
 
   await db
     .insert(schoolExplanations)
@@ -278,7 +298,8 @@ export async function essayFeedbackAction(input: {
   if (profile.role !== "student") {
     return { observations: [], questions: [] };
   }
-  return serviceFor(viewer.userId).essayFeedback(profile as StudentProfile, input.promptText, input.essayText);
+  const svc = await guardedServiceFor(viewer.userId, "essay_feedback");
+  return svc.essayFeedback(profile as StudentProfile, input.promptText, input.essayText);
 }
 
 export async function interviewTurnAction(input: {
@@ -291,10 +312,12 @@ export async function interviewTurnAction(input: {
     return { strengths: [], toWorkOn: [], followUp: "" };
   }
   const school = input.schoolId ? ((getSchool(input.schoolId) ?? null) as School | null) : null;
-  return serviceFor(viewer.userId).interviewTurn(profile as StudentProfile, school, input.question, input.answer);
+  const svc = await guardedServiceFor(viewer.userId, "interview");
+  return svc.interviewTurn(profile as StudentProfile, school, input.question, input.answer);
 }
 
 export async function summarizeProfileAction(): Promise<string> {
   const { viewer, profile } = await sessionProfile();
-  return serviceFor(viewer.userId).summarizeProfile(profile);
+  const svc = await guardedServiceFor(viewer.userId, "summarize");
+  return svc.summarizeProfile(profile);
 }

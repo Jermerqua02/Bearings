@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { essayShares, essays, parentStudentLinks, users } from "@/lib/db/schema";
 import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
+import { parentInviteEmail, sendEmail } from "@/lib/email";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -27,7 +28,7 @@ function fail(err: unknown): ActionResult {
 /** Student invites a parent by email. Returns the token for the invite link. */
 export async function inviteParent(
   parentEmail: string,
-): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+): Promise<{ ok: true; token: string; sent: boolean } | { ok: false; error: string }> {
   try {
     const student = await requireStudent();
     const email = parentEmail.trim().toLowerCase();
@@ -70,8 +71,26 @@ export async function inviteParent(
       });
     }
 
+    // Send it. Until this existed the token was returned to the student's
+    // browser and nowhere else — the parent was never told they had been
+    // invited, which made the entire parent side of the product
+    // unreachable unless the student copied a link by hand.
+    const base = process.env.BETTER_AUTH_URL ?? "";
+    const sent = await sendEmail({
+      ...parentInviteEmail({
+        studentName: student.name || "A student",
+        acceptUrl: `${base}/invite/${token}`,
+      }),
+      to: email,
+    });
+    if (!sent) {
+      console.error(`[linking] invite created but email to ${email} did not send`);
+    }
+
     revalidatePath("/settings");
-    return { ok: true, token };
+    // `sent` is reported so the UI can offer the link to copy by hand when
+    // delivery failed, rather than claiming an invitation went out.
+    return { ok: true, token, sent };
   } catch (err) {
     return fail(err) as { ok: false; error: string };
   }

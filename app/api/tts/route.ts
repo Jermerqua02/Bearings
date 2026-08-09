@@ -14,6 +14,7 @@ import { requireViewer } from "@/lib/auth/policy";
 import { MAX_SPEECH_CHARS, synthesize } from "@/lib/tts";
 import { recordUsage } from "@/lib/counselor/usage";
 import { speechCostMillicents } from "@/lib/costs";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: `Text is too long to read (limit ${MAX_SPEECH_CHARS} characters).` },
       { status: 413 },
+    );
+  }
+
+  // Bound what one account can spend before calling the provider, not after.
+  const rate = await checkRateLimit(viewer.userId, "speech");
+  if (!rate.allowed) {
+    return NextResponse.json(
+      {
+        error: `You've used the read-aloud limit for now (${rate.limit} an hour). Try again shortly.`,
+      },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
     );
   }
 

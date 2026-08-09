@@ -18,6 +18,7 @@
     "test:boundary": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-boundary.ts",
     "test:legal": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-legal.ts",
     "test:onboarding": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-onboarding.ts",
+    "test:rate": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-rate-limit.ts",
     "test:budget": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-budget-alert.ts",
     "test:admin": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-admin.ts",
     "admin:grant": "NODE_OPTIONS=--conditions=react-server tsx scripts/grant-admin.ts",

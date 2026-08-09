@@ -115,6 +115,36 @@ export function passwordResetEmail(url: string, name?: string): Mail {
   };
 }
 
+export function parentInviteEmail(input: {
+  studentName: string;
+  acceptUrl: string;
+}): Mail {
+  return {
+    to: "",
+    subject: `${input.studentName} invited you to follow their college search`,
+    text: `${input.studentName} is using Northstar to plan for college and has invited you to follow along.
+
+Accept here: ${input.acceptUrl}
+
+You'll see their progress, deadlines, school list and costs. You will not see their private conversations with the AI counselor or their essay drafts unless they choose to share them.`,
+    html: SHELL(`
+      <p style="margin:0 0 20px">
+        <strong>${input.studentName}</strong> is using Northstar to plan for
+        college, and has invited you to follow along.
+      </p>
+      ${BUTTON(input.acceptUrl, "Accept the invitation")}
+      <p style="margin:0 0 10px;font-size:14px;color:#5a5a5a">
+        <strong>What you'll see:</strong> their progress and deadlines, the
+        schools on their list, and what each one would actually cost.
+      </p>
+      <p style="margin:0;font-size:14px;color:#5a5a5a">
+        <strong>What you won't:</strong> their private conversations with the
+        counselor, or their essay drafts — unless they choose to share them.
+        That boundary is built into the product, not just promised here.
+      </p>`),
+  };
+}
+
 export function budgetAlertEmail(input: {
   threshold: number;
   spentUsd: number;

@@ -19,8 +19,19 @@
    loudly outside production instead of quietly shipping a blank.
    ———————————————————————————————————————— */
 
-/** Marks a value that must be supplied before these documents are relied on. */
-const FILL_ME = (what: string) => `⟦ ${what} ⟧`;
+/**
+ * Marks a value that must be supplied before these documents are relied on.
+ *
+ * Registered here as well as rendered, so hasUnfilledPlaceholders() reports
+ * on what is actually missing rather than pattern-matching the text — a
+ * check that breaks the moment someone edits the wording.
+ */
+const UNFILLED = new Set<string>();
+const FILL_ME = (what: string) => {
+  const value = `(${what})`;
+  UNFILLED.add(value);
+  return value;
+};
 
 export const COMPANY = {
   /** The operating entity. Northstar is the product; Prompt LLC is the company. */
@@ -31,14 +42,15 @@ export const COMPANY = {
 
   /**
    * Postal address. Required by CAN-SPAM on commercial email, expected by
-   * app stores, and the address a legal notice would be served to.
+   * app stores, and where a legal notice would be served.
    *
-   * This is currently a home address. It appears publicly in two documents
-   * on the open web. A registered-agent service, PO box, or virtual office
-   * would serve the same legal purpose without publishing where the owner
-   * lives — worth changing before this gets real traffic.
+   * Deliberately a placeholder. The owner's home address was here briefly;
+   * publishing where someone lives, in two documents on the open web, on a
+   * product used by teenagers, is not a trade worth making for a field
+   * nobody reads. A registered-agent service, PO box, or virtual office
+   * satisfies the same requirements for about $50–150 a year.
    */
-  address: "11504 NE 103rd St, Kirkland, WA 98033",
+  address: FILL_ME("address needed here"),
   /** The US state whose law governs, and whose courts hear disputes. */
   governingLawState: "Washington",
   /**
@@ -77,7 +89,14 @@ export const MINIMUM_AGE = 13;
 
 /** True when any value above is still a placeholder. */
 export function hasUnfilledPlaceholders(): boolean {
-  return Object.values(COMPANY).some((v) => typeof v === "string" && v.startsWith("⟦"));
+  return Object.values(COMPANY).some((v) => typeof v === "string" && UNFILLED.has(v));
+}
+
+/** Which fields still need a real answer — for the admin attention list. */
+export function unfilledFields(): string[] {
+  return Object.entries(COMPANY)
+    .filter(([, v]) => typeof v === "string" && UNFILLED.has(v))
+    .map(([k]) => k);
 }
 
 /** The documents a user must accept to create an account. */
