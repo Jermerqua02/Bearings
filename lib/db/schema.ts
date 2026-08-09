@@ -128,6 +128,7 @@ export const involvementEnum = pgEnum("involvement_level", [
   "hands-on",
 ]);
 export const linkStatusEnum = pgEnum("link_status", ["invited", "active", "revoked"]);
+export const legalDocumentEnum = pgEnum("legal_document", ["terms", "privacy"]);
 export const messageAuthorEnum = pgEnum("message_author", ["user", "counselor"]);
 
 const timestamps = {
@@ -817,5 +818,42 @@ export const aiUsage = pgTable(
   (t) => [
     index("ai_usage_user_idx").on(t.userId),
     index("ai_usage_created_idx").on(t.createdAt),
+  ],
+);
+
+/* ————————————————————————————————————————
+   Legal consent.
+
+   Append-only. A row is the evidence that a specific person accepted a
+   specific version of a specific document at a specific moment, from a
+   specific address — which is the part that matters if the agreement is
+   ever questioned. Nothing updates or deletes a row here; re-accepting a
+   new version writes a new one, so the history stays intact.
+
+   Deliberately not a boolean on `user`: a flag records that someone
+   agreed to something, but not to *what*, which is the only version of
+   the fact worth having.
+   ———————————————————————————————————————— */
+export const legalConsents = pgTable(
+  "legal_consent",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    document: legalDocumentEnum("document").notNull(),
+    /** The version string from lib/legal.ts, e.g. "2026-08-09". */
+    version: text("version").notNull(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Evidence of the acceptance. Null when a proxy hides the origin. */
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    ...timestamps,
+  },
+  (t) => [
+    index("legal_consent_user_idx").on(t.userId),
+    // One acceptance per person per document version — re-accepting the
+    // same version is idempotent rather than a duplicate record.
+    unique("legal_consent_unique").on(t.userId, t.document, t.version),
   ],
 );

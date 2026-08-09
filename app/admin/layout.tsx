@@ -9,13 +9,14 @@ import { getViewer } from "@/lib/auth/policy";
    trusting client-supplied data. A non-admin is sent to the dashboard, not
    shown a 403 — there's no reason to confirm the surface exists. */
 
+/* Only routes that exist. The nav previously listed /admin/activity,
+   /admin/codes and /admin/audit, none of which had pages — every one was a
+   404 for the only person allowed to click it. Add the link back when the
+   screen lands, not before. */
 const NAV = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/users", label: "Users" },
-  { href: "/admin/activity", label: "Activity" },
-  { href: "/admin/usage", label: "AI usage" },
-  { href: "/admin/codes", label: "Access codes" },
-  { href: "/admin/audit", label: "Audit" },
+  { href: "/admin/usage", label: "Cost per user" },
 ];
 
 export default async function AdminLayout({

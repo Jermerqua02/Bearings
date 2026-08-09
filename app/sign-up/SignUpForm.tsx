@@ -8,7 +8,17 @@ import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { signUpWithRole } from "@/lib/actions/auth";
 import { signIn } from "@/lib/auth-client";
+import { MINIMUM_AGE } from "@/lib/legal";
 import type { Role } from "@/lib/types";
+
+/* The signup form.
+
+   On error handling: every await below is inside the try, and `busy` is
+   cleared in `finally` unless we are deliberately navigating away. Without
+   that, a server action that *threw* — rather than returning ok:false —
+   rejected the promise, left `busy` stuck at true, and the button read
+   "Creating account…" forever with nothing explaining why. A database that
+   was simply down looked identical to a hung page. */
 
 export default function SignUpForm() {
   const router = useRouter();
@@ -19,30 +29,57 @@ export default function SignUpForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [accepted, setAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+
     setBusy(true);
     setError(null);
 
-    // Signup goes through a server action, not Better Auth's endpoint, so the
-    // role is written in trusted code — see lib/actions/auth.ts.
-    const result = await signUpWithRole({ email, password, name, role });
-    if (!result.ok) {
-      setError(result.error);
-      setBusy(false);
-      return;
-    }
+    // Set only on the paths that navigate, so `finally` knows to leave the
+    // button in its working state while the next page loads.
+    let leaving = false;
 
-    const { error: signInErr } = await signIn.email({ email, password });
-    if (signInErr) {
-      router.push("/sign-in");
-      return;
+    try {
+      const result = await signUpWithRole({
+        email,
+        password,
+        name,
+        role,
+        acceptedTerms: accepted,
+        // One checkbox covers both; the server records them separately.
+        meetsAgeRequirement: accepted,
+      });
+
+      if (!result.ok) {
+        // Guard against an empty message rendering as no message at all.
+        setError(result.error || "Something went wrong. Please try again.");
+        return;
+      }
+
+      const { error: signInErr } = await signIn.email({ email, password });
+      leaving = true;
+      if (signInErr) {
+        // The account exists; only the automatic sign-in failed.
+        router.push("/sign-in?created=1");
+        return;
+      }
+      router.push(`/onboarding?role=${role}`);
+      router.refresh();
+    } catch (err) {
+      console.error("[sign-up] unexpected failure:", err);
+      setError(
+        err instanceof Error && err.message
+          ? err.message
+          : "We couldn't reach the server. Check your connection and try again.",
+      );
+    } finally {
+      if (!leaving) setBusy(false);
     }
-    router.push(`/onboarding?role=${role}`);
-    router.refresh();
   }
 
   return (
@@ -121,20 +158,49 @@ export default function SignUpForm() {
               <span className="text-[0.8rem] text-gray-mid">At least 10 characters.</span>
             </label>
 
+            <label className="flex gap-3 items-start pt-1 cursor-pointer">
+              <input
+                type="checkbox"
+                required
+                checked={accepted}
+                onChange={(e) => setAccepted(e.target.checked)}
+                className="mt-1 h-4 w-4 shrink-0 accent-ink cursor-pointer"
+              />
+              <span className="text-[0.85rem] text-gray-strong leading-relaxed">
+                I&apos;m at least {MINIMUM_AGE} years old and I agree to the{" "}
+                <Link
+                  href="/terms"
+                  target="_blank"
+                  className="text-ink underline underline-offset-4"
+                >
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link
+                  href="/privacy"
+                  target="_blank"
+                  className="text-ink underline underline-offset-4"
+                >
+                  Privacy Policy
+                </Link>
+                . If I&apos;m under 18, a parent or guardian agrees too.
+              </span>
+            </label>
+
             {error && (
               <p role="alert" className="text-[0.9rem] text-gray-strong border-l-2 border-ink pl-3">
                 {error}
               </p>
             )}
 
-            <Button type="submit" variant="primary" size="lg" disabled={busy}>
+            <Button type="submit" variant="primary" size="lg" disabled={busy || !accepted}>
               {busy ? "Creating account…" : "Create account"}
             </Button>
           </form>
 
           <p className="mt-6 text-[0.8rem] text-gray-mid leading-relaxed">
-            Most of our users are minors. We never sell or share student data — in the
-            product, not just the terms.
+            Most of our users are minors. We never sell or share student data — in
+            the product, not just the terms.
           </p>
 
           <p className="mt-6 text-[0.9rem] text-gray-mid">

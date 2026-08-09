@@ -42,7 +42,14 @@
       "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);if\\(j.error\\)return console.log\\('ERR:',j.error.message\\);const t=\\(j.content||[]\\).find\\(b=>b.type==='text'\\);console.log\\('stop:',j.stop_reason,'| starts with brace:',\\(t?.text||''\\).trim\\(\\).startsWith\\('{'\\)\\);console.log\\('text:',JSON.stringify\\(\\(t?.text||''\\).slice\\(0,120\\)\\)\\)}\\)\")",
       "Bash(curl -s -o /dev/null -w \"  /admin on production: %{http_code}\\\\n\" https://bearings-web-production.up.railway.app/admin)",
       "Bash(curl -s -X POST http://localhost:3000/api/auth/sign-up/email -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' -d '{\"email\":\"wannabe@example.com\",\"password\":\"correct-horse-battery\",\"name\":\"Wannabe\",\"role\":\"admin\"}' -o /dev/null -w '')",
-      "Bash(curl -s -c /tmp/w.txt -X POST http://localhost:3000/api/auth/sign-in/email -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' -d '{\"email\":\"wannabe@example.com\",\"password\":\"correct-horse-battery\"}' -o /dev/null)"
+      "Bash(curl -s -c /tmp/w.txt -X POST http://localhost:3000/api/auth/sign-in/email -H 'Content-Type: application/json' -H 'Origin: http://localhost:3000' -d '{\"email\":\"wannabe@example.com\",\"password\":\"correct-horse-battery\"}' -o /dev/null)",
+      "Bash(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' https://bearings-web-production.up.railway.app/admin)",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' https://bearings-web-production.up.railway.app/)",
+      "Bash(railway ssh *)",
+      "Bash(docker info *)",
+      "Bash(open -a Docker)",
+      "Bash(NODE_OPTIONS=\"--conditions=react-server\" npx tsx scripts/test-legal.ts)",
+      "Bash(git add *)"
     ]
   },
   "enabledMcpjsonServers": [

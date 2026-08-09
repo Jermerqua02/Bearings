@@ -277,11 +277,24 @@ export default function LandingPage() {
       {/* Footer */}
       <footer className="border-t border-hairline">
         <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
-          <span className="text-[0.9rem] text-gray-mid">Northstar</span>
+          <div className="flex flex-col gap-2">
+            <span className="text-[0.9rem] text-gray-mid">Northstar</span>
+            <span className="text-[0.8rem] text-gray-mid">
+              Operated by Prompt LLC · ©{new Date().getFullYear()}
+            </span>
+          </div>
           <p className="text-[0.8rem] text-gray-mid max-w-md">
             Most of our users are minors. We never sell or share student data —
             in the product, not just the terms.
           </p>
+          <nav className="flex items-center gap-5 text-[0.8rem] text-gray-mid">
+            <Link href="/terms" className="hover:text-ink transition-quiet">
+              Terms
+            </Link>
+            <Link href="/privacy" className="hover:text-ink transition-quiet">
+              Privacy
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>
