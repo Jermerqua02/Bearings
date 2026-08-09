@@ -12,7 +12,9 @@ Live at [bearings-web-production.up.railway.app](https://bearings-web-production
 
 **The twelve product screens:** landing and conversational onboarding · counselor chat with inline cards · school explorer · school detail · my list with tiers and compare · application manager (tracker, universal profile, essay workspace, recommenders, deadlines, aid) · planner (course grid, activities, opportunity finder) · interview prep · decision center · student and parent dashboards · settings.
 
-**Not yet:** real school data (still the seed set in `lib/data/schools.ts`), email delivery (no password reset link, no budget alert emails — see `/admin/apis`), map view, voice interviews.
+**Also working:** password reset by email (Resend), read-aloud with a Gemini voice and a live waveform, and budget alerts that fire on a threshold.
+
+**Not yet:** real school data (still the seed set in `lib/data/schools.ts`), a cron schedule calling `/api/cron/budget-alert` (the endpoint exists; Railway cron is configured in the dashboard), live infrastructure cost (needs a project-scoped `RAILWAY_API_TOKEN`), map view, voice interviews.
 
 ## Run it
 
@@ -35,6 +37,7 @@ npm run test:boundary     # the student/parent privacy boundary
 npm run test:legal        # consent records and cost attribution
 npm run test:onboarding   # onboarding actually persists
 npm run test:admin        # admin queries, feedback, budget settings
+npm run test:budget       # budget alert thresholds and suppression
 npm run test:live         # end-to-end against the real Claude API (costs money)
 ```
 
@@ -84,7 +87,8 @@ Next.js (App Router) · React 19 · TypeScript · Tailwind v4 · Postgres via Dr
 
 ## Before a real launch
 
-- Fill the placeholders in `lib/legal.ts` (mailing address, governing-law state, venue) and **have counsel review both documents** — most users are minors.
-- Wire email delivery, so password resets and budget alerts work.
-- Set `RAILWAY_API_TOKEN` and `RAILWAY_PROJECT_ID` for live infrastructure cost on `/admin/usage`.
+- **Have counsel review both documents** — most users are minors. The details are filled in (Prompt LLC, Washington law, King County venue), but the mailing address is a home address published on the open web; a registered agent or PO box does the same job.
+- Set a **project-scoped** `RAILWAY_API_TOKEN` (not the account token) plus `RAILWAY_PROJECT_ID`, for live infrastructure cost on `/admin/usage`.
+- Add a Railway cron hitting `/api/cron/budget-alert` with `Authorization: Bearer $CRON_SECRET`. Daily is plenty.
+- Verify a Northstar domain in Resend so email stops coming from a personal one.
 - Replace the seed school data.
