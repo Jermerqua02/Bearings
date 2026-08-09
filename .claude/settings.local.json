@@ -3,7 +3,21 @@
     "allow": [
       "Bash(gh auth *)",
       "Bash(gh api *)",
-      "Bash(gh repo *)"
+      "Bash(gh repo *)",
+      "Bash(git grep *)",
+      "Bash(echo \"exit=$? \\(1 = no matches\\)\")",
+      "Bash(git push *)",
+      "Bash(grep -v '^$')",
+      "Bash(curl *)",
+      "Bash(git ls-remote *)",
+      "Bash(git fetch *)",
+      "Bash(git ls-tree *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)",
+      "Bash(git remote *)",
+      "Bash(lsof -ti:3000)",
+      "Bash(xargs -r kill -9)",
+      "Bash(curl -sf -o /dev/null http://localhost:3000)"
     ]
   },
   "enabledMcpjsonServers": [

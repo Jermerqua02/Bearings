@@ -116,14 +116,14 @@ export default function SettingsPage() {
         <Card className="p-5">
           <Toggle
             label={parentLinked ? "Parent account linked" : "Link a parent account"}
-            description="A linked parent sees the shared view: your list, statuses, and deadlines. That's the whole list of what they see."
+            description="A linked parent sees the shared view: your list, statuses, deadlines, and the decision worksheet with aid offers. Nothing else."
             on={parentLinked}
             onToggle={() => setParentLinked(!parentLinked)}
           />
           <div className="border-t border-hairline my-2" />
           <Toggle
             label="Share essay drafts"
-            description="Off by default. Your counselor chats and essay drafts are never visible to a linked parent unless you turn this on."
+            description="Off by default, and set per essay. Your counselor chats are never visible to a linked parent. A shared draft shows only revisions saved after you shared it."
             on={shareEssays}
             onToggle={() => setShareEssays(!shareEssays)}
           />
