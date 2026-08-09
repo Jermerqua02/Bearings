@@ -17,6 +17,7 @@ import { db } from "@/lib/db";
 import {
   counselorMessages,
   counselorThreads,
+  listEntries,
   schoolExplanations,
   schools,
 } from "@/lib/db/schema";
@@ -111,6 +112,39 @@ async function persist(threadId: string, msg: CounselorMessage) {
     .where(eq(counselorThreads.id, threadId));
 }
 
+/**
+ * The student's list, rendered for the model.
+ *
+ * Without this the counselor cannot answer "is my list realistic" — a live
+ * run replied "I don't have your school list yet", which is the single most
+ * likely first question. Names and tiers only; no notes, nothing private.
+ */
+async function listSummaryFor(studentId: string): Promise<string> {
+  const rows = await db
+    .select({
+      schoolId: listEntries.schoolId,
+      tier: listEntries.tier,
+      plan: listEntries.plan,
+      status: listEntries.status,
+      outcome: listEntries.outcome,
+    })
+    .from(listEntries)
+    .where(eq(listEntries.studentId, studentId));
+
+  if (rows.length === 0) {
+    return "The student has not added any schools to their list yet.";
+  }
+
+  const lines = rows.map((r) => {
+    const school = getSchool(r.schoolId);
+    const name = school?.name ?? r.schoolId;
+    const bits = [r.tier, r.plan, r.status, r.outcome].filter(Boolean).join(", ");
+    return `- ${name} (id: ${r.schoolId}) — ${bits}`;
+  });
+
+  return `The student's current list (${rows.length} schools):\n${lines.join("\n")}`;
+}
+
 /* ————————————— Chat ————————————— */
 
 export async function greetAction(threadId: string): Promise<CounselorMessage> {
@@ -154,7 +188,7 @@ export async function chatAction(input: {
     profile,
     threadId: input.threadId,
     message: input.message,
-    context: input.context,
+    context: { ...input.context, listSummary: await listSummaryFor(s.userId) },
     history: history.map(toMessage),
   });
 

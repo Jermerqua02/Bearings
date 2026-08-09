@@ -31,7 +31,15 @@
       "Bash(npx drizzle-kit *)",
       "Bash(docker compose *)",
       "Bash(npx tsx -e ' *)",
-      "Bash(node *)"
+      "Bash(node *)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);console.log\\(j.error?\\('ERROR: '+j.error.message\\):\\('key works — '+j.model\\)\\)}\\)\")",
+      "Bash(npx tsx *)",
+      "Bash(python3 -)",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);if\\(j.error\\)return console.log\\('ERR',j.error.message\\);const t=\\(j.content||[]\\).find\\(b=>b.type==='text'\\);console.log\\('stop:',j.stop_reason,'| text:',JSON.stringify\\(\\(t?.text||''\\).slice\\(0,120\\)\\)\\)}\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);if\\(j.error\\)return console.log\\('ERR',j.error.message\\);const t=\\(j.content||[]\\).find\\(b=>b.type==='text'\\);console.log\\('stop:',j.stop_reason\\);console.log\\('text:',JSON.stringify\\(\\(t?.text||''\\).slice\\(0,140\\)\\)\\)}\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);if\\(j.error\\)return console.log\\('ERR:',j.error.type,'|',j.error.message\\);const t=\\(j.content||[]\\).find\\(b=>b.type==='text'\\);console.log\\('stop:',j.stop_reason\\);console.log\\('starts with brace:', \\(t?.text||''\\).trim\\(\\).startsWith\\('{'\\)\\);console.log\\('text:',JSON.stringify\\(\\(t?.text||''\\).slice\\(0,160\\)\\)\\)}\\)\")",
+      "Bash(node -e \"require\\('@next/env'\\).loadEnvConfig\\(process.cwd\\(\\)\\);process.stdout.write\\(process.env.ANTHROPIC_API_KEY||''\\)\")",
+      "Bash(node -e \"let s='';process.stdin.on\\('data',d=>s+=d\\).on\\('end',\\(\\)=>{const j=JSON.parse\\(s\\);if\\(j.error\\)return console.log\\('ERR:',j.error.message\\);const t=\\(j.content||[]\\).find\\(b=>b.type==='text'\\);console.log\\('stop:',j.stop_reason,'| starts with brace:',\\(t?.text||''\\).trim\\(\\).startsWith\\('{'\\)\\);console.log\\('text:',JSON.stringify\\(\\(t?.text||''\\).slice\\(0,120\\)\\)\\)}\\)\")"
     ]
   },
   "enabledMcpjsonServers": [

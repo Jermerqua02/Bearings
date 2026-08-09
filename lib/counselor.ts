@@ -49,7 +49,12 @@ export interface CounselorRequest {
   threadId: string;
   message: string;
   /** Optional context, e.g. a school page the chat was opened from. */
-  context?: { schoolId?: string; screen?: string };
+  context?: {
+    schoolId?: string;
+    screen?: string;
+    /** The student's current list, rendered for the model. Server-supplied. */
+    listSummary?: string;
+  };
   history: CounselorMessage[];
 }
 

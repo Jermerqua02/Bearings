@@ -105,23 +105,76 @@ async function ask(
   });
 }
 
-/** JSON-shaped asks use a schema rather than parsing prose. */
+/**
+ * Structured output is requested via output_config.format, but the model can
+ * still wrap the object in a sentence. Extract the outermost JSON object
+ * rather than assuming the whole text block is valid JSON — a live run
+ * returned prose and took the parse down.
+ */
+function parseJson<T>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) {
+      throw new Error(`No JSON object in model response: ${text.slice(0, 120)}…`);
+    }
+    return JSON.parse(text.slice(start, end + 1)) as T;
+  }
+}
+
+/**
+ * JSON-shaped asks, sent over raw HTTP rather than through the SDK.
+ *
+ * @anthropic-ai/sdk 0.115.0 accepts `output_config.format` in its types but
+ * does not transmit it: the identical payload returns constrained JSON via
+ * curl and prose via `messages.create()` — and `messages.parse()` fails the
+ * same way, which is how this was isolated. Until the SDK is fixed, the
+ * structured calls go direct so the schema is actually enforced rather than
+ * silently ignored.
+ *
+ * Everything non-JSON still goes through the SDK.
+ */
 async function askJson<T>(
   system: string,
   userText: string,
   schema: Record<string, unknown>,
   maxTokens = 1024,
 ): Promise<{ data: T; usage: UsageCounts }> {
-  const res = await anthropic().messages.create({
-    model: MODEL,
-    max_tokens: maxTokens,
-    system,
-    thinking: { type: "adaptive" },
-    output_config: { effort: "medium", format: { type: "json_schema", schema } },
-    messages: [{ role: "user", content: userText }],
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.ANTHROPIC_API_KEY!,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium", format: { type: "json_schema", schema } },
+      messages: [{ role: "user", content: userText }],
+    }),
   });
-  const text = textOf(res.content);
-  return { data: JSON.parse(text) as T, usage: res.usage as UsageCounts };
+
+  if (!res.ok) {
+    throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  const json = (await res.json()) as {
+    content: Anthropic.ContentBlock[];
+    usage: UsageCounts;
+    stop_reason: string;
+  };
+  const text = textOf(json.content);
+  if (!text) {
+    throw new Error(
+      `Empty response (stop_reason: ${json.stop_reason}). max_tokens covers thinking as well as text — raise it.`,
+    );
+  }
+  return { data: parseJson<T>(text), usage: json.usage };
 }
 
 export function createClaudeCounselor(deps: {
@@ -136,9 +189,14 @@ export function createClaudeCounselor(deps: {
 
   return {
     async chat(req: CounselorRequest): Promise<CounselorResponse> {
-      const contextNote = req.context?.screen
-        ? `The student opened this chat from the ${req.context.screen} screen.`
-        : "";
+      const contextNote = [
+        req.context?.listSummary ?? "",
+        req.context?.screen
+          ? `The student opened this chat from the ${req.context.screen} screen.`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       const history: Anthropic.MessageParam[] = req.history.slice(-20).map((m) => ({
         role: m.author === "user" ? ("user" as const) : ("assistant" as const),
@@ -187,7 +245,7 @@ export function createClaudeCounselor(deps: {
               "Open the conversation. Two or three sentences: greet them by name, name one specific thing you notice about where they are right now, and invite a question. No lists, no cards.",
           },
         ],
-        { maxTokens: 400, effort: "low" },
+        { maxTokens: 900, effort: "low" },
       );
       meter("greet", res.usage as UsageCounts);
       return {
@@ -208,7 +266,7 @@ export function createClaudeCounselor(deps: {
               "Reflect back what you're hearing about this person, in one short paragraph they'd recognize as accurate. Plain sentences. No score, no ranking, no advice yet.",
           },
         ],
-        { maxTokens: 400, effort: "low" },
+        { maxTokens: 900, effort: "low" },
       );
       meter("summarize", res.usage as UsageCounts);
       return textOf(res.content);
@@ -247,7 +305,7 @@ This is self-understanding, not positioning. Never compare them to other applica
             content: `In one or two sentences, why might ${school.name} fit this specific student? Be concrete — name something about their profile and something about the school. If it's a stretch financially or academically, say so plainly.`,
           },
         ],
-        { maxTokens: 250, effort: "low" },
+        { maxTokens: 700, effort: "low" },
       );
       meter("why_school", res.usage as UsageCounts);
       return textOf(res.content);
