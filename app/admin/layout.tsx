@@ -15,8 +15,11 @@ import { getViewer } from "@/lib/auth/policy";
    screen lands, not before. */
 const NAV = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/telemetry", label: "Telemetry" },
   { href: "/admin/users", label: "Users" },
-  { href: "/admin/usage", label: "Cost per user" },
+  { href: "/admin/feedback", label: "Feedback" },
+  { href: "/admin/usage", label: "Costs" },
+  { href: "/admin/apis", label: "APIs" },
 ];
 
 export default async function AdminLayout({
@@ -47,7 +50,7 @@ export default async function AdminLayout({
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-[0.85rem] text-gray-mid">{viewer.email}</span>
+            <span className="hidden sm:inline text-[0.85rem] text-gray-mid">{viewer.email}</span>
             <Link
               href="/dashboard"
               className="text-[0.85rem] text-gray-strong hover:text-ink transition-quiet"
@@ -56,6 +59,24 @@ export default async function AdminLayout({
             </Link>
           </div>
         </div>
+        {/* The desktop nav is hidden below md; without this the admin portal
+            is a set of pages with no way between them on a phone. */}
+        <nav
+          aria-label="Admin"
+          className="md:hidden border-t border-hairline overflow-x-auto"
+        >
+          <div className="flex items-center gap-5 px-5 py-2.5 whitespace-nowrap">
+            {NAV.map((n) => (
+              <Link
+                key={n.href}
+                href={n.href}
+                className="text-[0.85rem] text-gray-mid hover:text-ink transition-quiet"
+              >
+                {n.label}
+              </Link>
+            ))}
+          </div>
+        </nav>
       </header>
       <main className="max-w-6xl mx-auto px-5 md:px-6 py-10">{children}</main>
     </div>

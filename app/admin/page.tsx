@@ -1,53 +1,75 @@
-import { count, eq, gte, sql, sum } from "drizzle-orm";
-import { db } from "@/lib/db";
-import { aiUsage, essays, listEntries, users } from "@/lib/db/schema";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { and, count, eq, gte, sql } from "drizzle-orm";
+import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
-import Card from "@/components/ui/Card";
+import { Stat } from "./_components/Charts";
+import { db } from "@/lib/db";
+import { feedback, users } from "@/lib/db/schema";
+import { formatUsd, usdFromMillicents } from "@/lib/costs";
+import { spendThisMonth, telemetry } from "@/lib/db/queries/admin";
+import { railwayCost } from "@/lib/railway";
+import { hasUnfilledPlaceholders } from "@/lib/legal";
+
+export const metadata: Metadata = { title: "Admin · Northstar" };
+export const dynamic = "force-dynamic";
 
 /* Admin overview.
 
-   Counts and money only. No student content is read on this page — see
+   A front page, not a dashboard: the few numbers worth seeing first, plus
+   anything that actually needs attention. Counts and money only — see
    lib/db/queries/admin.ts for the rule this follows. */
-
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <Card className="p-5">
-      <SectionLabel className="mb-3">{label}</SectionLabel>
-      <p className="text-[1.9rem] font-semibold tracking-tight tabular-nums">{value}</p>
-      {sub && <p className="text-[0.85rem] text-gray-mid mt-1">{sub}</p>}
-    </Card>
-  );
-}
 
 export default async function AdminOverviewPage() {
   const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
 
-  const [[totals], [studentCount], [parentCount], [newToday], [listRows], [essayRows], [spend], [spendToday]] =
-    await Promise.all([
-      db.select({ n: count() }).from(users),
-      db.select({ n: count() }).from(users).where(eq(users.role, "student")),
-      db.select({ n: count() }).from(users).where(eq(users.role, "parent")),
-      db.select({ n: count() }).from(users).where(gte(users.createdAt, dayAgo)),
-      db.select({ n: count() }).from(listEntries),
-      db.select({ n: count() }).from(essays),
-      db.select({ m: sum(aiUsage.costMillicents) }).from(aiUsage),
-      db.select({ m: sum(aiUsage.costMillicents) }).from(aiUsage).where(gte(aiUsage.createdAt, dayAgo)),
-    ]);
+  const [t, monthAi, railway, [openFeedback], [newToday]] = await Promise.all([
+    telemetry(30),
+    spendThisMonth(),
+    railwayCost(),
+    db.select({ n: count() }).from(feedback).where(eq(feedback.status, "open")),
+    db.select({ n: count() }).from(users).where(gte(users.createdAt, dayAgo)),
+  ]);
 
-  // Funnel: how many students got past onboarding into real activity.
-  const [withList] = await db
-    .select({ n: sql<number>`count(distinct ${listEntries.studentId})` })
-    .from(listEntries);
-  const [withEssay] = await db
-    .select({ n: sql<number>`count(distinct ${essays.studentId})` })
-    .from(essays);
+  // Accounts with no consent row — created before the signup gate existed.
+  const [noConsent] = await db.execute<{ n: string }>(sql`
+    select count(*) as n from "user" u
+    where not exists (select 1 from "legal_consent" c where c.user_id = u.id)
+  `);
 
-  const dollars = (millicents: string | number | null) =>
-    `$${(Number(millicents ?? 0) / 100_000).toFixed(2)}`;
+  const infra = railway.configured ? railway.projectedUsd : 0;
+  const allIn = usdFromMillicents(monthAi) + infra;
 
-  const students = Number(studentCount?.n ?? 0);
-  const pct = (n: number) => (students === 0 ? "—" : `${Math.round((n / students) * 100)}%`);
+  const attention: Array<{ text: string; href: string; cta: string }> = [];
+  if (Number(openFeedback?.n ?? 0) > 0) {
+    attention.push({
+      text: `${openFeedback!.n} open feedback report${Number(openFeedback!.n) === 1 ? "" : "s"}.`,
+      href: "/admin/feedback",
+      cta: "Read",
+    });
+  }
+  if (Number(noConsent?.n ?? 0) > 0) {
+    attention.push({
+      text: `${noConsent!.n} account${Number(noConsent!.n) === 1 ? "" : "s"} with no recorded consent.`,
+      href: "/admin/users",
+      cta: "Review",
+    });
+  }
+  if (!railway.configured) {
+    attention.push({
+      text: "Infrastructure cost isn't connected, so totals are AI-only.",
+      href: "/admin/apis",
+      cta: "Set up",
+    });
+  }
+  if (hasUnfilledPlaceholders()) {
+    attention.push({
+      text: "Terms and Privacy still contain unfilled placeholders.",
+      href: "/terms",
+      cta: "See",
+    });
+  }
 
   return (
     <div>
@@ -56,49 +78,78 @@ export default async function AdminOverviewPage() {
         <em>How Northstar is doing</em> right now.
       </TwoTone>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
         <Stat
           label="Accounts"
-          value={String(totals?.n ?? 0)}
-          sub={`${students} students · ${parentCount?.n ?? 0} parents`}
+          value={String(t.totalUsers)}
+          sub={`${t.students} students · ${t.parents} parents`}
+          emphasis
         />
-        <Stat label="New in 24h" value={String(newToday?.n ?? 0)} />
-        <Stat label="AI spend today" value={dollars(spendToday?.m ?? 0)} sub={`${dollars(spend?.m ?? 0)} all time`} />
-        <Stat label="Schools listed" value={String(listRows?.n ?? 0)} sub={`${essayRows?.n ?? 0} essays started`} />
+        <Stat
+          label="Active"
+          value={String(t.wau)}
+          sub={`this week · ${newToday?.n ?? 0} new today`}
+        />
+        <Stat
+          label="Spend this month"
+          value={formatUsd(allIn)}
+          sub={
+            railway.configured
+              ? `${formatUsd(usdFromMillicents(monthAi))} AI · ${formatUsd(infra)} infra`
+              : `${formatUsd(usdFromMillicents(monthAi))} AI · infra not connected`
+          }
+        />
+        <Stat
+          label="Open feedback"
+          value={String(openFeedback?.n ?? 0)}
+          sub={`${t.essaysStarted} essays · ${t.schoolsListed} schools listed`}
+        />
       </div>
 
-      <SectionLabel className="mb-4">Where students get to</SectionLabel>
-      <Card className="p-5">
-        <dl className="grid sm:grid-cols-3 gap-6">
-          <div>
-            <dt className="text-[0.85rem] text-gray-mid">Signed up</dt>
-            <dd className="text-[1.4rem] font-semibold tabular-nums">{students}</dd>
-          </div>
-          <div>
-            <dt className="text-[0.85rem] text-gray-mid">Added a school</dt>
-            <dd className="text-[1.4rem] font-semibold tabular-nums">
-              {Number(withList?.n ?? 0)}{" "}
-              <span className="text-[0.9rem] font-normal text-gray-mid">
-                {pct(Number(withList?.n ?? 0))}
-              </span>
-            </dd>
-          </div>
-          <div>
-            <dt className="text-[0.85rem] text-gray-mid">Started an essay</dt>
-            <dd className="text-[1.4rem] font-semibold tabular-nums">
-              {Number(withEssay?.n ?? 0)}{" "}
-              <span className="text-[0.9rem] font-normal text-gray-mid">
-                {pct(Number(withEssay?.n ?? 0))}
-              </span>
-            </dd>
-          </div>
-        </dl>
-      </Card>
+      {attention.length > 0 && (
+        <>
+          <SectionLabel className="mb-4">Needs attention</SectionLabel>
+          <Card className="p-0 mb-10 overflow-hidden">
+            {attention.map((a) => (
+              <div
+                key={a.href + a.text}
+                className="flex items-center justify-between gap-4 px-5 py-3.5 border-b border-hairline last:border-0"
+              >
+                <span className="text-[0.92rem]">{a.text}</span>
+                <Link
+                  href={a.href}
+                  className="text-[0.88rem] text-ink underline underline-offset-4 whitespace-nowrap"
+                >
+                  {a.cta}
+                </Link>
+              </div>
+            ))}
+          </Card>
+        </>
+      )}
+
+      <SectionLabel className="mb-4">Go to</SectionLabel>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {[
+          { href: "/admin/telemetry", title: "Telemetry", body: "Growth, activity, and where students drop off." },
+          { href: "/admin/users", title: "Users", body: "Search accounts, change roles, delete." },
+          { href: "/admin/feedback", title: "Feedback", body: "What people have told us is wrong." },
+          { href: "/admin/usage", title: "Costs", body: "Budget, AI spend, infrastructure, per user." },
+          { href: "/admin/apis", title: "APIs", body: "External services and what's configured." },
+        ].map((c) => (
+          <Link key={c.href} href={c.href}>
+            <Card className="p-5 h-full hover:border-ink transition-quiet">
+              <p className="text-[1rem] font-medium mb-1">{c.title}</p>
+              <p className="text-[0.85rem] text-gray-mid leading-relaxed">{c.body}</p>
+            </Card>
+          </Link>
+        ))}
+      </div>
 
       <p className="mt-8 text-[0.85rem] text-gray-mid max-w-2xl leading-relaxed">
-        Admins see counts and status only. Essay drafts and counselor
+        Admins see counts, status, and money. Essay drafts and counselor
         conversations are not readable from here — that boundary is enforced in
-        the query layer, not by what this page chooses to render.
+        the query layer, not by what these pages choose to render.
       </p>
     </div>
   );

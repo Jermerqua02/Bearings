@@ -23,20 +23,47 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 
-/** Read a line without echoing it to the terminal. */
-function prompt(question: string): Promise<string> {
-  return new Promise((resolve) => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
-    const output = rl as unknown as { output?: NodeJS.WriteStream; _writeToOutput?: unknown };
-    process.stdout.write(question);
-    // Swallow the echo of each keypress; the prompt itself is already written.
-    output._writeToOutput = () => {};
-    rl.question("", (answer) => {
-      rl.close();
-      process.stdout.write("\n");
-      resolve(answer);
+/**
+ * Ask for the password twice.
+ *
+ * Two paths, because they have genuinely different problems.
+ *
+ * On a terminal: readline with echo suppressed, so the password isn't
+ * left on screen.
+ *
+ * On piped input (tests, CI): read stdin to the end first and split it.
+ * Asking sequentially loses the second line — readline emits every line as
+ * soon as the pipe closes, which is before the first answer's promise has
+ * resolved and registered a handler for the next one.
+ */
+async function promptTwice(first: string, second: string): Promise<[string, string]> {
+  if (process.stdin.isTTY !== true) {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+    const lines = Buffer.concat(chunks).toString("utf8").split(/\r?\n/);
+    if (lines.length < 2 || !lines[0]) throw new Error("Expected two lines on stdin.");
+    return [lines[0]!, lines[1] ?? ""];
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
+  const output = rl as unknown as { _writeToOutput?: (s: string) => void };
+
+  const ask = (question: string) =>
+    new Promise<string>((resolve) => {
+      process.stdout.write(question);
+      // Swallow the echo of each keypress; the prompt is already written.
+      output._writeToOutput = () => {};
+      rl.question("", (answer) => {
+        process.stdout.write("\n");
+        resolve(answer);
+      });
     });
-  });
+
+  try {
+    return [await ask(first), await ask(second)];
+  } finally {
+    rl.close();
+  }
 }
 
 async function main() {
@@ -55,12 +82,11 @@ async function main() {
   const ctx = await auth.$context;
   const minLength = ctx.options.emailAndPassword?.minPasswordLength ?? 8;
 
-  const password = await prompt(`New password for ${email}: `);
+  const [password, again] = await promptTwice(`New password for ${email}: `, "Confirm: ");
   if (password.length < minLength) {
     console.error(`Password must be at least ${minLength} characters.`);
     process.exit(1);
   }
-  const again = await prompt("Confirm: ");
   if (password !== again) {
     console.error("Passwords didn't match.");
     process.exit(1);
