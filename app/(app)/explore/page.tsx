@@ -117,7 +117,7 @@ export default function ExplorePage() {
         break;
     }
     return out;
-  }, [enriched, regions, sizes, settings, types, costCap, testOptionalOnly, sort]);
+  }, [enriched, tiers, regions, sizes, settings, types, costCap, testOptionalOnly, sort]);
 
   const picks = useMemo(() => {
     if (!student) return [];
