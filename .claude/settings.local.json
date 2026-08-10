@@ -57,7 +57,9 @@
       "Bash(git check-ignore *)",
       "Bash(open -e .env.local)",
       "Bash(afplay /tmp/out.wav)",
-      "Bash(python3 -c \"import json;d=json.load\\(open\\('/Users/jeremygrubaugh/.railway/config.json'\\)\\);print\\(d.get\\('user',{}\\).get\\('token'\\) or d.get\\('token'\\) or ''\\)\")"
+      "Bash(python3 -c \"import json;d=json.load\\(open\\('/Users/jeremygrubaugh/.railway/config.json'\\)\\);print\\(d.get\\('user',{}\\).get\\('token'\\) or d.get\\('token'\\) or ''\\)\")",
+      "Bash(python3 -c ' *)",
+      "Bash(NODE_OPTIONS=--conditions=react-server npx tsx probe-tmp.ts)"
     ]
   },
   "enabledMcpjsonServers": [

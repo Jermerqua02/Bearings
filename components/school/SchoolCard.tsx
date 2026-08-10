@@ -24,7 +24,7 @@ export default function SchoolCard({
   return (
     <article className="border border-hairline bg-surface rounded-[3px] overflow-hidden flex flex-col group">
       <Link href={`/explore/${school.id}`} className="block relative">
-        <SchoolPhoto name={school.name} />
+        <SchoolPhoto schoolId={school.id} name={school.name} />
         {index !== undefined && (
           <span className="card-index absolute top-3 left-3">
             {String(index + 1).padStart(2, "0")}

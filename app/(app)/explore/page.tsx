@@ -18,6 +18,14 @@ import type { Region, School } from "@/lib/types";
 type SortKey = "fit" | "selectivity" | "cost" | "name";
 type View = "grid" | "list" | "map";
 
+/* Ordered reach → likely, matching how a balanced list is described
+   everywhere else in the product. */
+const TIERS = [
+  { id: "reach", label: "Reach" },
+  { id: "target", label: "Target" },
+  { id: "likely", label: "Likely" },
+] as const;
+
 const SIZES = [
   { id: "small", label: "Small (<5k)" },
   { id: "medium", label: "Medium (5–15k)" },
@@ -52,6 +60,7 @@ export default function ExplorePage() {
   const student = profile?.role === "student" ? profile : null;
 
   const [regions, setRegions] = useState<Region[]>([]);
+  const [tiers, setTiers] = useState<string[]>([]);
   const [sizes, setSizes] = useState<string[]>([]);
   const [settings, setSettings] = useState<string[]>([]);
   const [types, setTypes] = useState<string[]>([]);
@@ -76,7 +85,10 @@ export default function ExplorePage() {
   }, [student]);
 
   const filtered = useMemo(() => {
-    let out = enriched.filter(({ school: s }) => {
+    let out = enriched.filter(({ school: s, tier }) => {
+      // Chance is the question most students are actually asking, so it
+      // filters alongside region and size rather than living in the sort.
+      if (tiers.length && !tiers.includes(tier)) return false;
       if (regions.length && !regions.includes(s.region)) return false;
       if (sizes.length && !sizes.includes(s.size)) return false;
       if (settings.length && !settings.includes(s.setting)) return false;
@@ -135,11 +147,30 @@ export default function ExplorePage() {
   }
 
   const activeFilterCount =
+    tiers.length +
     regions.length + sizes.length + settings.length + types.length +
     (costCap ? 1 : 0) + (testOptionalOnly ? 1 : 0);
 
   const filterRail = (
     <div className="space-y-6">
+      <div>
+        <SectionLabel className="mb-2">Your chances</SectionLabel>
+        <div className="flex flex-wrap gap-1.5">
+          {TIERS.map((t) => (
+            <Chip
+              key={t.id}
+              active={tiers.includes(t.id)}
+              onClick={() => toggle(tiers, setTiers, t.id)}
+              className="!min-h-[36px] !text-[0.82rem]"
+            >
+              {t.label}
+            </Chip>
+          ))}
+        </div>
+        <p className="text-[0.72rem] text-gray-mid mt-2 leading-snug">
+          Estimated from your grades and scores against each school&apos;s range.
+        </p>
+      </div>
       <div>
         <SectionLabel className="mb-2">Region</SectionLabel>
         <div className="flex flex-wrap gap-1.5">

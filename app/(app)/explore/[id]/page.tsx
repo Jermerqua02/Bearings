@@ -129,7 +129,7 @@ export default function SchoolDetailPage() {
     <div className="animate-fade-up max-w-4xl">
       {/* Hero */}
       <div className="relative -mx-5 md:mx-0 mb-8">
-        <SchoolPhoto name={school.name} className="md:rounded-[3px] aspect-[2/1] md:aspect-[3/1]" />
+        <SchoolPhoto schoolId={school.id} name={school.name} className="md:rounded-[3px] aspect-[2/1] md:aspect-[3/1]" />
       </div>
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>

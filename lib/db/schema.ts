@@ -15,6 +15,7 @@
 
 import {
   boolean,
+  customType,
   date,
   index,
   integer,
@@ -304,6 +305,10 @@ export const schools = pgTable("school", {
   size: schoolSizeEnum("size").notNull(),
   undergradEnrollment: integer("undergrad_enrollment").notNull(),
   photoQuery: text("photo_query").notNull().default(""),
+  /** Bare hostname, e.g. "umich.edu". The key we fetch a logo by. */
+  website: text("website"),
+  /** IPEDS UNITID from College Scorecard — the join key back to the source. */
+  ipedsId: integer("ipeds_id"),
 
   // Academics
   topMajors: text("top_majors").array().notNull().default([]),
@@ -917,3 +922,35 @@ export const feedback = pgTable(
     index("feedback_created_idx").on(t.createdAt),
   ],
 );
+
+
+/* ————————————————————————————————————————
+   School logos.
+
+   Stored as bytes, not as a URL. A remote logo URL is a link that rots and
+   a request the student's browser makes to a third party on every card —
+   which would tell that third party exactly which schools a teenager is
+   looking at. Fetching once at import time and serving from our own domain
+   fixes both: nothing breaks when an upstream service changes, and no one
+   outside Northstar learns what anybody browsed.
+
+   Small enough to sit in Postgres rather than object storage: a few KB per
+   school, so all ~2,000 institutions come to roughly 20 MB, which the
+   existing backups already cover.
+   ———————————————————————————————————————— */
+
+const bytea = customType<{ data: Buffer; default: false }>({
+  dataType: () => "bytea",
+});
+
+export const schoolLogos = pgTable("school_logo", {
+  schoolId: text("school_id")
+    .primaryKey()
+    .references(() => schools.id, { onDelete: "cascade" }),
+  bytes: bytea("bytes").notNull(),
+  contentType: text("content_type").notNull().default("image/png"),
+  /** Where it came from, so a bad fetch can be traced and redone. */
+  sourceUrl: text("source_url").notNull().default(""),
+  fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps,
+});

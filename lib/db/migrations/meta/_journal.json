@@ -50,6 +50,13 @@
       "when": 1786315361957,
       "tag": "0006_yellow_sue_storm",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786327804032,
+      "tag": "0007_clever_wind_dancer",
+      "breakpoints": true
     }
   ]
 }

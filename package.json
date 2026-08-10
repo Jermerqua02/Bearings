@@ -14,6 +14,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
+    "import:schools": "NODE_OPTIONS=--conditions=react-server tsx scripts/import-schools.ts",
     "db:seed": "NODE_OPTIONS=--conditions=react-server tsx scripts/seed.ts",
     "test:boundary": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-boundary.ts",
     "test:legal": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-legal.ts",
