@@ -359,8 +359,15 @@ function CounselorInner() {
 
   return (
     <div className="flex gap-6 h-[calc(100vh-8.5rem)] md:h-[calc(100vh-10rem)]">
+      {/* The chat is the whole page, so there is nowhere a headline belongs
+          visually — but every other page has an h1, and without one a screen
+          reader lands here with nothing naming the page. */}
+      <h1 className="sr-only">Your counselor</h1>
       {/* Threads sidebar (desktop) */}
-      <aside className="hidden lg:flex flex-col w-56 shrink-0 gap-1">
+      <aside
+        aria-label="Past conversations"
+        className="hidden lg:flex flex-col w-56 shrink-0 gap-1"
+      >
         <button
           onClick={() => void startThread()}
           className="text-left px-3 py-2 rounded-[3px] border border-hairline text-[0.88rem] hover:border-ink transition-quiet mb-2"

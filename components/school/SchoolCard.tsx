@@ -23,7 +23,16 @@ export default function SchoolCard({
 }) {
   return (
     <article className="border border-hairline bg-surface rounded-[3px] overflow-hidden flex flex-col group">
-      <Link href={`/explore/${school.id}`} className="block relative">
+      {/* The photo links to the same place as the school name below it, and
+          its contents are aria-hidden — so to a screen reader this was a link
+          with no name at all. Hiding it removes both that and the duplicate
+          stop in the tab order; the name below is the real link. */}
+      <Link
+        href={`/explore/${school.id}`}
+        className="block relative"
+        aria-hidden="true"
+        tabIndex={-1}
+      >
         <SchoolPhoto schoolId={school.id} name={school.name} />
         {index !== undefined && (
           <span className="card-index absolute top-3 left-3">
@@ -54,7 +63,13 @@ export default function SchoolCard({
           <span className="text-[0.82rem] text-accent font-medium">{fitLabel}</span>
           <button
             onClick={onToggleList}
-            className={`text-[0.72rem] uppercase tracking-[0.08em] font-medium transition-quiet ${
+            aria-pressed={onList}
+            aria-label={
+              onList ? `Remove ${school.name} from your list` : `Add ${school.name} to your list`
+            }
+            /* -my-2 py-2 grows the touch target past the text box without
+               moving anything: this row is 18px tall on the mobile grid. */
+            className={`text-[0.72rem] uppercase tracking-[0.08em] font-medium transition-quiet -my-2 py-2 -mr-1 pr-1 ${
               onList ? "text-gray-mid" : "text-ink hover:text-accent"
             }`}
           >

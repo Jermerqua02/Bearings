@@ -109,7 +109,10 @@ function CoursesTab() {
                               <button
                                 onClick={() => removeCourse(c.id)}
                                 aria-label={`Remove ${c.name}`}
-                                className="opacity-0 group-hover:opacity-100 text-gray-mid hover:text-ink text-[0.8rem]"
+                                /* Was opacity-0 until hover, which on a phone
+                                   means never — there is no hover. Always
+                                   visible, dimmed, with a real tap target. */
+                                className="shrink-0 -my-1.5 -mr-2.5 px-2.5 py-1.5 min-h-[44px] min-w-[38px] flex items-center justify-center text-gray-mid hover:text-ink md:opacity-40 md:group-hover:opacity-100 transition-quiet"
                               >
                                 ✕
                               </button>
@@ -123,7 +126,9 @@ function CoursesTab() {
                                   value={c.grade ?? ""}
                                   onChange={(e) => updateCourse(c.id, { grade: e.target.value || undefined })}
                                   aria-label={`Grade for ${c.name}`}
-                                  className="text-[0.75rem] border border-hairline rounded-[2px] bg-surface outline-none"
+                                  /* 16px: anything smaller makes iOS Safari
+                                     zoom the viewport on focus. */
+                                  className="text-[1rem] md:text-[0.8rem] min-h-[38px] px-1.5 border border-hairline rounded-[2px] bg-surface outline-none"
                                 >
                                   <option value="">—</option>
                                   {Object.keys(gradePoints).map((g) => (
@@ -137,7 +142,12 @@ function CoursesTab() {
                                       status: c.status === "planned" ? "in-progress" : "completed",
                                     })
                                   }
-                                  className="text-[0.7rem] text-gray-mid hover:text-ink underline underline-offset-2"
+                                  aria-label={
+                                    c.status === "planned"
+                                      ? `Mark ${c.name} as in progress`
+                                      : `Mark ${c.name} as completed`
+                                  }
+                                  className="text-[0.78rem] text-gray-mid hover:text-ink underline underline-offset-2 -my-2 py-2 px-1 -mx-1 min-h-[38px]"
                                 >
                                   {c.status === "planned" ? "start" : "finish"}
                                 </button>
@@ -175,21 +185,32 @@ function CoursesTab() {
                               <select
                                 value={newLevel}
                                 onChange={(e) => setNewLevel(e.target.value as CoursePlanEntry["level"])}
-                                className="flex-1 border border-hairline rounded-[2px] bg-surface text-[0.78rem] outline-none"
+                                aria-label="Course level"
+                                className="flex-1 border border-hairline rounded-[2px] bg-surface text-[1rem] md:text-[0.8rem] min-h-[38px] px-1 outline-none"
                               >
                                 <option value="regular">Regular</option>
                                 <option value="honors">Honors</option>
                                 <option value="ap">AP</option>
                                 <option value="ib">IB</option>
                               </select>
-                              <button type="submit" className="text-[0.78rem] font-medium px-2">Add</button>
-                              <button type="button" onClick={() => setAdding(null)} className="text-[0.78rem] text-gray-mid px-1">✕</button>
+                              <button type="submit" className="text-[0.8rem] font-medium px-3 min-h-[38px]">Add</button>
+                              <button
+                                type="button"
+                                onClick={() => setAdding(null)}
+                                aria-label="Cancel adding a course"
+                                className="text-[0.8rem] text-gray-mid px-2.5 min-h-[38px]"
+                              >
+                                ✕
+                              </button>
                             </div>
                           </form>
                         ) : (
                           <button
                             onClick={() => setAdding({ year, subject })}
-                            className="text-[0.78rem] text-gray-mid hover:text-ink transition-quiet"
+                            aria-label={`Add a ${subject} course for ${year}`}
+                            /* A bare "+" glyph was a ~7×12px target, and
+                               announced as "plus" with no context. */
+                            className="text-[0.9rem] text-gray-mid hover:text-ink transition-quiet min-h-[38px] min-w-[38px] flex items-center justify-center -ml-2"
                           >
                             +
                           </button>
@@ -243,7 +264,7 @@ function ActivitiesTab() {
             <button
               onClick={() => removeActivity(a.id)}
               aria-label={`Remove ${a.name}`}
-              className="text-gray-mid hover:text-ink"
+              className="shrink-0 text-gray-mid hover:text-ink min-h-[44px] min-w-[44px] flex items-center justify-center -my-2 -mr-2"
             >
               ✕
             </button>
@@ -258,7 +279,8 @@ function ActivitiesTab() {
           />
           <button
             onClick={() => updateActivity(a.id, { leadership: !a.leadership })}
-            className="text-[0.78rem] text-gray-mid hover:text-ink underline underline-offset-2 mt-1"
+            aria-pressed={a.leadership}
+            className="text-[0.8rem] text-gray-mid hover:text-ink underline underline-offset-2 mt-1 min-h-[38px] py-2 -my-1 self-start"
           >
             {a.leadership ? "Unmark leadership" : "Mark as leadership role"}
           </button>
