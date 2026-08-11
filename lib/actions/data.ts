@@ -22,6 +22,8 @@ import {
   checkInActions,
   coursePlanEntries,
   essayVersions,
+  recommenderSchools,
+  decisionNotes,
   userPreferences,
   essays,
   listEntries,
@@ -391,4 +393,53 @@ export async function updatePreferencesAction(patch: {
       set: { ...patch, ...touch },
     });
   revalidatePath("/settings");
+}
+
+/* ————————————— Decision notes & recommender assignments ————————————— */
+
+/**
+ * The "gut feel" a student records against a school on the decision screen.
+ *
+ * decision_note has held a row per student/school since the schema was
+ * written and nothing wrote it: the notes were a `Record<string, string>` in
+ * useState, on the page the copy calls "one screen for the decision your
+ * family makes together". They survived until the next navigation.
+ */
+export async function setDecisionNoteAction(schoolId: string, gutFeel: string) {
+  const s = await requireStudent();
+  await db
+    .insert(decisionNotes)
+    .values({ studentId: s.userId, schoolId, gutFeel })
+    .onConflictDoUpdate({
+      target: [decisionNotes.studentId, decisionNotes.schoolId],
+      set: { gutFeel, ...touch },
+    });
+  revalidatePath("/decide");
+}
+
+/**
+ * Which schools a recommender is writing for.
+ *
+ * recommender_school is a join table with no writer, and snapshot.ts filled
+ * `schoolIds` with a literal `[]`, so the assignment buttons on the
+ * recommenders tab toggled nothing and every recommender read "no schools
+ * yet" forever.
+ */
+export async function setRecommenderSchoolsAction(recommenderId: string, schoolIds: string[]) {
+  const s = await requireStudent();
+  const [owned] = await db
+    .select({ id: recommenders.id })
+    .from(recommenders)
+    .where(and(eq(recommenders.id, recommenderId), eq(recommenders.studentId, s.userId)))
+    .limit(1);
+  if (!owned) return;
+
+  await db.delete(recommenderSchools).where(eq(recommenderSchools.recommenderId, recommenderId));
+  if (schoolIds.length > 0) {
+    await db
+      .insert(recommenderSchools)
+      .values(schoolIds.map((schoolId) => ({ recommenderId, schoolId })))
+      .onConflictDoNothing();
+  }
+  revalidatePath("/apply");
 }

@@ -107,6 +107,10 @@ interface AppState {
   parentLinked: boolean;
   setParentLinked: (b: boolean) => void;
 
+  /** Gut-feel notes on the decision screen, by school id. */
+  decisionNotes: Record<string, string>;
+  setDecisionNote: (schoolId: string, text: string) => void;
+
   /** Notification and sharing switches, persisted in user_preference. */
   preferences: AppSnapshot["preferences"];
   updatePreferences: (patch: Partial<AppSnapshot["preferences"]>) => void;
@@ -142,6 +146,12 @@ export function AppProvider({
   const [checkIns, setCheckIns] = useState<WeeklyCheckIn[]>(snapshot.checkIns);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>(snapshot.recentlyViewed);
   const [parentLinked, setParentLinked] = useState(snapshot.parentLinked);
+  const [decisionNotes, setDecisionNotes] = useState(snapshot.decisionNotes);
+  const setDecisionNote = useCallback((schoolId: string, text: string) => {
+    setDecisionNotes((prev) => ({ ...prev, [schoolId]: text }));
+    fire(actions.setDecisionNoteAction(schoolId, text));
+  }, []);
+
   const [preferences, setPreferences] = useState(snapshot.preferences);
   const prefsRef = useRef(snapshot.preferences);
 
@@ -271,6 +281,10 @@ export function AppProvider({
   const updateRecommender = useCallback((id: string, patch: Partial<Recommender>) => {
     setRecommenders((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     fire(actions.updateRecommenderAction(id, patch));
+    // schoolIds lives in a join table, so updateRecommenderAction — which
+    // writes columns on the recommender row — silently dropped it. The
+    // assignment buttons toggled local state and nothing else.
+    if (patch.schoolIds) fire(actions.setRecommenderSchoolsAction(id, patch.schoolIds));
   }, []);
 
   const removeRecommender = useCallback((id: string) => {
@@ -397,6 +411,7 @@ export function AppProvider({
       recentlyViewed, markViewed,
       schoolById,
       parentLinked, setParentLinked,
+      decisionNotes, setDecisionNote,
       preferences, updatePreferences,
       resetAll,
     }),
@@ -411,7 +426,7 @@ export function AppProvider({
       activities, addActivity, updateActivity, removeActivity,
       checkIns, dismissCheckIn, toggleCheckInAction,
       recentlyViewed, markViewed, schoolById, parentLinked,
-      preferences, updatePreferences, resetAll,
+      decisionNotes, setDecisionNote, preferences, updatePreferences, resetAll,
     ],
   );
 

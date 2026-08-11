@@ -9,9 +9,14 @@
    private slices come back empty because they were never fetched.
    ———————————————————————————————————————— */
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { recentlyViewed as recentlyViewedTable, userPreferences } from "@/lib/db/schema";
+import {
+  decisionNotes,
+  recentlyViewed as recentlyViewedTable,
+  recommenderSchools,
+  userPreferences,
+} from "@/lib/db/schema";
 import {
   getActivities,
   getAidOffers,
@@ -68,6 +73,8 @@ export interface AppSnapshot {
    * set — that is ~1,900 rows and grows.
    */
   schools: School[];
+  /** Gut-feel notes on the decision screen, keyed by school id. */
+  decisionNotes: Record<string, string>;
   /** Notification and sharing switches. Defaults match the column defaults. */
   preferences: {
     notifyDeadlines: boolean;
@@ -117,6 +124,7 @@ function emptySnapshot(role: Role): AppSnapshot {
     recentlyViewed: [],
     parentLinked: false,
     schools: [],
+    decisionNotes: {},
     preferences: {
       notifyDeadlines: true,
       notifyCheckIn: true,
@@ -218,12 +226,25 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     versions: [], // loaded on demand — see getEssayVersions
   }));
 
+  // schoolIds was a literal [] here, so every recommender read "no schools
+  // yet" no matter what the student assigned.
+  const recIds = recRows.map((r) => r.id);
+  const recLinks = recIds.length
+    ? await safe(
+        () =>
+          db
+            .select()
+            .from(recommenderSchools)
+            .where(inArray(recommenderSchools.recommenderId, recIds)),
+        [] as { recommenderId: string; schoolId: string }[],
+      )
+    : [];
   snap.recommenders = recRows.map((r) => ({
     id: r.id,
     name: r.name,
     roleTitle: r.roleTitle,
     type: r.type,
-    schoolIds: [],
+    schoolIds: recLinks.filter((l) => l.recommenderId === r.id).map((l) => l.schoolId),
     status: r.status,
   }));
 
@@ -300,6 +321,13 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     ]),
   ];
   snap.schools = await safe(() => getSchoolsByIds(referenced), []);
+
+  const noteRows = await safe(
+    () =>
+      db.select().from(decisionNotes).where(eq(decisionNotes.studentId, studentId)),
+    [] as { schoolId: string; gutFeel: string }[],
+  );
+  snap.decisionNotes = Object.fromEntries(noteRows.map((n) => [n.schoolId, n.gutFeel]));
 
   const [prefs] = await safe(
     () =>

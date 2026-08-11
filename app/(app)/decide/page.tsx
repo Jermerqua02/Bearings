@@ -245,9 +245,9 @@ function WaitlistTab() {
 }
 
 function ChoiceTab() {
-  const { list, aidOffers, schoolById } = useApp();
+  const { list, aidOffers, schoolById, decisionNotes, setDecisionNote } = useApp();
   const accepted = list.filter((e) => e.outcome === "accepted");
-  const [gut, setGut] = useState<Record<string, string>>({});
+
 
   if (accepted.length === 0) {
     return (
@@ -291,8 +291,8 @@ function ChoiceTab() {
                 <td className="py-3 pr-4">{formatDollars(s.outcomes.medianEarnings10yr)}</td>
                 <td className="py-3">
                   <input
-                    value={gut[s.id] ?? ""}
-                    onChange={(ev) => setGut((p) => ({ ...p, [s.id]: ev.target.value }))}
+                    value={decisionNotes[s.id] ?? ""}
+                    onChange={(ev) => setDecisionNote(s.id, ev.target.value)}
                     placeholder="How does it feel?"
                     aria-label={`Gut feel about ${s.shortName}`}
                     className="border-b border-hairline bg-transparent focus:border-ink outline-none w-full max-w-[180px]"
