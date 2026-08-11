@@ -12,11 +12,13 @@
 
 "use server";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   counselorMessages,
   counselorThreads,
+  interviewSessions,
+  interviewTurns,
   listEntries,
   schoolExplanations,
   schools,
@@ -331,11 +333,104 @@ export async function interviewTurnAction(input: {
   }
   const school = input.schoolId ? await getSchoolById(input.schoolId) : null;
   const svc = await guardedServiceFor(viewer.userId, "interview");
-  return svc.interviewTurn(profile as StudentProfile, school, input.question, input.answer);
+  const feedback = await svc.interviewTurn(
+    profile as StudentProfile,
+    school,
+    input.question,
+    input.answer,
+  );
+
+  /*
+    Keep the practice.
+
+    interview_session and interview_turn have existed since the schema was
+    written, with a read query in lib/db/queries/student.ts, and nothing ever
+    wrote a row: the turns lived in useState and were gone on reload. A
+    student rehearsing for an interview loses the answer they worked on and
+    the critique of it, which is the whole artefact.
+
+    One session per school (and one for general practice), so returning to a
+    school continues where they left off rather than starting over.
+  */
+  const [session] = await db
+    .select({ id: interviewSessions.id })
+    .from(interviewSessions)
+    .where(
+      and(
+        eq(interviewSessions.studentId, viewer.userId),
+        input.schoolId
+          ? eq(interviewSessions.schoolId, input.schoolId)
+          : isNull(interviewSessions.schoolId),
+      ),
+    )
+    .limit(1);
+
+  const sessionId =
+    session?.id ??
+    (
+      await db
+        .insert(interviewSessions)
+        .values({ studentId: viewer.userId, schoolId: input.schoolId })
+        .returning({ id: interviewSessions.id })
+    )[0].id;
+
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(interviewTurns)
+    .where(eq(interviewTurns.sessionId, sessionId));
+
+  await db.insert(interviewTurns).values({
+    sessionId,
+    question: input.question,
+    answer: input.answer,
+    strengths: feedback.strengths,
+    toWorkOn: feedback.toWorkOn,
+    followUp: feedback.followUp,
+    nextQuestion: (feedback as { nextQuestion?: string }).nextQuestion ?? null,
+    sortOrder: n,
+  });
+
+  return feedback;
 }
 
 export async function summarizeProfileAction(): Promise<string> {
   const { viewer, profile } = await sessionProfile();
   const svc = await guardedServiceFor(viewer.userId, "summarize");
   return svc.summarizeProfile(profile);
+}
+
+/**
+ * Practice history for a school (or for general practice).
+ *
+ * The turns were being written and never read back, which looks identical to
+ * not saving them: a student returned to the page and their answers and
+ * critiques were gone.
+ */
+export async function interviewHistoryAction(
+  schoolId: string | null,
+): Promise<{ question: string; answer: string; feedback: InterviewFeedback }[]> {
+  const s = await requireStudent();
+  const [session] = await db
+    .select({ id: interviewSessions.id })
+    .from(interviewSessions)
+    .where(
+      and(
+        eq(interviewSessions.studentId, s.userId),
+        schoolId ? eq(interviewSessions.schoolId, schoolId) : isNull(interviewSessions.schoolId),
+      ),
+    )
+    .limit(1);
+  if (!session) return [];
+
+  const rows = await db
+    .select()
+    .from(interviewTurns)
+    .where(eq(interviewTurns.sessionId, session.id))
+    .orderBy(asc(interviewTurns.sortOrder));
+
+  return rows.map((r) => ({
+    question: r.question,
+    answer: r.answer,
+    feedback: { strengths: r.strengths, toWorkOn: r.toWorkOn, followUp: r.followUp },
+  }));
 }

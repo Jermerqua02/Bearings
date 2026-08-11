@@ -3,13 +3,13 @@
 /* Interview prep — mock interviews with the counselor, per school.
    Text-based for v1; the UI leaves room for voice later. */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { type InterviewFeedback } from "@/lib/counselor";
-import { interviewTurnAction } from "@/lib/actions/counselor";
+import { interviewHistoryAction, interviewTurnAction } from "@/lib/actions/counselor";
 import { useApp } from "@/lib/profile-context";
 import type { School } from "@/lib/types";
 
@@ -56,6 +56,21 @@ export default function InterviewsPage() {
   const [question, setQuestion] = useState(COMMON_QUESTIONS[0]);
   const [answer, setAnswer] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
+
+  // Practice is kept per school, so switching schools loads that school's
+  // history rather than starting over. Written since the turn action began
+  // persisting; before that it was written nowhere and read nowhere.
+  useEffect(() => {
+    let live = true;
+    void interviewHistoryAction(schoolId || null)
+      .then((rows) => {
+        if (live) setTurns(rows);
+      })
+      .catch((err) => console.error("[interviews] could not load history:", err));
+    return () => {
+      live = false;
+    };
+  }, [schoolId]);
   const [busy, setBusy] = useState(false);
   const [primerOpen, setPrimerOpen] = useState(true);
 
@@ -121,7 +136,6 @@ export default function InterviewsPage() {
             value={schoolId}
             onChange={(e) => {
               setSchoolId(e.target.value);
-              setTurns([]);
             }}
             className="border border-hairline rounded-[3px] bg-surface px-3 h-10 text-[0.92rem] outline-none focus:border-ink"
           >
