@@ -11,6 +11,7 @@ import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
 import { schools, regionLabel } from "@/lib/data/schools";
+import { formatRate, formatThousands } from "@/lib/format";
 import { chanceTier, counselorPicks, fit } from "@/lib/match";
 import { useApp } from "@/lib/profile-context";
 import type { Region, School } from "@/lib/types";
@@ -93,23 +94,35 @@ export default function ExplorePage() {
       if (sizes.length && !sizes.includes(s.size)) return false;
       if (settings.length && !settings.includes(s.setting)) return false;
       if (types.length && !types.includes(s.type)) return false;
-      if (costCap && s.cost.avgNetPrice > costCap) return false;
+      // A school that reported no net price can't be shown to satisfy a
+      // budget cap — excluded rather than assumed cheap.
+      if (costCap && (s.cost.avgNetPrice == null || s.cost.avgNetPrice > costCap))
+        return false;
       if (testOptionalOnly && s.admissions.testPolicy === "required")
         return false;
       return true;
     });
+    /* Unreported figures sort last in every order, rather than sorting as
+       zero — which would have put every school with no data at the top of
+       "lowest net price". */
+    const lastIfMissing = (n: number | undefined) =>
+      n == null ? Number.POSITIVE_INFINITY : n;
     switch (sort) {
       case "fit":
         out = [...out].sort((a, b) => b.f._sort - a.f._sort);
         break;
       case "selectivity":
         out = [...out].sort(
-          (a, b) => a.school.admissions.acceptanceRate - b.school.admissions.acceptanceRate
+          (a, b) =>
+            lastIfMissing(a.school.admissions.acceptanceRate) -
+            lastIfMissing(b.school.admissions.acceptanceRate)
         );
         break;
       case "cost":
         out = [...out].sort(
-          (a, b) => a.school.cost.avgNetPrice - b.school.cost.avgNetPrice
+          (a, b) =>
+            lastIfMissing(a.school.cost.avgNetPrice) -
+            lastIfMissing(b.school.cost.avgNetPrice)
         );
         break;
       case "name":
@@ -347,9 +360,15 @@ export default function ExplorePage() {
                       {school.name}
                     </Link>
                     <p className="text-[0.8rem] text-gray-mid">
-                      {school.city}, {school.state} · ~$
-                      {Math.round(school.cost.avgNetPrice / 1000)}k net ·{" "}
-                      {Math.round(school.admissions.acceptanceRate * 100)}% admit
+                      {[
+                        `${school.city}, ${school.state}`,
+                        school.cost.avgNetPrice != null &&
+                          `~${formatThousands(school.cost.avgNetPrice)} net`,
+                        school.admissions.acceptanceRate != null &&
+                          `${formatRate(school.admissions.acceptanceRate)} admit`,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     </p>
                   </div>
                   <span className="hidden sm:block text-[0.82rem] text-accent font-medium">

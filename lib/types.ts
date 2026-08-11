@@ -140,9 +140,21 @@ export interface School {
   size: SchoolSize;
   undergradEnrollment: number;
   photoQuery: string; // placeholder image seed until real photos
+  /*
+    Optional throughout, because a federal dataset is not a hand-written
+    entry. The curated forty have every figure; the ~1,900 institutions from
+    College Scorecard have whatever the institution actually reported, and
+    coverage is genuinely patchy — a small college may publish a net price
+    and no test range.
+
+    `undefined` here means "not reported", and the UI has to say that rather
+    than print a zero. It is the difference between "we don't know what this
+    costs" and "this costs nothing".
+  */
   admissions: {
-    acceptanceRate: number; // 0–1
-    gpaMid50: [number, number]; // unweighted
+    acceptanceRate?: number; // 0–1
+    /** Scorecard publishes no GPA distribution — absent for imported schools. */
+    gpaMid50?: [number, number]; // unweighted
     satMid50?: [number, number];
     actMid50?: [number, number];
     testPolicy: TestPolicy;
@@ -150,16 +162,16 @@ export interface School {
     deadlines: Partial<Record<ApplicationPlan, string>>; // ISO dates
   };
   cost: {
-    stickerPrice: number; // total COA per year
-    avgNetPrice: number; // the default number we show
+    stickerPrice?: number; // total COA per year
+    avgNetPrice?: number; // the default number we show
     netPriceByIncome: {
-      under48k: number;
-      k48to75: number;
-      k75to110: number;
-      over110k: number;
+      under48k?: number;
+      k48to75?: number;
+      k75to110?: number;
+      over110k?: number;
     };
-    percentNeedMet: number; // 0–1
-    meritAid: "none" | "limited" | "generous";
+    percentNeedMet?: number; // 0–1
+    meritAid?: "none" | "limited" | "generous";
   };
   academics: {
     topMajors: string[];
@@ -185,12 +197,14 @@ export interface School {
     thingsToDo: string;
   };
   outcomes: {
-    gradRate: number; // 6-year, 0–1
-    medianEarnings10yr: number;
-    alumniNetwork: "regional" | "national" | "global";
+    gradRate?: number; // 6-year, 0–1
+    medianEarnings10yr?: number;
+    alumniNetwork?: "regional" | "national" | "global";
   };
   /** Why the counselor might surface this school beyond the obvious. */
   underratedFor?: string;
+  /** Hand-written entry: carries editorial prose an import can't supply. */
+  curated?: boolean;
 }
 
 /* ————————————— List & applications ————————————— */

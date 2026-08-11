@@ -28,6 +28,7 @@ import {
   listThreadsAction,
 } from "@/lib/actions/counselor";
 import { getSchool } from "@/lib/data/schools";
+import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
 import type { ChanceTier } from "@/lib/types";
 
@@ -63,8 +64,14 @@ function SchoolCardInline({ schoolId, reason }: { schoolId: string; reason: stri
       </div>
       <p className="text-[0.9rem] text-gray-strong leading-relaxed">{reason}</p>
       <p className="text-[0.8rem] text-gray-mid mt-2">
-        Avg. net price ${school.cost.avgNetPrice.toLocaleString()} / yr ·{" "}
-        {Math.round(school.admissions.acceptanceRate * 100)}% admit rate
+        {[
+          school.cost.avgNetPrice != null &&
+            `Avg. net price ${formatDollars(school.cost.avgNetPrice)} / yr`,
+          school.admissions.acceptanceRate != null &&
+            `${formatRate(school.admissions.acceptanceRate)} admit rate`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
       </p>
     </Link>
   );

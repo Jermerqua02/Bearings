@@ -14,7 +14,8 @@ import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
 import { whyThisSchoolAction } from "@/lib/actions/counselor";
-import { chanceTier, fit, nextDeadline } from "@/lib/match";
+import { formatDollars, formatRate, hasCostData } from "@/lib/format";
+import { chanceRead, fit, nextDeadline } from "@/lib/match";
 import { useApp } from "@/lib/profile-context";
 import type { School } from "@/lib/types";
 
@@ -90,10 +91,11 @@ export default function SchoolDetail({ school }: { school: School }) {
     };
   }, [student, school.id]);
 
-  const tier = useMemo(
-    () => (student ? chanceTier(student, school) : null),
+  const read = useMemo(
+    () => (student ? chanceRead(student, school) : null),
     [student, school]
   );
+  const tier = read?.tier ?? null;
   const f = useMemo(
     () => (student ? fit(student, school) : null),
     [student, school]
@@ -111,6 +113,29 @@ export default function SchoolDetail({ school }: { school: School }) {
         : budget <= 50000
           ? income.k75to110
           : income.over110k;
+
+  // Only the bands this school actually reported.
+  const incomeBands = (
+    [
+      ["Under $48k", income.under48k],
+      ["$48k – $75k", income.k48to75],
+      ["$75k – $110k", income.k75to110],
+      ["Over $110k", income.over110k],
+    ] as [string, number | undefined][]
+  ).filter((entry): entry is [string, number] => entry[1] != null);
+
+  // City prose is editorial. Cost of living defaults to "moderate", so it is
+  // only a fact for a school somebody wrote by hand.
+  const cityFacts = (
+    [
+      school.curated
+        ? (["Cost of living", school.cityInfo.costOfLiving.replace("-", " ")] as const)
+        : null,
+      ["Getting around", school.cityInfo.transit] as const,
+      ["Airport access", school.cityInfo.airportAccess] as const,
+      ["Jobs & internships", school.cityInfo.internshipMarket] as const,
+    ].filter(Boolean) as (readonly [string, string])[]
+  ).filter(([, value]) => value);
 
   return (
     <div className="animate-fade-up max-w-4xl">
@@ -169,7 +194,14 @@ export default function SchoolDetail({ school }: { school: School }) {
       <section className="mb-10">
         <SectionLabel className="mb-4">Admissions</SectionLabel>
         <div className="grid sm:grid-cols-3 gap-6 mb-6">
-          <Stat label="Acceptance rate" value={`${Math.round(school.admissions.acceptanceRate * 100)}%`} />
+          <Stat
+            label="Acceptance rate"
+            value={
+              school.admissions.acceptanceRate == null
+                ? "Not reported"
+                : formatRate(school.admissions.acceptanceRate)
+            }
+          />
           <Stat
             label="Test policy"
             value={
@@ -189,24 +221,34 @@ export default function SchoolDetail({ school }: { school: School }) {
             }
           />
         </div>
-        <div className="space-y-5 max-w-xl">
-          <RangePlot
-            label="GPA (unweighted)"
-            min={school.admissions.gpaMid50[0]}
-            max={school.admissions.gpaMid50[1]}
-            value={student?.gpa.unweighted}
-            domain={[2.5, 4.0]}
-          />
-          {school.admissions.satMid50 && (
-            <RangePlot
-              label="SAT"
-              min={school.admissions.satMid50[0]}
-              max={school.admissions.satMid50[1]}
-              value={student?.testScores.sat}
-              domain={[800, 1600]}
-            />
-          )}
-        </div>
+        {/* Each plot appears only where the school published a range. A
+            missing range is not a range of zero, and drawing one against a
+            student's real number would be inventing the comparison. */}
+        {(school.admissions.gpaMid50 || school.admissions.satMid50) && (
+          <div className="space-y-5 max-w-xl">
+            {school.admissions.gpaMid50 && (
+              <RangePlot
+                label="GPA (unweighted)"
+                min={school.admissions.gpaMid50[0]}
+                max={school.admissions.gpaMid50[1]}
+                value={student?.gpa.unweighted}
+                domain={[2.5, 4.0]}
+              />
+            )}
+            {school.admissions.satMid50 && (
+              <RangePlot
+                label="SAT"
+                min={school.admissions.satMid50[0]}
+                max={school.admissions.satMid50[1]}
+                value={student?.testScores.sat}
+                domain={[800, 1600]}
+              />
+            )}
+          </div>
+        )}
+        {read?.caveat && (
+          <p className="text-[0.85rem] text-gray-mid mt-4 max-w-xl">{read.caveat}</p>
+        )}
         {tier === "reach" && (
           <p className="text-[0.9rem] text-gray-strong mt-4 max-w-xl">
             For students with your profile, this is a reach — and that&apos;s
@@ -219,113 +261,182 @@ export default function SchoolDetail({ school }: { school: School }) {
       {/* Cost */}
       <section className="mb-10">
         <SectionLabel className="mb-4">Cost — honestly</SectionLabel>
-        <div className="grid sm:grid-cols-3 gap-6 mb-5">
-          <Stat label="What you'd likely pay" value={`~$${estimate.toLocaleString()} / yr`} />
-          <Stat label="Average net price" value={`$${school.cost.avgNetPrice.toLocaleString()} / yr`} />
-          <Stat label="Sticker price" value={`$${school.cost.stickerPrice.toLocaleString()} / yr`} />
-        </div>
-        <Card className="p-5 max-w-xl">
-          <p className="label-caps mb-3">Average net price by family income</p>
-          <table className="w-full text-[0.9rem]">
-            <tbody>
-              {(
-                [
-                  ["Under $48k", income.under48k],
-                  ["$48k – $75k", income.k48to75],
-                  ["$75k – $110k", income.k75to110],
-                  ["Over $110k", income.over110k],
-                ] as const
-              ).map(([band, price]) => (
-                <tr key={band} className="border-t border-hairline first:border-t-0">
-                  <td className="py-2 text-gray-strong">{band}</td>
-                  <td className="py-2 text-right font-medium">
-                    ${price.toLocaleString()} / yr
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-[0.8rem] text-gray-mid mt-3">
-            Meets {Math.round(school.cost.percentNeedMet * 100)}% of demonstrated
-            need on average · merit aid: {school.cost.meritAid}. &quot;Need&quot;
-            is what the aid formulas say your family can&apos;t pay — we&apos;ll
-            help you check their math.
+        {hasCostData(school.cost) ? (
+          <>
+            <div className="grid sm:grid-cols-3 gap-6 mb-5">
+              <Stat
+                label="What you'd likely pay"
+                value={estimate == null ? "Not reported" : `~${formatDollars(estimate)} / yr`}
+              />
+              <Stat
+                label="Average net price"
+                value={
+                  school.cost.avgNetPrice == null
+                    ? "Not reported"
+                    : `${formatDollars(school.cost.avgNetPrice)} / yr`
+                }
+              />
+              <Stat
+                label="Sticker price"
+                value={
+                  school.cost.stickerPrice == null
+                    ? "Not reported"
+                    : `${formatDollars(school.cost.stickerPrice)} / yr`
+                }
+              />
+            </div>
+            {incomeBands.length > 0 && (
+              <Card className="p-5 max-w-xl">
+                <p className="label-caps mb-3">Average net price by family income</p>
+                <table className="w-full text-[0.9rem]">
+                  <tbody>
+                    {incomeBands.map(([band, price]) => (
+                      <tr key={band} className="border-t border-hairline first:border-t-0">
+                        <td className="py-2 text-gray-strong">{band}</td>
+                        <td className="py-2 text-right font-medium">
+                          {formatDollars(price)} / yr
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {school.cost.percentNeedMet != null && (
+                  <p className="text-[0.8rem] text-gray-mid mt-3">
+                    Meets {formatRate(school.cost.percentNeedMet)} of demonstrated
+                    need on average
+                    {school.cost.meritAid ? ` · merit aid: ${school.cost.meritAid}` : ""}.
+                    &quot;Need&quot; is what the aid formulas say your family
+                    can&apos;t pay — we&apos;ll help you check their math.
+                  </p>
+                )}
+              </Card>
+            )}
+          </>
+        ) : (
+          <p className="body-copy max-w-xl">
+            This school hasn&apos;t reported cost figures to the federal data
+            set we use. Its net price calculator — every college is required to
+            publish one — will give you a real number for your family.
           </p>
-        </Card>
+        )}
       </section>
 
       {/* Academics */}
       <section className="mb-10">
         <SectionLabel className="mb-4">Academics</SectionLabel>
+        {/* researchOpportunities and coOp are false by default, so printing
+            "Limited" / "Standard" for an imported school would state a
+            schema default as a finding. Shown only where we know. */}
         <div className="grid sm:grid-cols-3 gap-6 mb-4">
-          <Stat label="Student : faculty" value={school.academics.studentFacultyRatio} />
-          <Stat label="Research access" value={school.academics.researchOpportunities ? "Yes — real opportunities" : "Limited"} />
-          <Stat label="Co-op / internships" value={school.academics.coOp ? "Structured program" : "Standard"} />
-        </div>
-        <p className="text-[0.95rem] text-gray-strong mb-2">
-          <span className="text-ink font-medium">Popular majors:</span>{" "}
-          {school.academics.topMajors.join(" · ")}
-        </p>
-        <p className="text-[0.95rem] text-gray-strong">
-          <span className="text-ink font-medium">Worth knowing:</span>{" "}
-          {school.academics.notablePrograms.join(" · ")}
-        </p>
-      </section>
-
-      {/* Life & culture */}
-      <section className="mb-10">
-        <SectionLabel className="mb-4">Life &amp; culture</SectionLabel>
-        <p className="body-copy text-ink mb-4">{school.life.vibe}.</p>
-        <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-[0.92rem] max-w-2xl">
-          <p><span className="text-gray-mid">Greek life:</span> {school.life.greekLifePresence}</p>
-          <p><span className="text-gray-mid">D1 athletics:</span> {school.life.d1Athletics ? "Yes" : "No"}</p>
-          <p><span className="text-gray-mid">Housing guaranteed:</span> {school.life.housingGuaranteed} year{school.life.housingGuaranteed === 1 ? "" : "s"}</p>
-          <p><span className="text-gray-mid">Weather:</span> {school.life.weather}</p>
-          {school.life.religiousAffiliation && (
-            <p><span className="text-gray-mid">Affiliation:</span> {school.life.religiousAffiliation}</p>
+          {school.academics.studentFacultyRatio && (
+            <Stat label="Student : faculty" value={school.academics.studentFacultyRatio} />
+          )}
+          {school.curated && (
+            <>
+              <Stat
+                label="Research access"
+                value={
+                  school.academics.researchOpportunities
+                    ? "Yes — real opportunities"
+                    : "Limited"
+                }
+              />
+              <Stat
+                label="Co-op / internships"
+                value={school.academics.coOp ? "Structured program" : "Standard"}
+              />
+            </>
           )}
         </div>
-        <p className="text-[0.9rem] text-gray-strong mt-4 max-w-2xl">
-          <span className="text-ink font-medium">What students complain about:</span>{" "}
-          {school.life.commonComplaints}. Every school has this list — knowing it
-          beforehand is the difference between a dealbreaker and a shrug.
-        </p>
+        {school.academics.topMajors.length > 0 && (
+          <p className="text-[0.95rem] text-gray-strong mb-2">
+            <span className="text-ink font-medium">Popular majors:</span>{" "}
+            {school.academics.topMajors.join(" · ")}
+          </p>
+        )}
+        {school.academics.notablePrograms.length > 0 && (
+          <p className="text-[0.95rem] text-gray-strong">
+            <span className="text-ink font-medium">Worth knowing:</span>{" "}
+            {school.academics.notablePrograms.join(" · ")}
+          </p>
+        )}
       </section>
+
+      {/* Life & culture — editorial, so it appears only where it was written.
+          An empty vibe used to render as a lone "." in the largest body copy
+          on the page, and greekLifePresence "low" is a schema default rather
+          than a reported fact. */}
+      {school.curated && (
+        <section className="mb-10">
+          <SectionLabel className="mb-4">Life &amp; culture</SectionLabel>
+          {school.life.vibe && <p className="body-copy text-ink mb-4">{school.life.vibe}.</p>}
+          <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-[0.92rem] max-w-2xl">
+            <p><span className="text-gray-mid">Greek life:</span> {school.life.greekLifePresence}</p>
+            <p><span className="text-gray-mid">D1 athletics:</span> {school.life.d1Athletics ? "Yes" : "No"}</p>
+            <p><span className="text-gray-mid">Housing guaranteed:</span> {school.life.housingGuaranteed} year{school.life.housingGuaranteed === 1 ? "" : "s"}</p>
+            {school.life.weather && (
+              <p><span className="text-gray-mid">Weather:</span> {school.life.weather}</p>
+            )}
+            {school.life.religiousAffiliation && (
+              <p><span className="text-gray-mid">Affiliation:</span> {school.life.religiousAffiliation}</p>
+            )}
+          </div>
+          {school.life.commonComplaints && (
+            <p className="text-[0.9rem] text-gray-strong mt-4 max-w-2xl">
+              <span className="text-ink font-medium">What students complain about:</span>{" "}
+              {school.life.commonComplaints}. Every school has this list — knowing it
+              beforehand is the difference between a dealbreaker and a shrug.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* The city — first-class section */}
-      <section className="mb-10">
-        <SectionLabel className="mb-4">
-          The city — you&apos;re choosing a place to live, not just a school
-        </SectionLabel>
-        <div className="grid sm:grid-cols-2 gap-4">
-          {(
-            [
-              ["Cost of living", school.cityInfo.costOfLiving.replace("-", " ")],
-              ["Getting around", school.cityInfo.transit],
-              ["Airport access", school.cityInfo.airportAccess],
-              ["Jobs & internships", school.cityInfo.internshipMarket],
-            ] as const
-          ).map(([label, value]) => (
-            <Card key={label} className="p-4">
-              <p className="label-caps mb-1.5">{label}</p>
-              <p className="text-[0.92rem] leading-relaxed">{value}</p>
-            </Card>
-          ))}
-        </div>
-        <p className="text-[0.95rem] text-gray-strong mt-4 max-w-2xl">
-          {school.cityInfo.thingsToDo}.
-        </p>
-      </section>
+      {cityFacts.length > 0 && (
+        <section className="mb-10">
+          <SectionLabel className="mb-4">
+            The city — you&apos;re choosing a place to live, not just a school
+          </SectionLabel>
+          <div className="grid sm:grid-cols-2 gap-4">
+            {cityFacts.map(([label, value]) => (
+              <Card key={label} className="p-4">
+                <p className="label-caps mb-1.5">{label}</p>
+                <p className="text-[0.92rem] leading-relaxed">{value}</p>
+              </Card>
+            ))}
+          </div>
+          {school.cityInfo.thingsToDo && (
+            <p className="text-[0.95rem] text-gray-strong mt-4 max-w-2xl">
+              {school.cityInfo.thingsToDo}.
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Outcomes */}
-      <section className="mb-12">
-        <SectionLabel className="mb-4">Outcomes</SectionLabel>
-        <div className="grid sm:grid-cols-3 gap-6">
-          <Stat label="Six-year grad rate" value={`${Math.round(school.outcomes.gradRate * 100)}%`} />
-          <Stat label="Median earnings (10 yr out)" value={`$${school.outcomes.medianEarnings10yr.toLocaleString()}`} />
-          <Stat label="Alumni network" value={school.outcomes.alumniNetwork} />
-        </div>
-      </section>
+      {(school.outcomes.gradRate != null ||
+        school.outcomes.medianEarnings10yr != null) && (
+        <section className="mb-12">
+          <SectionLabel className="mb-4">Outcomes</SectionLabel>
+          <div className="grid sm:grid-cols-3 gap-6">
+            {school.outcomes.gradRate != null && (
+              <Stat
+                label="Six-year grad rate"
+                value={formatRate(school.outcomes.gradRate)}
+              />
+            )}
+            {school.outcomes.medianEarnings10yr != null && (
+              <Stat
+                label="Median earnings (10 yr out)"
+                value={formatDollars(school.outcomes.medianEarnings10yr)}
+              />
+            )}
+            {school.outcomes.alumniNetwork && (
+              <Stat label="Alumni network" value={school.outcomes.alumniNetwork} />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Ask the counselor */}
       <Card className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

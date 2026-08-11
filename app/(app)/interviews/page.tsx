@@ -24,7 +24,14 @@ const COMMON_QUESTIONS = [
 ];
 
 function schoolOffersInterview(s: School): boolean {
-  return s.type !== "public" && s.type !== "public-flagship" && s.admissions.acceptanceRate < 0.6;
+  // No admit rate reported: assume no interview rather than inventing one.
+  const rate = s.admissions.acceptanceRate;
+  return (
+    s.type !== "public" &&
+    s.type !== "public-flagship" &&
+    rate !== undefined &&
+    rate < 0.6
+  );
 }
 
 interface Turn {

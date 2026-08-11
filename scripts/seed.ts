@@ -125,9 +125,11 @@ async function seedReferenceData() {
       .values({
         schoolId: s.id,
         cycle: CYCLE,
-        acceptanceRate: s.admissions.acceptanceRate,
-        gpaMid50Low: s.admissions.gpaMid50[0],
-        gpaMid50High: s.admissions.gpaMid50[1],
+        acceptanceRate: s.admissions.acceptanceRate ?? null,
+        // The curated entries all carry a GPA range; the optional chaining is
+        // for the type, not because one is expected to be missing.
+        gpaMid50Low: s.admissions.gpaMid50?.[0] ?? null,
+        gpaMid50High: s.admissions.gpaMid50?.[1] ?? null,
         satMid50Low: s.admissions.satMid50?.[0] ?? null,
         satMid50High: s.admissions.satMid50?.[1] ?? null,
         actMid50Low: s.admissions.actMid50?.[0] ?? null,

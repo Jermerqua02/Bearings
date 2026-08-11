@@ -13,17 +13,49 @@ import type {
 
 /* ————— Chance tier ————— */
 
-export function chanceTier(profile: StudentProfile, school: School): ChanceTier {
+/**
+ * How much the tier is actually worth.
+ *
+ * A read built from a GPA *and* a test score against a school's own ranges is
+ * a different claim from one built on an admit rate alone, and the student
+ * deserves to know which they're looking at. "low" is not a hedge for a bad
+ * guess — it is the honest label for a real estimate with one input.
+ */
+export type TierConfidence = "high" | "medium" | "low";
+
+export interface ChanceRead {
+  tier: ChanceTier;
+  confidence: TierConfidence;
+  /** Plain-language note on what the estimate is missing, if anything. */
+  caveat?: string;
+}
+
+/**
+ * Reach / target / likely, plus how much to trust it.
+ *
+ * Both the student's numbers and the school's can be absent — Scorecard
+ * publishes no GPA distribution at all, and a small college may report no
+ * test range. Every signal is therefore optional, and the tier is computed
+ * from whatever is genuinely available rather than from a filled-in blank.
+ */
+export function chanceRead(profile: StudentProfile, school: School): ChanceRead | null {
   const { acceptanceRate, gpaMid50, satMid50, actMid50 } = school.admissions;
 
+  // Without an admit rate there is no honest tier to state. Callers show
+  // "not enough data" rather than a guess.
+  if (acceptanceRate === undefined) return null;
+
   // Single-digit acceptance rates are a reach for everyone. Full stop.
-  if (acceptanceRate < 0.1) return "reach";
+  if (acceptanceRate < 0.1) {
+    return { tier: "reach", confidence: "high" };
+  }
 
   let points = 0;
   let signals = 0;
 
   const gpa = profile.gpa.unweighted;
-  if (gpa !== undefined) {
+  const gpaUsable = gpa !== undefined && gpaMid50 !== undefined;
+  if (gpaUsable) {
     signals++;
     if (gpa >= gpaMid50[1]) points += 2;
     else if (gpa >= gpaMid50[0]) points += 1;
@@ -33,38 +65,75 @@ export function chanceTier(profile: StudentProfile, school: School): ChanceTier 
 
   const sat = profile.testScores.sat;
   const act = profile.testScores.act;
+  let testUsable = false;
   if (sat !== undefined && satMid50) {
+    testUsable = true;
     signals++;
     if (sat >= satMid50[1]) points += 2;
     else if (sat >= satMid50[0]) points += 1;
     else points -= 1;
   } else if (act !== undefined && actMid50) {
+    testUsable = true;
     signals++;
     if (act >= actMid50[1]) points += 2;
     else if (act >= actMid50[0]) points += 1;
     else points -= 1;
   }
 
-  // Rigor nudge
+  // Rigor nudge. Deliberately not a signal: it adjusts the read, it isn't an
+  // independent measurement of it, so it must not divide.
   const rigorCount =
     profile.rigor.apCount + profile.rigor.ibCount + profile.rigor.honorsCount;
   if (rigorCount >= 8) points += 1;
 
   const avg = signals > 0 ? points / signals : 0;
 
-  if (acceptanceRate < 0.25) {
-    // Selective: strong numbers still only make it a target
-    return avg >= 1.4 ? "target" : "reach";
+  const tier: ChanceTier =
+    acceptanceRate < 0.25
+      ? // Selective: strong numbers still only make it a target
+        avg >= 1.4
+        ? "target"
+        : "reach"
+      : acceptanceRate < 0.5
+        ? avg >= 1.4
+          ? "likely"
+          : avg >= 0.6
+            ? "target"
+            : "reach"
+        : // Open-er admission
+          avg >= 0.9
+          ? "likely"
+          : avg >= 0
+            ? "target"
+            : "reach";
+
+  if (gpaUsable && testUsable) return { tier, confidence: "high" };
+  if (gpaUsable || testUsable) {
+    return {
+      tier,
+      confidence: "medium",
+      caveat: gpaUsable
+        ? "Estimated from your GPA and this school's admit rate — no test range published."
+        : "Estimated from your test score and this school's admit rate — no GPA range published.",
+    };
   }
-  if (acceptanceRate < 0.5) {
-    if (avg >= 1.4) return "likely";
-    if (avg >= 0.6) return "target";
-    return "reach";
-  }
-  // Open-er admission
-  if (avg >= 0.9) return "likely";
-  if (avg >= 0) return "target";
-  return "reach";
+  return {
+    tier,
+    confidence: "low",
+    caveat:
+      "Based on this school's admit rate alone. Add your GPA or a test score for a sharper read.",
+  };
+}
+
+/**
+ * The tier on its own.
+ *
+ * Kept because most callers only need the badge. Schools with no admit rate
+ * fall back to "target" — the neutral middle — and callers that care about
+ * the difference should use chanceRead() and check for null.
+ */
+export function chanceTier(profile: StudentProfile, school: School): ChanceTier {
+  return chanceRead(profile, school)?.tier ?? "target";
 }
 
 /* ————— Fit (categorical, with reasons) ————— */
@@ -95,11 +164,16 @@ export function fit(profile: StudentProfile, school: School): Fit {
   }
 
   const budget = profile.budget.maxPerYear;
-  if (budget !== undefined) {
-    if (school.cost.avgNetPrice <= budget) {
+  const netPrice = school.cost.avgNetPrice;
+  // A school that reported no net price is neither in budget nor over it.
+  // Scoring it as 0 rather than -2 keeps "we don't know" from reading as
+  // "too expensive" — the old code would have treated a missing figure as
+  // free, which is the same mistake in the opposite direction.
+  if (budget !== undefined && netPrice !== undefined) {
+    if (netPrice <= budget) {
       score += 3;
       reasons.push("Average net price fits your budget");
-    } else if (school.cost.avgNetPrice <= budget + 8000) {
+    } else if (netPrice <= budget + 8000) {
       score += 1;
       reasons.push("Close to budget — aid could bridge the gap");
     } else if (school.cost.meritAid === "generous") {

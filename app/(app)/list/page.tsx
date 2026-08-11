@@ -12,8 +12,9 @@ import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
 import { getSchool } from "@/lib/data/schools";
 import { daysUntil, listBalance, nextDeadline } from "@/lib/match";
+import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
-import type { ApplicationPlan, ChanceTier, ListEntry } from "@/lib/types";
+import type { ApplicationPlan, ChanceTier, ListEntry, School } from "@/lib/types";
 
 const TIERS: ChanceTier[] = ["reach", "target", "likely"];
 
@@ -214,14 +215,14 @@ export default function ListPage() {
             <tbody>
               {(
                 [
-                  ["Avg net price / yr", (s: NonNullable<ReturnType<typeof getSchool>>) => `$${s.cost.avgNetPrice.toLocaleString()}`],
-                  ["Acceptance rate", (s) => `${Math.round(s.admissions.acceptanceRate * 100)}%`],
+                  ["Avg net price / yr", (s: School) => formatDollars(s.cost.avgNetPrice)],
+                  ["Acceptance rate", (s) => formatRate(s.admissions.acceptanceRate)],
                   ["Setting", (s) => s.setting.replace("-", " ")],
                   ["Undergrads", (s) => s.undergradEnrollment.toLocaleString()],
-                  ["Grad rate", (s) => `${Math.round(s.outcomes.gradRate * 100)}%`],
-                  ["Median earnings", (s) => `$${s.outcomes.medianEarnings10yr.toLocaleString()}`],
-                  ["Need met", (s) => `${Math.round(s.cost.percentNeedMet * 100)}%`],
-                ] as [string, (s: NonNullable<ReturnType<typeof getSchool>>) => string][]
+                  ["Grad rate", (s) => formatRate(s.outcomes.gradRate)],
+                  ["Median earnings", (s) => formatDollars(s.outcomes.medianEarnings10yr)],
+                  ["Need met", (s) => formatRate(s.cost.percentNeedMet)],
+                ] as [string, (s: School) => string][]
               ).map(([label, fn]) => (
                 <tr key={label} className="border-t border-hairline">
                   <td className="label-caps py-2.5 pr-3 whitespace-nowrap">{label}</td>

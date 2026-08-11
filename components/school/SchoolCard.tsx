@@ -3,6 +3,7 @@
 import Link from "next/link";
 import SchoolPhoto from "@/components/school/SchoolPhoto";
 import TierBadge from "@/components/ui/TierBadge";
+import { formatRate, formatThousands } from "@/lib/format";
 import type { FitLabel } from "@/lib/match";
 import type { ChanceTier, School } from "@/lib/types";
 
@@ -55,9 +56,15 @@ export default function SchoolCard({
         </p>
         <div className="flex items-center justify-between text-[0.85rem] text-gray-strong mt-auto pt-2">
           <span>
-            ~${Math.round(school.cost.avgNetPrice / 1000)}k net / yr
+            {school.cost.avgNetPrice == null
+              ? "Net price not reported"
+              : `~${formatThousands(school.cost.avgNetPrice)} net / yr`}
           </span>
-          <span>{Math.round(school.admissions.acceptanceRate * 100)}% admit</span>
+          <span>
+            {school.admissions.acceptanceRate == null
+              ? ""
+              : `${formatRate(school.admissions.acceptanceRate)} admit`}
+          </span>
         </div>
         <div className="flex items-center justify-between pt-2 border-t border-hairline">
           <span className="text-[0.82rem] text-accent font-medium">{fitLabel}</span>

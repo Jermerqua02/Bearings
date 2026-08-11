@@ -34,7 +34,7 @@ function requirementsFor(school: School) {
     supplements: isPrivateish ? 1 : 0,
     teacherRecs: isPrivateish ? 2 : school.type === "public-flagship" ? 1 : 0,
     counselorRec: isPrivateish,
-    interview: isPrivateish && school.admissions.acceptanceRate < 0.35,
+    interview: isPrivateish && (school.admissions.acceptanceRate ?? 1) < 0.35,
     fee: school.type === "public" ? 50 : 75,
     feeWaiverAvailable: true,
   };
@@ -704,7 +704,9 @@ function AidTab() {
             if (!s) return null;
             const offer = aidOffers.find((o) => o.schoolId === s.id) ?? {
               schoolId: s.id,
-              coa: s.cost.stickerPrice,
+              // Prefilled from sticker price where we have it; 0 renders as an
+              // empty field for the student to fill from their award letter.
+              coa: s.cost.stickerPrice ?? 0,
               grants: 0,
               loans: 0,
               workStudy: 0,

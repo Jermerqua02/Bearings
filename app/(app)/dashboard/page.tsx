@@ -12,6 +12,7 @@ import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
 import { getSchool } from "@/lib/data/schools";
 import { daysUntil, listBalance, nextDeadline } from "@/lib/match";
+import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
 import { gradeModeLabel, type ParentProfile, type StudentProfile } from "@/lib/types";
 
@@ -269,7 +270,9 @@ function StudentDashboard({ profile }: { profile: StudentProfile }) {
                       {s.name}
                     </Link>
                     <span className="text-[0.8rem] text-gray-mid whitespace-nowrap">
-                      ~${Math.round(s.cost.avgNetPrice / 1000)}k net
+                      {s.cost.avgNetPrice == null
+                        ? ""
+                        : `~${formatThousands(s.cost.avgNetPrice)} net`}
                     </span>
                   </li>
                 );

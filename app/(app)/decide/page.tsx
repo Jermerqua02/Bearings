@@ -9,6 +9,7 @@ import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { getSchool } from "@/lib/data/schools";
+import { formatDollars, formatRate } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
 import type { ListEntry } from "@/lib/types";
 
@@ -84,7 +85,9 @@ function AidCompareTab() {
       const s = getSchool(e.schoolId);
       const o = aidOffers.find((x) => x.schoolId === e.schoolId);
       if (!s) return null;
-      const coa = o?.coa ?? s.cost.stickerPrice;
+      // No award letter and no reported sticker price means there is no true
+      // cost to compute. The student fills it in from the letter itself.
+      const coa = o?.coa ?? s.cost.stickerPrice ?? 0;
       const grants = o?.grants ?? 0;
       const loans = o?.loans ?? 0;
       const work = o?.workStudy ?? 0;
@@ -280,13 +283,13 @@ function ChoiceTab() {
             const s = getSchool(e.schoolId);
             if (!s) return null;
             const o = aidOffers.find((x) => x.schoolId === s.id);
-            const trueCost = (o?.coa ?? s.cost.stickerPrice) - (o?.grants ?? 0);
+            const trueCost = (o?.coa ?? s.cost.stickerPrice ?? 0) - (o?.grants ?? 0);
             return (
               <tr key={s.id} className="border-t border-hairline">
                 <td className="py-3 pr-4 font-medium">{s.shortName}</td>
                 <td className="py-3 pr-4">${trueCost.toLocaleString()}</td>
-                <td className="py-3 pr-4">{Math.round(s.outcomes.gradRate * 100)}%</td>
-                <td className="py-3 pr-4">${s.outcomes.medianEarnings10yr.toLocaleString()}</td>
+                <td className="py-3 pr-4">{formatRate(s.outcomes.gradRate)}</td>
+                <td className="py-3 pr-4">{formatDollars(s.outcomes.medianEarnings10yr)}</td>
                 <td className="py-3">
                   <input
                     value={gut[s.id] ?? ""}

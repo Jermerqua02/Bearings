@@ -47,3 +47,42 @@ export function formatTokens(n: number): string {
   if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
   return `${(n / 1_000_000).toFixed(2)}M`;
 }
+
+/* ————————————— School figures ————————————— */
+
+/*
+  Every school number is optional now, because College Scorecard's coverage
+  is real rather than complete. These four formatters exist so that "not
+  reported" is written the same way everywhere, and so no caller has to
+  decide what `undefined` looks like — the old code would have rendered it
+  as "$0k net / yr" and "0% admit", which reads as a fact and is a lie.
+*/
+
+/** The em dash we use for a figure a school didn't report. */
+export const NOT_REPORTED = "—";
+
+/** "~$16k" — the net-price shorthand used on cards and stats. */
+export function formatThousands(dollars: number | null | undefined): string {
+  if (dollars == null) return NOT_REPORTED;
+  return `$${Math.round(dollars / 1000)}k`;
+}
+
+/** "$43,120" — full precision, for the places that show real money. */
+export function formatDollars(dollars: number | null | undefined): string {
+  if (dollars == null) return NOT_REPORTED;
+  return `$${Math.round(dollars).toLocaleString()}`;
+}
+
+/** A 0–1 rate as "43%". */
+export function formatRate(rate: number | null | undefined): string {
+  if (rate == null) return NOT_REPORTED;
+  return `${Math.round(rate * 100)}%`;
+}
+
+/** True when a school reported enough for the cost section to say anything. */
+export function hasCostData(cost: {
+  avgNetPrice?: number;
+  stickerPrice?: number;
+}): boolean {
+  return cost.avgNetPrice != null || cost.stickerPrice != null;
+}
