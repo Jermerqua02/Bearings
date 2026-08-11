@@ -44,6 +44,7 @@ npm run test:onboarding   # onboarding actually persists
 npm run test:admin        # admin queries, feedback, budget settings
 npm run test:budget       # budget alert thresholds and suppression
 npm run test:schools      # the school query layer, and SQL/JS chance-tier parity
+npm run test:persistence  # every table holding user input has something that writes to it
 npm run test:audit        # replays the browser walkthrough that found the bugs (needs `npm run dev`)
 npm run test:live         # end-to-end against the real Claude API (costs money)
 ```
