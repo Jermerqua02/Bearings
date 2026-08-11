@@ -329,6 +329,25 @@ export default function ExploreResults({
             </div>
           </div>
 
+          {/*
+            Which slice of the results this is.
+
+            Without it a filter returning 93 schools showed 24 and looked
+            complete: a student went looking for San Francisco State in
+            "likely · west", didn't see it on the first page, and reasonably
+            concluded it wasn't there. It was 66th. The total was in the
+            headline and the pager was below the fold, and neither said "you
+            are looking at a quarter of this".
+          */}
+          {rows.length > 0 && pageCount > 1 && (
+            <p className="text-[0.82rem] text-gray-mid mb-4">
+              Showing {(shown.page - 1) * rows.length + 1}–
+              {(shown.page - 1) * rows.length + rows.length} of{" "}
+              {total.toLocaleString()}
+              {shown.q.trim() ? "" : " — search by name above to jump to one"}
+            </p>
+          )}
+
           <div className={pending ? "opacity-50 transition-opacity" : "transition-opacity"}>
             {view === "map" ? (
               <div className="border border-hairline rounded-[3px] bg-surface p-10 text-center">

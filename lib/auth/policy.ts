@@ -58,9 +58,22 @@ export async function requireViewer(): Promise<Viewer> {
   return viewer;
 }
 
+/**
+ * The caller must own a student record — i.e. not be a parent.
+ *
+ * The boundary this enforces is "a parent has no write path to a student's
+ * data, and no access to the counselor". It was written as `role !==
+ * "student"`, which also locked out admins: an operator walking the product
+ * hit "Students only" on every counselor message and every list write, while
+ * onboarding — which doesn't come through here — let them in and saved their
+ * answers. Same shape as the canRead bug, in the other direction.
+ *
+ * Parents are still refused, which is the part that matters. Everything here
+ * acts on the caller's own records.
+ */
 export async function requireStudent(): Promise<Viewer> {
   const viewer = await requireViewer();
-  if (viewer.role !== "student") throw new AuthzError("Students only");
+  if (viewer.role === "parent") throw new AuthzError("Students only");
   return viewer;
 }
 

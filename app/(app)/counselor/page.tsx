@@ -13,7 +13,6 @@ import {
 } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import Chip from "@/components/ui/Chip";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
 import {
@@ -326,8 +325,12 @@ function CounselorInner() {
   }, [profile, startThread]);
 
   useEffect(() => {
+    // Only follow a live conversation. Scrolling to the bottom of a fresh
+    // thread pushed the greeting up under the header on a phone, so the
+    // first thing a student saw was the middle of a sentence.
+    if ((active?.messages.length ?? 0) <= 1) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [threads, busy]);
+  }, [threads, busy, active]);
 
   const send = async (text: string) => {
     if (!profile || !active || !text.trim() || busy) return;
@@ -430,58 +433,91 @@ function CounselorInner() {
         )}
 
         <div
-          className="flex-1 overflow-y-auto space-y-5 pr-1"
+          className="flex-1 overflow-y-auto pr-1"
           role="log"
           aria-label="Conversation with your counselor"
           aria-live="polite"
         >
-          {active?.messages.map((m) => (
-            <div
-              key={m.id}
-              className={`max-w-xl ${m.author === "user" ? "ml-auto" : ""}`}
-            >
-              <p
-                className={`text-[1rem] leading-relaxed whitespace-pre-wrap rounded-[3px] px-4 py-3 ${
-                  m.author === "user"
-                    ? "bg-ink text-white"
-                    : "bg-surface border border-hairline"
-                }`}
-              >
-                {m.text}
-              </p>
-              {m.cards && (
-                <div className="mt-3 space-y-3">
-                  {m.cards.map((c, i) => (
-                    <CardBlock key={i} card={c} />
-                  ))}
-                </div>
+          {/*
+            Fresh conversation: the suggestions are the page, not a strip of
+            chips wedged above the input. They were a horizontally-scrolling
+            row that clipped the fifth prompt off-screen with no affordance
+            saying so, which made the most useful thing here the least
+            visible. Full-width rows read in one pass and give a question the
+            room its own sentence needs.
+          */}
+          {fresh && !busy ? (
+            <div className="max-w-2xl">
+              {active?.messages[0] && (
+                <p className="text-[1.05rem] leading-relaxed whitespace-pre-wrap mb-10">
+                  {active.messages[0].text}
+                </p>
               )}
+              <SectionLabel className="mb-1">Or start here</SectionLabel>
+              <ul className="border-t border-hairline">
+                {SUGGESTED_PROMPTS.map((p) => (
+                  <li key={p} className="border-b border-hairline">
+                    <button
+                      onClick={() => void send(p)}
+                      className="group w-full flex items-baseline justify-between gap-6 text-left py-4 md:py-5 transition-quiet hover:text-accent"
+                    >
+                      <span className="text-[1.05rem] md:text-[1.25rem] leading-snug tracking-[-0.01em]">
+                        {p}
+                      </span>
+                      <span
+                        aria-hidden
+                        className="shrink-0 text-gray-mid group-hover:text-accent group-hover:translate-x-0.5 transition-quiet"
+                      >
+                        →
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
-          ))}
-          {busy && (
-            <p className="text-gray-mid text-[0.9rem] px-1">Thinking…</p>
+          ) : (
+            <div className="space-y-5">
+              {active?.messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`max-w-xl ${m.author === "user" ? "ml-auto" : ""}`}
+                >
+                  <p
+                    className={`text-[1rem] leading-relaxed whitespace-pre-wrap rounded-[3px] px-4 py-3 ${
+                      m.author === "user"
+                        ? "bg-ink text-white"
+                        : "bg-surface border border-hairline"
+                    }`}
+                  >
+                    {m.text}
+                  </p>
+                  {m.cards && (
+                    <div className="mt-3 space-y-3">
+                      {m.cards.map((c, i) => (
+                        <CardBlock key={i} card={c} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {busy && <p className="text-gray-mid text-[0.9rem] px-1">Thinking…</p>}
+            </div>
           )}
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggested prompts */}
-        {fresh && !busy && (
-          <div className="flex gap-2 overflow-x-auto no-scrollbar py-3">
-            {SUGGESTED_PROMPTS.map((p) => (
-              <Chip key={p} onClick={() => void send(p)} className="whitespace-nowrap shrink-0">
-                {p}
-              </Chip>
-            ))}
-          </div>
-        )}
-
-        {/* Input */}
+        {/*
+          One line, with the action on it. A pill input and a filled pill
+          button read as a form to fill in; a single rule with the verb at
+          the end reads as a place to type, which is what it is. The rule
+          darkens on focus so the whole row is the focus indicator.
+        */}
         <form
           onSubmit={(e) => {
             e.preventDefault();
             void send(input);
           }}
-          className="flex gap-2 pt-3 border-t border-hairline"
+          className="group flex items-center gap-3 mt-8 max-w-2xl border-b border-hairline focus-within:border-ink transition-quiet"
         >
           <label htmlFor="counselor-input" className="sr-only">
             Message your counselor
@@ -490,15 +526,18 @@ function CounselorInner() {
             id="counselor-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask anything — I know your profile."
-            className="flex-1 border border-hairline rounded-full bg-surface px-5 h-11 text-[0.95rem] focus:border-ink outline-none transition-quiet"
+            placeholder="Ask anything…"
+            className="flex-1 min-w-0 bg-transparent h-11 text-[1.05rem] outline-none placeholder:text-gray-mid transition-quiet"
           />
+          {/* mr on mobile clears the floating feedback control, which sits at
+              bottom-20 right-4 and otherwise covers this button — the primary
+              action on the page. */}
           <button
             type="submit"
             disabled={busy || !input.trim()}
-            className="h-11 px-6 rounded-full bg-ink text-white text-[0.72rem] uppercase tracking-[0.08em] font-medium disabled:opacity-40 transition-quiet"
+            className="shrink-0 h-11 px-2 mr-28 md:mr-0 md:-mr-2 text-[0.95rem] font-medium text-ink hover:text-accent disabled:text-gray-mid disabled:hover:text-gray-mid transition-quiet"
           >
-            Send
+            {busy ? "Sending…" : "Ask →"}
           </button>
         </form>
         <div className="lg:hidden pt-2">
