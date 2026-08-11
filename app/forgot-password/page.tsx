@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 
-export const metadata = { title: "Reset your password · Northstar" };
+export const metadata = { title: "Reset your password · Bearings" };
 
 export default function ForgotPasswordPage() {
   return (

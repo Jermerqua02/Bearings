@@ -81,11 +81,11 @@ export async function sendEmail(mail: Mail): Promise<boolean> {
 const SHELL = (body: string) => `
 <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
             max-width:520px;margin:0 auto;padding:32px 24px;color:#1a1a1a;line-height:1.6">
-  <p style="font-size:18px;font-weight:600;letter-spacing:-0.01em;margin:0 0 28px">Northstar</p>
+  <p style="font-size:18px;font-weight:600;letter-spacing:-0.01em;margin:0 0 28px">Bearings</p>
   ${body}
   <hr style="border:none;border-top:1px solid #e5e5e5;margin:32px 0 16px" />
   <p style="font-size:12px;color:#8a8a8a;margin:0">
-    Northstar is operated by Prompt LLC. If you weren't expecting this email,
+    Bearings is operated by Prompt LLC. If you weren't expecting this email,
     you can ignore it safely.
   </p>
 </div>`;
@@ -100,8 +100,8 @@ export function passwordResetEmail(url: string, name?: string): Mail {
   const greeting = name ? `Hi ${name},` : "Hi,";
   return {
     to: "",
-    subject: "Reset your Northstar password",
-    text: `${greeting}\n\nReset your Northstar password here:\n${url}\n\nThis link expires in one hour. If you didn't ask to reset it, ignore this email — your password won't change.`,
+    subject: "Reset your Bearings password",
+    text: `${greeting}\n\nReset your Bearings password here:\n${url}\n\nThis link expires in one hour. If you didn't ask to reset it, ignore this email — your password won't change.`,
     html: SHELL(`
       <p style="margin:0 0 20px">${greeting}</p>
       <p style="margin:0 0 24px">Use the button below to set a new password.</p>
@@ -122,14 +122,14 @@ export function parentInviteEmail(input: {
   return {
     to: "",
     subject: `${input.studentName} invited you to follow their college search`,
-    text: `${input.studentName} is using Northstar to plan for college and has invited you to follow along.
+    text: `${input.studentName} is using Bearings to plan for college and has invited you to follow along.
 
 Accept here: ${input.acceptUrl}
 
 You'll see their progress, deadlines, school list and costs. You will not see their private conversations with the AI counselor or their essay drafts unless they choose to share them.`,
     html: SHELL(`
       <p style="margin:0 0 20px">
-        <strong>${input.studentName}</strong> is using Northstar to plan for
+        <strong>${input.studentName}</strong> is using Bearings to plan for
         college, and has invited you to follow along.
       </p>
       ${BUTTON(input.acceptUrl, "Accept the invitation")}
@@ -156,12 +156,12 @@ export function budgetAlertEmail(input: {
   return {
     to: "",
     subject: over
-      ? `Northstar is over budget — $${input.spentUsd.toFixed(2)} of $${input.budgetUsd.toFixed(2)}`
-      : `Northstar has used ${pct}% of this month's budget`,
+      ? `Bearings is over budget — $${input.spentUsd.toFixed(2)} of $${input.budgetUsd.toFixed(2)}`
+      : `Bearings has used ${pct}% of this month's budget`,
     text: `Spend this month: $${input.spentUsd.toFixed(2)} of $${input.budgetUsd.toFixed(2)} (${pct}%).\n\nThreshold crossed: ${input.threshold}%.\n\n${input.adminUrl}`,
     html: SHELL(`
       <p style="margin:0 0 20px">
-        ${over ? "<strong>Northstar is over budget.</strong>" : `Northstar has crossed the ${input.threshold}% mark on this month's budget.`}
+        ${over ? "<strong>Bearings is over budget.</strong>" : `Bearings has crossed the ${input.threshold}% mark on this month's budget.`}
       </p>
       <p style="margin:0 0 24px;font-size:22px;font-weight:600">
         $${input.spentUsd.toFixed(2)}

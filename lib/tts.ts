@@ -1,7 +1,7 @@
 /* ————————————————————————————————————————
    Text to speech.
 
-   Anthropic's API has no audio output, so this is the one place Northstar
+   Anthropic's API has no audio output, so this is the one place Bearings
    talks to a second model provider. Everything else — the counselor, essay
    critique, interview practice — stays on Claude.
 

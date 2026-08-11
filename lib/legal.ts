@@ -34,9 +34,9 @@ const FILL_ME = (what: string) => {
 };
 
 export const COMPANY = {
-  /** The operating entity. Northstar is the product; Prompt LLC is the company. */
+  /** The operating entity. Bearings is the product; Prompt LLC is the company. */
   legalName: "Prompt LLC",
-  productName: "Northstar",
+  productName: "Bearings",
 
   /* —— Review these four before launch —————————————————————————— */
 
@@ -69,12 +69,21 @@ export const COMPANY = {
 } as const;
 
 /** Bump when the substance changes. Stored with every acceptance. */
-export const TERMS_VERSION = "2026-08-09";
-export const PRIVACY_VERSION = "2026-08-09.2";
+/*
+  Bumped for the rename. Arguably a borderline call — the operator, the
+  terms and the commitments are all unchanged, and only the product's name
+  moved. But the agreement identifies the Service by name, and consent is
+  only worth something if you can say what was consented to: an acceptance
+  recorded against 2026-08-09 points at a document that named a different
+  service. Cheap to do now, and the alternative is a record that quietly
+  stops matching the text it was given for.
+*/
+export const TERMS_VERSION = "2026-08-10";
+export const PRIVACY_VERSION = "2026-08-10";
 
 /** Shown at the top of each document. Keep in step with the versions above. */
-export const TERMS_EFFECTIVE = "August 9, 2026";
-export const PRIVACY_EFFECTIVE = "August 9, 2026";
+export const TERMS_EFFECTIVE = "August 10, 2026";
+export const PRIVACY_EFFECTIVE = "August 10, 2026";
 
 /**
  * Minimum age to hold an account.
@@ -82,7 +91,7 @@ export const PRIVACY_EFFECTIVE = "August 9, 2026";
  * 13 is a deliberate line, not an arbitrary one. COPPA attaches to operators
  * who knowingly collect personal information from children under 13 and
  * requires verifiable parental consent — a materially different product.
- * Northstar serves high schoolers, so the documents state plainly that the
+ * Bearings serves high schoolers, so the documents state plainly that the
  * service is not directed to under-13s, and signup enforces it.
  */
 export const MINIMUM_AGE = 13;

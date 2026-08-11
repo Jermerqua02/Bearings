@@ -6,7 +6,7 @@ import { BarChart, Funnel, PeriodToggle, Stat, periodFrom } from "../_components
 import { telemetry } from "@/lib/db/queries/admin";
 import { formatTokens } from "@/lib/costs";
 
-export const metadata: Metadata = { title: "Telemetry · Northstar admin" };
+export const metadata: Metadata = { title: "Telemetry · Bearings admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminTelemetryPage({

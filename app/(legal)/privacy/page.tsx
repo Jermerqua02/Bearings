@@ -4,7 +4,7 @@ import { Bullets, DocTitle, Emphasis, Section } from "../_components/Doc";
 import { COMPANY, MINIMUM_AGE, PRIVACY_EFFECTIVE, PRIVACY_VERSION } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Northstar",
+  title: "Privacy Policy · Bearings",
   description: `How ${COMPANY.legalName} collects, uses, and protects information in ${COMPANY.productName}.`,
 };
 

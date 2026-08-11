@@ -1,5 +1,5 @@
 /* ————————————————————————————————————————
-   Northstar domain model
+   Bearings domain model
    ———————————————————————————————————————— */
 
 export type Role = "student" | "parent" | "admin";

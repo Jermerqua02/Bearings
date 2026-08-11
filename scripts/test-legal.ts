@@ -33,7 +33,7 @@ function check(label: string, condition: boolean, detail?: string) {
   }
 }
 
-const TEST_EMAIL = "consent-test@northstar.invalid";
+const TEST_EMAIL = "consent-test@bearings.invalid";
 
 async function cleanup() {
   await db.delete(users).where(inArray(users.email, [TEST_EMAIL]));

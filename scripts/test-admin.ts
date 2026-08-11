@@ -25,7 +25,7 @@ function check(label: string, ok: boolean, detail?: string) {
   }
 }
 
-const EMAILS = ["admin-test-a@northstar.invalid", "admin-test-b@northstar.invalid"];
+const EMAILS = ["admin-test-a@bearings.invalid", "admin-test-b@bearings.invalid"];
 
 async function cleanup() {
   await db.delete(users).where(inArray(users.email, EMAILS));

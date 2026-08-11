@@ -15,7 +15,7 @@ export default function LegalLayout({
       <header className="border-b border-hairline">
         <div className="max-w-3xl mx-auto px-5 md:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Northstar
+            Bearings
           </Link>
           <nav className="flex items-center gap-5 text-[0.9rem] text-gray-mid">
             <Link href="/terms" className="hover:text-ink transition-quiet">

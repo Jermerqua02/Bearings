@@ -13,11 +13,11 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Northstar — an honest college counselor, always available",
-    template: "%s · Northstar",
+    default: "Bearings — an honest college counselor, always available",
+    template: "%s · Bearings",
   },
   description:
-    "Northstar reads your actual profile, manages expectations honestly, and makes the college process navigable — for the families who can't hire a private counselor.",
+    "Bearings reads your actual profile, manages expectations honestly, and makes the college process navigable — for the families who can't hire a private counselor.",
 };
 
 export const viewport: Viewport = {

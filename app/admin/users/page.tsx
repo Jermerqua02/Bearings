@@ -8,7 +8,7 @@ import { getViewer } from "@/lib/auth/policy";
 import { formatBytes, formatMillicents } from "@/lib/costs";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Users · Northstar admin" };
+export const metadata: Metadata = { title: "Users · Bearings admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminUsersPage() {
@@ -39,7 +39,7 @@ export default async function AdminUsersPage() {
     <div>
       <SectionLabel className="mb-4">Users</SectionLabel>
       <TwoTone as="h1" size="lg" className="mb-8">
-        <em>{rows.length} accounts</em> on Northstar.
+        <em>{rows.length} accounts</em> on Bearings.
       </TwoTone>
 
       {missing > 0 && (

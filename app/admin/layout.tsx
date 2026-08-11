@@ -35,7 +35,7 @@ export default async function AdminLayout({
         <div className="max-w-6xl mx-auto px-5 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-8">
             <Link href="/admin" className="text-[1.05rem] font-semibold tracking-tight">
-              Northstar <span className="text-gray-mid font-normal">admin</span>
+              Bearings <span className="text-gray-mid font-normal">admin</span>
             </Link>
             <nav aria-label="Admin" className="hidden md:flex items-center gap-5">
               {NAV.map((n) => (

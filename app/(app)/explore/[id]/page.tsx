@@ -19,7 +19,7 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const school = await getSchoolById(id);
-  // The root layout supplies a "%s · Northstar" template — no suffix here.
+  // The root layout supplies a "%s · Bearings" template — no suffix here.
   if (!school) return { title: "School not found" };
   return {
     title: school.name,

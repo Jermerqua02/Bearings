@@ -12,7 +12,7 @@ const check = (l: string, ok: boolean, d?: string) => {
 };
 
 const U = "rate-limit-test-user";
-const EMAIL = "rate-limit-test@northstar.invalid";
+const EMAIL = "rate-limit-test@bearings.invalid";
 
 async function seed(feature: "speech" | "chat", n: number, ageMinutes = 0) {
   const at = new Date(Date.now() - ageMinutes * 60_000);

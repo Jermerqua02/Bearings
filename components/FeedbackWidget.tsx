@@ -73,7 +73,7 @@ export default function FeedbackWidget() {
                   Tell us what&apos;s wrong, or what&apos;s missing
                 </h2>
                 <p className="text-[0.85rem] text-gray-mid mb-4">
-                  Goes straight to the people building Northstar. We&apos;ll see
+                  Goes straight to the people building Bearings. We&apos;ll see
                   which page you were on.
                 </p>
                 <textarea

@@ -75,7 +75,7 @@ export default function SettingsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "northstar-export.json";
+    a.download = "bearings-export.json";
     a.click();
     URL.revokeObjectURL(url);
   };

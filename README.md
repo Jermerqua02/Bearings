@@ -1,4 +1,4 @@
-# Northstar
+# Bearings
 
 An AI college counselor for high school students and their parents. Honest expectations, a realistic list, and a process that feels navigable — for the ~95% of families who can't hire a private counselor.
 
@@ -99,4 +99,4 @@ Next.js (App Router) · React 19 · TypeScript · Tailwind v4 · Postgres via Dr
 - **Have counsel review both documents** — most users are minors. The details are filled in (Prompt LLC, Washington law, King County venue), but the mailing address is a home address published on the open web; a registered agent or PO box does the same job.
 - Set a **project-scoped** `RAILWAY_API_TOKEN` (not the account token) plus `RAILWAY_PROJECT_ID`, for live infrastructure cost on `/admin/usage`.
 - Add a Railway cron hitting `/api/cron/budget-alert` with `Authorization: Bearer $CRON_SECRET`. Daily is plenty.
-- Verify a Northstar domain in Resend so email stops coming from a personal one.
+- Verify a Bearings domain in Resend so email stops coming from a personal one.

@@ -32,7 +32,7 @@ function check(label: string, ok: boolean, detail?: string) {
   }
 }
 
-const EMAIL = "onboarding-test@northstar.invalid";
+const EMAIL = "onboarding-test@bearings.invalid";
 const USER_ID = "test-onboarding-user";
 
 const answers: StudentProfile = {

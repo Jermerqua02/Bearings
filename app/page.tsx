@@ -23,7 +23,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-30 border-b border-hairline bg-paper/85 backdrop-blur-md">
         <div className="max-w-[1400px] mx-auto px-5 md:px-10 h-16 flex items-center justify-between">
           <span className="text-[1.05rem] font-semibold tracking-tight">
-            Northstar
+            Bearings
           </span>
           <nav className="flex items-center gap-4">
             <Link
@@ -179,7 +179,7 @@ export default function LandingPage() {
               applicants.&quot;
             </TwoTone>
             <p className="body-copy">
-              Northstar finds the thread connecting your courses, activities,
+              Bearings finds the thread connecting your courses, activities,
               and interests into one coherent story — the thing an admissions
               reader would remember. It&apos;s self-understanding, not a score.
               We will never grade you out of 100.
@@ -229,7 +229,7 @@ export default function LandingPage() {
               <SectionLabel className="mb-4">For parents</SectionLabel>
               <p className="text-[0.98rem] leading-relaxed text-gray-strong">
                 The admissions landscape is nothing like when you applied.
-                Northstar explains it plainly, keeps costs and aid front and
+                Bearings explains it plainly, keeps costs and aid front and
                 center, and coaches you on supporting without hovering. You see
                 the list, statuses, and deadlines — never your student&apos;s
                 private conversations. That boundary is a feature.
@@ -249,7 +249,7 @@ export default function LandingPage() {
             </TwoTone>
             <p className="body-copy">
               An $88,000 sticker can cost a family less than their state
-              flagship — or far more. Northstar shows what families like yours
+              flagship — or far more. Bearings shows what families like yours
               actually pay, at every school, from the first search to the final
               aid-offer comparison. No surprises in April.
             </p>
@@ -278,7 +278,7 @@ export default function LandingPage() {
       <footer className="border-t border-hairline">
         <div className="max-w-[1400px] mx-auto px-5 md:px-10 py-10 flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
           <div className="flex flex-col gap-2">
-            <span className="text-[0.9rem] text-gray-mid">Northstar</span>
+            <span className="text-[0.9rem] text-gray-mid">Bearings</span>
             <span className="text-[0.8rem] text-gray-mid">
               Operated by Prompt LLC · ©{new Date().getFullYear()}
             </span>

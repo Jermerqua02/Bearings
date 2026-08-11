@@ -42,7 +42,7 @@ export default function ForgotPasswordForm() {
       <header className="border-b border-hairline">
         <div className="max-w-6xl mx-auto px-5 md:px-6 h-16 flex items-center">
           <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Northstar
+            Bearings
           </Link>
         </div>
       </header>

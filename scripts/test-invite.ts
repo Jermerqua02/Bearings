@@ -18,7 +18,7 @@ const check = (l: string, ok: boolean, d?: string) => {
 };
 
 const S = "invite-test-student", P = "invite-test-parent";
-const SE = "invite-student@northstar.invalid", PE = "invite-parent@northstar.invalid";
+const SE = "invite-student@bearings.invalid", PE = "invite-parent@bearings.invalid";
 
 async function cleanup() { await db.delete(users).where(inArray(users.email, [SE, PE])); }
 

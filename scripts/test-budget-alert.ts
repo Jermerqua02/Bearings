@@ -29,7 +29,7 @@ async function main() {
   await db.delete(users).where(eq(users.id, SEED_USER));
   await db.insert(users).values({
     id: SEED_USER, name: "Budget Test",
-    email: "budget-alert-test@northstar.invalid", role: "student",
+    email: "budget-alert-test@bearings.invalid", role: "student",
   });
   await db.insert(aiUsage).values({
     userId: SEED_USER, feature: "chat", model: "claude-opus-5",
@@ -61,7 +61,7 @@ async function main() {
 
   console.log("\nRepeat suppression");
   await setSettings({ monthlyBudgetUsd: 1, alertsEnabled: true,
-    alertEmail: "suppressed@northstar.invalid",
+    alertEmail: "suppressed@bearings.invalid",
     lastAlertAt: new Date(), lastAlertThreshold: 100 });
   r = await checkBudgetAndAlert();
   check("already-sent threshold does not fire again", r.firedThreshold === null, r.reason);
@@ -69,7 +69,7 @@ async function main() {
   console.log("\nA new month resets the ledger");
   const lastMonth = new Date(); lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1);
   await setSettings({ monthlyBudgetUsd: 1, alertsEnabled: true,
-    alertEmail: "suppressed@northstar.invalid",
+    alertEmail: "suppressed@bearings.invalid",
     lastAlertAt: lastMonth, lastAlertThreshold: 100 });
   r = await checkBudgetAndAlert();
   // The send fails (invalid domain) but the *decision* to alert is what matters.

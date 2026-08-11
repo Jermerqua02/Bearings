@@ -917,7 +917,7 @@ function OnboardingShell() {
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="flex items-center justify-between px-5 md:px-6 h-16">
         <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-          Northstar
+          Bearings
         </Link>
         <span className="label-caps">First meeting</span>
       </header>

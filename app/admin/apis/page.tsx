@@ -6,7 +6,7 @@ import { formatUsd, usdFromMillicents } from "@/lib/costs";
 import { spendThisMonth } from "@/lib/db/queries/admin";
 import { railwayCost } from "@/lib/railway";
 
-export const metadata: Metadata = { title: "APIs · Northstar admin" };
+export const metadata: Metadata = { title: "APIs · Bearings admin" };
 export const dynamic = "force-dynamic";
 
 /* External services this app depends on.

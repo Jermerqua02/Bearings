@@ -49,7 +49,7 @@ export default async function InvitePage({
       <header className="border-b border-hairline">
         <div className="max-w-3xl mx-auto px-5 md:px-6 h-16 flex items-center">
           <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Northstar
+            Bearings
           </Link>
         </div>
       </header>
@@ -71,7 +71,7 @@ export default async function InvitePage({
           it. Ask them to send a new one from their settings.
         </p>
         <Link href="/" className="text-[0.95rem] text-ink underline underline-offset-4">
-          Go to Northstar
+          Go to Bearings
         </Link>
       </>,
     );

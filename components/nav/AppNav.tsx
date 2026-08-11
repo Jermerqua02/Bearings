@@ -112,7 +112,7 @@ export default function AppNav({
               href="/dashboard"
               className="text-[1.05rem] font-semibold tracking-tight"
             >
-              Northstar
+              Bearings
             </Link>
             <nav aria-label="Primary" className="flex items-center gap-6">
               {[...visibleTabs.slice(1), ...visibleSecondary].map((t) => (
@@ -147,7 +147,7 @@ export default function AppNav({
       <header className="md:hidden sticky top-0 z-40 bg-paper/95 backdrop-blur border-b border-hairline">
         <div className="px-5 h-14 flex items-center justify-between">
           <Link href="/dashboard" className="text-[1rem] font-semibold tracking-tight">
-            Northstar
+            Bearings
           </Link>
           <div className="flex items-center gap-3">
             <span className="label-caps">{gradeModeLabel[mode]}</span>

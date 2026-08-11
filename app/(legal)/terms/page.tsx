@@ -4,7 +4,7 @@ import { Bullets, DocTitle, Emphasis, Section } from "../_components/Doc";
 import { COMPANY, MINIMUM_AGE, TERMS_EFFECTIVE, TERMS_VERSION } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · Northstar",
+  title: "Terms of Service · Bearings",
   description: `The agreement between you and ${COMPANY.legalName} for use of ${COMPANY.productName}.`,
 };
 
@@ -15,7 +15,7 @@ export default function TermsPage() {
         title="Terms of Service"
         effective={TERMS_EFFECTIVE}
         version={TERMS_VERSION}
-        summary={`These terms are the agreement between you and ${COMPANY.legalName} for use of ${COMPANY.productName}. The short version: Northstar helps you think about college. It is not a counselor, not a guarantee, and it will not write your essays. You own what you write. We do not sell your data.`}
+        summary={`These terms are the agreement between you and ${COMPANY.legalName} for use of ${COMPANY.productName}. The short version: Bearings helps you think about college. It is not a counselor, not a guarantee, and it will not write your essays. You own what you write. We do not sell your data.`}
       />
 
       <Section n={1} title="Who we are and what this covers">
@@ -36,7 +36,7 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section n={2} title="What Northstar is — and is not">
+      <Section n={2} title="What Bearings is — and is not">
         <p>
           The Service provides informational and educational tools for students
           researching colleges: school information, list-building, planning
@@ -44,7 +44,7 @@ export default function TermsPage() {
           material back to you, and offers critique.
         </p>
         <Emphasis>
-          <strong>Northstar does not provide professional advice.</strong> It is
+          <strong>Bearings does not provide professional advice.</strong> It is
           not a licensed college counselor, guidance counselor, financial
           advisor, tax advisor, attorney, or mental-health professional. Nothing
           in the Service is professional advice of any kind, and no
@@ -135,7 +135,7 @@ export default function TermsPage() {
           ]}
         />
         <Emphasis>
-          <strong>Northstar does not write your application essays.</strong> The
+          <strong>Bearings does not write your application essays.</strong> The
           Service is designed to ask questions, reflect your own writing back to
           you, and offer critique — never to draft or ghostwrite on your behalf.
           You are solely responsible for the integrity of everything you submit
