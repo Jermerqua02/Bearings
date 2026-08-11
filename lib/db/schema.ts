@@ -14,6 +14,7 @@
    ———————————————————————————————————————— */
 
 import {
+  doublePrecision,
   boolean,
   customType,
   date,
@@ -23,7 +24,6 @@ import {
   pgEnum,
   pgTable,
   primaryKey,
-  real,
   text,
   timestamp,
   unique,
@@ -238,8 +238,8 @@ export const studentProfiles = pgTable("student_profile", {
   // Onboarding's self-reported figure. The Planner derives a second GPA from
   // course_plan_entry letter grades; both are surfaced rather than silently
   // picking a winner, so this column is explicitly named self-reported.
-  selfReportedGpaWeighted: real("self_reported_gpa_weighted"),
-  selfReportedGpaUnweighted: real("self_reported_gpa_unweighted"),
+  selfReportedGpaWeighted: doublePrecision("self_reported_gpa_weighted"),
+  selfReportedGpaUnweighted: doublePrecision("self_reported_gpa_unweighted"),
 
   apCount: integer("ap_count").notNull().default(0),
   ibCount: integer("ib_count").notNull().default(0),
@@ -385,10 +385,10 @@ export const schoolAdmissions = pgTable(
       .notNull()
       .references(() => schools.id, { onDelete: "cascade" }),
     cycle: text("cycle").notNull(), // "2026-27"
-    acceptanceRate: real("acceptance_rate"),
+    acceptanceRate: doublePrecision("acceptance_rate"),
     /** Scorecard has no GPA data. Null for every imported school. */
-    gpaMid50Low: real("gpa_mid50_low"),
-    gpaMid50High: real("gpa_mid50_high"),
+    gpaMid50Low: doublePrecision("gpa_mid50_low"),
+    gpaMid50High: doublePrecision("gpa_mid50_high"),
     satMid50Low: integer("sat_mid50_low"),
     satMid50High: integer("sat_mid50_high"),
     actMid50Low: integer("act_mid50_low"),
@@ -429,7 +429,7 @@ export const schoolCosts = pgTable(
     netPrice48to75k: integer("net_price_48_to_75k"),
     netPrice75to110k: integer("net_price_75_to_110k"),
     netPriceOver110k: integer("net_price_over_110k"),
-    percentNeedMet: real("percent_need_met"),
+    percentNeedMet: doublePrecision("percent_need_met"),
     /** Editorial judgement, not a Scorecard field. Null when unknown. */
     meritAid: meritAidEnum("merit_aid"),
     ...timestamps,
@@ -445,7 +445,7 @@ export const schoolOutcomes = pgTable(
       .notNull()
       .references(() => schools.id, { onDelete: "cascade" }),
     year: text("year").notNull(),
-    gradRate: real("grad_rate"),
+    gradRate: doublePrecision("grad_rate"),
     medianEarnings10yr: integer("median_earnings_10yr"),
     /** Editorial judgement, not a Scorecard field. Null when unknown. */
     alumniNetwork: alumniNetworkEnum("alumni_network"),

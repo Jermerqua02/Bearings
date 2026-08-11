@@ -286,6 +286,12 @@ function tierExpr(profile: StudentProfile): SQL<string | null> {
   return sql`(case
       when ${A.acceptanceRate} is null then null
       when ${A.acceptanceRate} < 0.1 then 'reach'
+      -- No signals: the school's own selectivity is the only honest read.
+      -- Must mirror the same branch in chanceRead, or scripts/test-schools.ts
+      -- fails — which is the point of that test.
+      when ${signals} = 0 then (case when ${A.acceptanceRate} >= 0.75 then 'likely'
+                                     when ${A.acceptanceRate} >= 0.45 then 'target'
+                                     else 'reach' end)
       when ${A.acceptanceRate} < 0.25 then (case when ${avg} >= 1.4 then 'target' else 'reach' end)
       when ${A.acceptanceRate} < 0.5 then (case when ${avg} >= 1.4 then 'likely'
                                                 when ${avg} >= 0.6 then 'target'

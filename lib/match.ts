@@ -86,7 +86,36 @@ export function chanceRead(profile: StudentProfile, school: School): ChanceRead 
     profile.rigor.apCount + profile.rigor.ibCount + profile.rigor.honorsCount;
   if (rigorCount >= 8) points += 1;
 
-  const avg = signals > 0 ? points / signals : 0;
+  /*
+    Nothing to compare against.
+
+    Scorecard publishes no GPA distribution, so all but the hand-written
+    forty have no GPA range; and only about 60% publish a test range. A
+    student who hasn't tested — which onboarding explicitly calls a normal
+    answer — therefore has zero signals against almost every school.
+
+    The old code divided by zero signals, defaulted the average to 0, and
+    then asked for `avg >= 0.9` to call anything likely. So "likely" was
+    unreachable: a 3.1 student with no test score saw *no likely schools at
+    all*, out of 869 that admit three quarters of applicants. A product
+    whose first promise is honest expectations was telling exactly the
+    students it exists for that they had nothing in reach.
+
+    The school's own selectivity is the honest signal left, and it is a
+    real one. A school admitting four of five applicants is a likely school
+    for almost anyone; that statement doesn't need the student's numbers,
+    and chanceRead marks it low-confidence and says what would sharpen it.
+  */
+  if (signals === 0) {
+    return {
+      tier: acceptanceRate >= 0.75 ? "likely" : acceptanceRate >= 0.45 ? "target" : "reach",
+      confidence: "low",
+      caveat:
+        "Based on this school's admit rate alone. Add your GPA or a test score for a sharper read.",
+    };
+  }
+
+  const avg = points / signals;
 
   const tier: ChanceTier =
     acceptanceRate < 0.25
@@ -107,21 +136,14 @@ export function chanceRead(profile: StudentProfile, school: School): ChanceRead 
             ? "target"
             : "reach";
 
+  // Only two cases remain: both signals, or exactly one. Zero returned above.
   if (gpaUsable && testUsable) return { tier, confidence: "high" };
-  if (gpaUsable || testUsable) {
-    return {
-      tier,
-      confidence: "medium",
-      caveat: gpaUsable
-        ? "Estimated from your GPA and this school's admit rate — no test range published."
-        : "Estimated from your test score and this school's admit rate — no GPA range published.",
-    };
-  }
   return {
     tier,
-    confidence: "low",
-    caveat:
-      "Based on this school's admit rate alone. Add your GPA or a test score for a sharper read.",
+    confidence: "medium",
+    caveat: gpaUsable
+      ? "Estimated from your GPA and this school's admit rate — no test range published."
+      : "Estimated from your test score and this school's admit rate — no GPA range published.",
   };
 }
 

@@ -258,7 +258,21 @@ function netPrice(r: ScorecardRow, ownership: number) {
 async function fetchPage(key: string, page: number): Promise<{ rows: ScorecardRow[]; total: number }> {
   const url =
     `${API}?api_key=${encodeURIComponent(key)}` +
-    `&school.degrees_awarded.predominant=3` + // predominantly bachelor's
+    /*
+      Institutions whose predominant award is a bachelor's degree: 1,944.
+
+      Widening this to include graduate-predominant institutions (adding 263)
+      was tried and reverted. They are seminaries, law and medical schools,
+      and graduate institutes — the largest had 837 undergraduates and most
+      had none at all. "Predominantly graduate" turns out to mean what it
+      says, and none of it is a place a high schooler applies to.
+
+      Bachelor's-predominant is the universe of four-year colleges. Higher
+      counts quoted elsewhere are usually counting community colleges (973
+      associate-predominant) and certificate schools (2,607), or every Title
+      IV institution in the country.
+    */
+    `&school.degrees_awarded.predominant=3` +
     `&school.operating=1` +
     `&fields=${FIELDS}&per_page=${PER_PAGE}&page=${page}`;
 
@@ -580,9 +594,21 @@ async function main() {
     const curatedByIpeds = new Map(
       curatedRows.filter((r) => r.ipedsId != null).map((r) => [r.ipedsId!, r.id]),
     );
+    /*
+      Domain matching is a bootstrap, and only for curated schools we have
+      not linked yet.
+
+      Once a school carries an IPEDS id, that exact row is the school and
+      nothing else is. Leaving domain matching switched on for linked schools
+      let a branch campus sharing the domain — Pitt-Bradford, Ohio
+      State-Lima — claim the flagship first and be dropped from the import as
+      a "match", while the flagship then matched again on its id. Three real
+      institutions went missing that way, visible only as a run reporting 43
+      matches for 40 curated schools.
+    */
     const curatedByDomain = new Map(
       curatedRows
-        .filter((r) => r.website)
+        .filter((r) => r.website && r.ipedsId == null)
         .map((r) => [registrableDomain(r.website!.toLowerCase())!, r.id]),
     );
     const claimed = new Set<string>();
