@@ -27,13 +27,28 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
 import type { CounselorCard, CounselorMessage, EssayFeedback, InterviewFeedback } from "@/lib/counselor";
 import type { School, StudentProfile } from "@/lib/types";
-import { getSchool } from "@/lib/data/schools";
+import { getSchoolById, getSchoolMap } from "@/lib/db/queries/schools";
 
+/**
+ * Ids the model is allowed to reference, cached briefly.
+ *
+ * This was cached for the life of the process and never invalidated. That
+ * was survivable when the table held forty hand-written rows and never
+ * changed; with an importer that adds ~1,900 it means a server started
+ * before an import prunes *valid* school cards out of counselor answers
+ * forever, which shows up as a silent blank card — exactly the failure the
+ * pruning exists to prevent.
+ */
 let knownIds: Set<string> | null = null;
+let knownIdsAt = 0;
+const KNOWN_IDS_TTL_MS = 10 * 60 * 1000;
+
 async function knownSchoolIds(): Promise<Set<string>> {
-  if (!knownIds) {
+  const now = Date.now();
+  if (!knownIds || now - knownIdsAt > KNOWN_IDS_TTL_MS) {
     const rows = await db.select({ id: schools.id }).from(schools);
     knownIds = new Set(rows.map((r) => r.id));
+    knownIdsAt = now;
   }
   return knownIds;
 }
@@ -155,8 +170,11 @@ async function listSummaryFor(studentId: string): Promise<string> {
     return "The student has not added any schools to their list yet.";
   }
 
+  // One query for the whole list rather than one per row.
+  const byId = await getSchoolMap(rows.map((r) => r.schoolId));
+
   const lines = rows.map((r) => {
-    const school = getSchool(r.schoolId);
+    const school = byId.get(r.schoolId);
     const name = school?.name ?? r.schoolId;
     const bits = [r.tier, r.plan, r.status, r.outcome].filter(Boolean).join(", ");
     return `- ${name} (id: ${r.schoolId}) — ${bits}`;
@@ -237,7 +255,7 @@ export async function whyThisSchoolAction(schoolId: string): Promise<string> {
   const { viewer, profile } = await sessionProfile();
   if (profile.role !== "student") return "";
 
-  const school = getSchool(schoolId);
+  const school = await getSchoolById(schoolId);
   if (!school) return "";
 
   const hash = profileHash(profile);
@@ -311,7 +329,7 @@ export async function interviewTurnAction(input: {
   if (profile.role !== "student") {
     return { strengths: [], toWorkOn: [], followUp: "" };
   }
-  const school = input.schoolId ? ((getSchool(input.schoolId) ?? null) as School | null) : null;
+  const school = input.schoolId ? await getSchoolById(input.schoolId) : null;
   const svc = await guardedServiceFor(viewer.userId, "interview");
   return svc.interviewTurn(profile as StudentProfile, school, input.question, input.answer);
 }

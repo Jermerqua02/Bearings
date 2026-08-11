@@ -10,7 +10,6 @@ import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
-import { getSchool } from "@/lib/data/schools";
 import { daysUntil, listBalance, nextDeadline } from "@/lib/match";
 import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
@@ -40,8 +39,8 @@ function ListRow({
   compared: boolean;
   onToggleCompare: () => void;
 }) {
-  const { updateListEntry, removeFromList } = useApp();
-  const school = getSchool(entry.schoolId);
+  const { updateListEntry, removeFromList, schoolById } = useApp();
+  const school = schoolById(entry.schoolId);
   if (!school) return null;
   const dl = nextDeadline(school, entry.plan);
   const days = dl ? daysUntil(dl.date) : null;
@@ -135,7 +134,7 @@ function ListRow({
 }
 
 export default function ListPage() {
-  const { list, updateListEntry } = useApp();
+  const { list, updateListEntry, schoolById } = useApp();
   const [compareMode, setCompareMode] = useState(false);
   const [compareIds, setCompareIds] = useState<string[]>([]);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -162,7 +161,7 @@ export default function ListPage() {
     );
 
   const comparedSchools = compareIds
-    .map((id) => getSchool(id))
+    .map((id) => schoolById(id))
     .filter((s): s is NonNullable<typeof s> => !!s);
 
   return (

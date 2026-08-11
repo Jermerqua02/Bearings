@@ -10,7 +10,6 @@ import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { type InterviewFeedback } from "@/lib/counselor";
 import { interviewTurnAction } from "@/lib/actions/counselor";
-import { getSchool } from "@/lib/data/schools";
 import { useApp } from "@/lib/profile-context";
 import type { School } from "@/lib/types";
 
@@ -41,19 +40,19 @@ interface Turn {
 }
 
 export default function InterviewsPage() {
-  const { profile, list } = useApp();
+  const { profile, list, schoolById } = useApp();
   const student = profile?.role === "student" ? profile : null;
 
   const interviewSchools = useMemo(
     () =>
       list
-        .map((e) => getSchool(e.schoolId))
+        .map((e) => schoolById(e.schoolId))
         .filter((s): s is School => !!s && schoolOffersInterview(s)),
-    [list]
+    [list, schoolById]
   );
 
   const [schoolId, setSchoolId] = useState<string>("");
-  const school = schoolId ? (getSchool(schoolId) ?? null) : null;
+  const school = schoolId ? (schoolById(schoolId) ?? null) : null;
   const [question, setQuestion] = useState(COMMON_QUESTIONS[0]);
   const [answer, setAnswer] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);

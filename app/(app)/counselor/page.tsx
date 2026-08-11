@@ -27,9 +27,9 @@ import {
   greetAction,
   listThreadsAction,
 } from "@/lib/actions/counselor";
-import { getSchool } from "@/lib/data/schools";
 import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
+import { useSchools } from "@/lib/use-schools";
 import type { ChanceTier } from "@/lib/types";
 
 interface Thread {
@@ -49,7 +49,10 @@ const SUGGESTED_PROMPTS = [
 /* ————— Card renderers ————— */
 
 function SchoolCardInline({ schoolId, reason }: { schoolId: string; reason: string }) {
-  const school = getSchool(schoolId);
+  // A counselor card can name a school the student has never saved, so this
+  // can't rely on the snapshot alone.
+  const schools = useSchools([schoolId]);
+  const school = schools.get(schoolId);
   if (!school) return null;
   return (
     <Link
@@ -150,6 +153,7 @@ function TimelineCard({ items }: { items: { date: string; label: string; schoolI
 }
 
 function ComparisonCard({ schoolIds, rows }: { schoolIds: string[]; rows: { label: string; values: string[] }[] }) {
+  const schools = useSchools(schoolIds);
   return (
     <div className="border border-hairline bg-surface rounded-[3px] p-4 overflow-x-auto">
       <table className="w-full text-[0.88rem]">
@@ -158,7 +162,7 @@ function ComparisonCard({ schoolIds, rows }: { schoolIds: string[]; rows: { labe
             <th />
             {schoolIds.map((id) => (
               <th key={id} className="text-left font-semibold pb-2 pr-4">
-                {getSchool(id)?.shortName ?? id}
+                {schools.get(id)?.shortName ?? id}
               </th>
             ))}
           </tr>
@@ -269,7 +273,9 @@ function CounselorInner() {
   const { profile } = useApp();
   const params = useSearchParams();
   const contextSchoolId = params.get("school");
-  const contextSchool = contextSchoolId ? getSchool(contextSchoolId) : null;
+  // Arrives from a link on any school page, including ones not on the list.
+  const contextSchools = useSchools(contextSchoolId ? [contextSchoolId] : []);
+  const contextSchool = contextSchoolId ? (contextSchools.get(contextSchoolId) ?? null) : null;
 
   const [threads, setThreads] = useState<Thread[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);

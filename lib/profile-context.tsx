@@ -33,6 +33,7 @@ import type {
   ListEntry,
   Profile,
   Recommender,
+  School,
   UniversalProfile,
   WeeklyCheckIn,
 } from "./types";
@@ -86,6 +87,20 @@ interface AppState {
   recentlyViewed: string[];
   markViewed: (schoolId: string) => void;
 
+  /**
+   * A school this student's records reference, by id.
+   *
+   * Synchronous on purpose. Pages resolve schools during render, inside
+   * loops over the list, and an async lookup there would mean a loading
+   * state on every navigation. The rows come from the database via the
+   * snapshot rather than from a compiled-in array.
+   *
+   * Returns undefined for anything outside the student's own records —
+   * the counselor can name a school they've never saved, and that path
+   * fetches on demand instead.
+   */
+  schoolById: (id: string) => School | undefined;
+
   parentLinked: boolean;
   setParentLinked: (b: boolean) => void;
 
@@ -120,6 +135,17 @@ export function AppProvider({
   const [checkIns, setCheckIns] = useState<WeeklyCheckIn[]>(snapshot.checkIns);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>(snapshot.recentlyViewed);
   const [parentLinked, setParentLinked] = useState(snapshot.parentLinked);
+
+  /* Schools the server hydrated for this student's own records. Not state:
+     they change when the server sends a new snapshot, never from the client. */
+  const schoolIndex = useMemo(
+    () => new Map(snapshot.schools.map((s) => [s.id, s])),
+    [snapshot.schools],
+  );
+  const schoolById = useCallback(
+    (id: string) => schoolIndex.get(id),
+    [schoolIndex],
+  );
 
   const mode: GradeMode = useMemo(() => {
     if (!profile) return "explore";
@@ -311,6 +337,7 @@ export function AppProvider({
       activities, addActivity, updateActivity, removeActivity,
       checkIns, dismissCheckIn, toggleCheckInAction,
       recentlyViewed, markViewed,
+      schoolById,
       parentLinked, setParentLinked,
       resetAll,
     }),
@@ -324,7 +351,7 @@ export function AppProvider({
       coursePlan, addCourse, updateCourse, removeCourse,
       activities, addActivity, updateActivity, removeActivity,
       checkIns, dismissCheckIn, toggleCheckInAction,
-      recentlyViewed, markViewed, parentLinked, resetAll,
+      recentlyViewed, markViewed, schoolById, parentLinked, resetAll,
     ],
   );
 

@@ -10,7 +10,6 @@ import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
-import { getSchool } from "@/lib/data/schools";
 import { daysUntil, listBalance, nextDeadline } from "@/lib/match";
 import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
@@ -19,7 +18,7 @@ import { gradeModeLabel, type ParentProfile, type StudentProfile } from "@/lib/t
 /* ————— Weekly check-in ————— */
 
 function CheckInCard() {
-  const { checkIns, dismissCheckIn, toggleCheckInAction } = useApp();
+  const { checkIns, dismissCheckIn, toggleCheckInAction, schoolById } = useApp();
   const [historyOpen, setHistoryOpen] = useState(false);
   const current = checkIns.find((c) => !c.dismissed);
   const history = checkIns.filter((c) => c.dismissed);
@@ -98,12 +97,12 @@ function CheckInCard() {
 /* ————— Student dashboard ————— */
 
 function StudentDashboard({ profile }: { profile: StudentProfile }) {
-  const { mode, list, recentlyViewed, essays, recommenders } = useApp();
+  const { mode, list, recentlyViewed, essays, recommenders, schoolById } = useApp();
 
   const deadlines = useMemo(() => {
     const out: { label: string; days: number; schoolId: string }[] = [];
     for (const e of list) {
-      const s = getSchool(e.schoolId);
+      const s = schoolById(e.schoolId);
       if (!s) continue;
       const dl = nextDeadline(s, e.plan);
       if (dl) {
@@ -112,7 +111,7 @@ function StudentDashboard({ profile }: { profile: StudentProfile }) {
       }
     }
     return out.sort((a, b) => a.days - b.days).slice(0, 3);
-  }, [list]);
+  }, [list, schoolById]);
 
   const counts = useMemo(
     () => ({
@@ -262,7 +261,7 @@ function StudentDashboard({ profile }: { profile: StudentProfile }) {
           ) : (
             <ul className="space-y-2">
               {recentlyViewed.slice(0, 4).map((id) => {
-                const s = getSchool(id);
+                const s = schoolById(id);
                 if (!s) return null;
                 return (
                   <li key={id} className="flex items-baseline justify-between gap-3 text-[0.92rem]">
@@ -288,12 +287,12 @@ function StudentDashboard({ profile }: { profile: StudentProfile }) {
 /* ————— Parent dashboard ————— */
 
 function ParentDashboard({ profile }: { profile: ParentProfile }) {
-  const { mode, list } = useApp();
+  const { mode, list, schoolById } = useApp();
 
   const deadlines = useMemo(() => {
     const out: { label: string; days: number }[] = [];
     for (const e of list) {
-      const s = getSchool(e.schoolId);
+      const s = schoolById(e.schoolId);
       if (!s) continue;
       const dl = nextDeadline(s, e.plan);
       if (dl) {
@@ -302,7 +301,7 @@ function ParentDashboard({ profile }: { profile: ParentProfile }) {
       }
     }
     return out.sort((a, b) => a.days - b.days).slice(0, 4);
-  }, [list]);
+  }, [list, schoolById]);
 
   const submitted = list.filter((e) =>
     ["submitted", "materials-received", "decision"].includes(e.status)
@@ -392,7 +391,7 @@ function ParentDashboard({ profile }: { profile: ParentProfile }) {
 /* ————— Page ————— */
 
 export default function DashboardPage() {
-  const { profile } = useApp();
+  const { profile, schoolById } = useApp();
   if (!profile) {
     return (
       <div className="animate-fade-up max-w-xl">

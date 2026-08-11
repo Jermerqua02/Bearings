@@ -25,6 +25,7 @@ import {
   getUniversalProfile,
 } from "@/lib/db/queries/student";
 import { linkedStudentIdFor, type Viewer } from "@/lib/auth/policy";
+import { getSchoolsByIds } from "@/lib/db/queries/schools";
 import { db as _db } from "@/lib/db";
 import { parentProfiles } from "@/lib/db/schema";
 import type {
@@ -38,6 +39,7 @@ import type {
   ListEntry,
   Profile,
   Recommender,
+  School,
   UniversalProfile,
   WeeklyCheckIn,
 } from "@/lib/types";
@@ -55,6 +57,17 @@ export interface AppSnapshot {
   checkIns: WeeklyCheckIn[];
   recentlyViewed: string[];
   parentLinked: boolean;
+  /**
+   * Every school this student's own records point at — list entries, aid
+   * offers, essays, recently viewed. Typically 7–30 rows.
+   *
+   * Client pages resolve school ids during render, synchronously, often
+   * inside a loop; going async there isn't possible. Hydrating just the
+   * schools they can actually reach keeps that lookup synchronous while
+   * sourcing it from the database. It must never carry the whole reference
+   * set — that is ~1,900 rows and grows.
+   */
+  schools: School[];
   /** Whose records these are. A parent is viewing their linked student's. */
   subjectStudentId: string | null;
   viewerRole: Role;
@@ -96,6 +109,7 @@ function emptySnapshot(role: Role): AppSnapshot {
     checkIns: [],
     recentlyViewed: [],
     parentLinked: false,
+    schools: [],
     subjectStudentId: null,
     viewerRole: role,
   };
@@ -261,6 +275,18 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
   })) as WeeklyCheckIn[];
 
   snap.recentlyViewed = viewedRows.map((v) => v.schoolId);
+
+  // Only the schools this student's own records reference. Bounded by their
+  // list, not by the size of the reference set.
+  const referenced = [
+    ...new Set([
+      ...snap.list.map((e) => e.schoolId),
+      ...snap.recentlyViewed,
+      ...snap.aidOffers.map((a) => a.schoolId),
+      ...snap.essays.map((e) => e.schoolId).filter((id): id is string => !!id),
+    ]),
+  ];
+  snap.schools = await safe(() => getSchoolsByIds(referenced), []);
 
   return snap;
 }

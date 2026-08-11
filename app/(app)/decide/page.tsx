@@ -8,7 +8,6 @@ import Link from "next/link";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
-import { getSchool } from "@/lib/data/schools";
 import { formatDollars, formatRate } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
 import type { ListEntry } from "@/lib/types";
@@ -31,11 +30,11 @@ const outcomeTone: Record<NonNullable<ListEntry["outcome"]>, string> = {
 };
 
 function TrackerTab() {
-  const { list, updateListEntry } = useApp();
+  const { list, updateListEntry, schoolById } = useApp();
   return (
     <div className="max-w-2xl space-y-3">
       {list.map((e) => {
-        const s = getSchool(e.schoolId);
+        const s = schoolById(e.schoolId);
         if (!s) return null;
         return (
           <Card key={e.schoolId} className="p-4 flex items-center justify-between gap-4">
@@ -78,11 +77,11 @@ function TrackerTab() {
 }
 
 function AidCompareTab() {
-  const { list, aidOffers } = useApp();
+  const { list, aidOffers, schoolById } = useApp();
   const accepted = list.filter((e) => e.outcome === "accepted");
   const rows = accepted
     .map((e) => {
-      const s = getSchool(e.schoolId);
+      const s = schoolById(e.schoolId);
       const o = aidOffers.find((x) => x.schoolId === e.schoolId);
       if (!s) return null;
       // No award letter and no reported sticker price means there is no true
@@ -246,7 +245,7 @@ function WaitlistTab() {
 }
 
 function ChoiceTab() {
-  const { list, aidOffers } = useApp();
+  const { list, aidOffers, schoolById } = useApp();
   const accepted = list.filter((e) => e.outcome === "accepted");
   const [gut, setGut] = useState<Record<string, string>>({});
 
@@ -280,7 +279,7 @@ function ChoiceTab() {
         </thead>
         <tbody>
           {accepted.map((e) => {
-            const s = getSchool(e.schoolId);
+            const s = schoolById(e.schoolId);
             if (!s) return null;
             const o = aidOffers.find((x) => x.schoolId === s.id);
             const trueCost = (o?.coa ?? s.cost.stickerPrice ?? 0) - (o?.grants ?? 0);

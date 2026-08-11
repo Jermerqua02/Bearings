@@ -11,7 +11,6 @@ import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { type EssayFeedback } from "@/lib/counselor";
 import { essayFeedbackAction } from "@/lib/actions/counselor";
-import { getSchool } from "@/lib/data/schools";
 import { daysUntil, nextDeadline } from "@/lib/match";
 import { useApp } from "@/lib/profile-context";
 import type { AidStatus, Essay, ListEntry, Recommender, School } from "@/lib/types";
@@ -60,7 +59,7 @@ const pipelineLabel: Record<ListEntry["status"], string> = {
 /* ————— Tracker tab ————— */
 
 function TrackerTab() {
-  const { list, updateListEntry, essays, recommenders } = useApp();
+  const { list, updateListEntry, essays, recommenders, schoolById } = useApp();
   const applying = list.filter((e) => e.status !== "considering" || e.plan);
 
   return (
@@ -73,7 +72,7 @@ function TrackerTab() {
         </p>
       )}
       {applying.map((entry) => {
-        const school = getSchool(entry.schoolId);
+        const school = schoolById(entry.schoolId);
         if (!school) return null;
         const req = requirementsFor(school);
         const dl = nextDeadline(school, entry.plan);
@@ -204,7 +203,7 @@ function Field({
 }
 
 function ProfileTab() {
-  const { universal, updateUniversal, activities } = useApp();
+  const { universal, updateUniversal, activities, schoolById } = useApp();
   return (
     <div className="space-y-8 max-w-2xl">
       <p className="text-[0.9rem] text-gray-strong">
@@ -310,7 +309,7 @@ function AddHonor({ onAdd }: { onAdd: (h: string) => void }) {
 /* ————— Essays tab ————— */
 
 function EssaysTab() {
-  const { essays, updateEssay, addEssay, profile, list } = useApp();
+  const { essays, updateEssay, addEssay, profile, list, schoolById } = useApp();
   const student = profile?.role === "student" ? profile : null;
   const [activeId, setActiveId] = useState<string | null>(essays[0]?.id ?? null);
   const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
@@ -342,7 +341,7 @@ function EssaysTab() {
     const candidates = list.filter(
       (e) => !essays.some((es) => es.schoolId === e.schoolId)
     );
-    const target = candidates[0] ? getSchool(candidates[0].schoolId) : null;
+    const target = candidates[0] ? schoolById(candidates[0].schoolId) : null;
     const essay: Essay = {
       id: `e-${Date.now()}`,
       title: target ? `Why ${target.shortName}?` : "New essay",
@@ -463,7 +462,7 @@ function EssaysTab() {
 /* ————— Recommenders tab ————— */
 
 function RecommendersTab() {
-  const { recommenders, addRecommender, updateRecommender, removeRecommender, list } = useApp();
+  const { recommenders, addRecommender, updateRecommender, removeRecommender, list, schoolById } = useApp();
   const [name, setName] = useState("");
   const [roleTitle, setRoleTitle] = useState("");
 
@@ -497,11 +496,11 @@ function RecommendersTab() {
           </div>
           <p className="text-[0.85rem] text-gray-strong mb-3">
             Assigned to:{" "}
-            {r.schoolIds.map((id) => getSchool(id)?.shortName).filter(Boolean).join(", ") || "no schools yet"}
+            {r.schoolIds.map((id) => schoolById(id)?.shortName).filter(Boolean).join(", ") || "no schools yet"}
           </p>
           <div className="flex flex-wrap gap-2">
             {list.map((e) => {
-              const s = getSchool(e.schoolId);
+              const s = schoolById(e.schoolId);
               if (!s) return null;
               const assigned = r.schoolIds.includes(s.id);
               return (
@@ -585,11 +584,11 @@ function RecommendersTab() {
 /* ————— Deadlines tab ————— */
 
 function DeadlinesTab() {
-  const { list } = useApp();
+  const { list, schoolById } = useApp();
   const items = useMemo(() => {
     const out: { date: Date; label: string; schoolId: string; days: number }[] = [];
     for (const e of list) {
-      const s = getSchool(e.schoolId);
+      const s = schoolById(e.schoolId);
       if (!s) continue;
       const dl = nextDeadline(s, e.plan);
       if (dl) {
@@ -602,7 +601,7 @@ function DeadlinesTab() {
       }
     }
     return out.sort((a, b) => a.date.getTime() - b.date.getTime());
-  }, [list]);
+  }, [list, schoolById]);
 
   const soon = items.filter((i) => i.days >= 0 && i.days <= 14);
 
@@ -649,7 +648,7 @@ function DeadlinesTab() {
 /* ————— Aid tab ————— */
 
 function AidTab() {
-  const { aidStatus, setAidStatus, list, aidOffers, upsertAidOffer } = useApp();
+  const { aidStatus, setAidStatus, list, aidOffers, upsertAidOffer, schoolById } = useApp();
   const decided = list.filter((e) => e.outcome === "accepted");
 
   return (
@@ -700,7 +699,7 @@ function AidTab() {
           </p>
         ) : (
           decided.map((e) => {
-            const s = getSchool(e.schoolId);
+            const s = schoolById(e.schoolId);
             if (!s) return null;
             const offer = aidOffers.find((o) => o.schoolId === s.id) ?? {
               schoolId: s.id,
