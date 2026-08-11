@@ -1,7 +1,19 @@
 /* ————————————————————————————————————————
-   Seed data: 40 diverse colleges.
-   Mock data — realistic shapes, not authoritative figures.
-   Replace with live data (College Scorecard / IPEDS) later.
+   Editorial seed data: 40 colleges, hand-written.
+
+   Read by scripts/seed.ts and by nothing else. The app reads schools from
+   Postgres through lib/db/queries/schools.ts — this file is the source for
+   the forty curated rows, not a runtime copy of them. Editing a vibe here
+   and re-seeding is how you change what the product says about a school.
+
+   What makes these forty different from the ~1,900 imported from College
+   Scorecard is everything a federal dataset has no column for: what a place
+   feels like, what students complain about, what it's quietly good at. The
+   importer is written to never overwrite them, and school.curated marks
+   them so it can tell.
+
+   The figures here are realistic rather than authoritative. Scorecard is
+   the source for anything imported.
    ———————————————————————————————————————— */
 
 import type { School } from "@/lib/types";

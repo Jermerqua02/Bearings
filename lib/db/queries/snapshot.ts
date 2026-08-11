@@ -291,6 +291,23 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
   return snap;
 }
 
+/**
+ * Just the profile, for pages that need nothing else.
+ *
+ * The explorer needs a student's numbers to compute chances, and loading a
+ * whole snapshot for that would fetch essays, activities, check-ins and
+ * recently-viewed to read one object.
+ *
+ * A parent gets their own profile: `getStudentProfile` asserts a resource
+ * they don't hold and throws, which is the behaviour the explorer relies on
+ * to show them something written for them instead.
+ */
+export async function loadProfileOnly(viewer: Viewer): Promise<Profile | null> {
+  if (viewer.role === "parent") return loadParentProfile(viewer.userId);
+  const row = await safe(() => getStudentProfile(viewer, viewer.userId), null);
+  return row ? toStudentProfile(row) : null;
+}
+
 async function hasActiveLink(studentId: string): Promise<boolean> {
   const { parentStudentLinks } = await import("@/lib/db/schema");
   const { and, eq: eqOp } = await import("drizzle-orm");

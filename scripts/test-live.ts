@@ -25,7 +25,10 @@ async function main() {
   console.log(`profile: ${profile.firstName}, grade ${profile.gradeLevel}\n`);
 
   const { createClaudeCounselor } = await import("@/lib/counselor/claude");
-  const { getSchool } = await import("@/lib/data/schools");
+  // Reads the same path the app does, so this exercises the real query
+  // layer rather than a compiled-in copy of the data.
+  const { getSchoolById } = await import("@/lib/db/queries/schools");
+  const caseWestern = (await getSchoolById("case-western"))!;
   const service = createClaudeCounselor({
     knownSchoolIds: async () => {
       const { schools } = await import("@/lib/db/schema");
@@ -50,7 +53,7 @@ async function main() {
   console.log("cards:", chat.message.cards?.map((c) => c.kind).join(", ") || "none");
 
   console.log("\n\x1b[1m2. whyThisSchool\x1b[0m");
-  const why = await service.whyThisSchool(profile, getSchool("case-western")!);
+  const why = await service.whyThisSchool(profile, caseWestern);
   console.log(why);
 
   console.log("\n\x1b[1m3. essayFeedback — the guardrail under real output\x1b[0m");
@@ -65,7 +68,7 @@ async function main() {
   console.log("\n\x1b[1m4. interviewTurn — nextQuestion must be structured\x1b[0m");
   const turn = (await service.interviewTurn(
     profile,
-    getSchool("case-western")!,
+    caseWestern,
     "Why are you interested in this school?",
     "I like that it has a good biology program and it's close to home.",
   )) as { strengths: string[]; toWorkOn: string[]; followUp: string; nextQuestion?: string };
