@@ -94,6 +94,23 @@ function hostname(url: string | null): string | null {
   }
 }
 
+/**
+ * The registrable part of a hostname — "web.mit.edu" → "mit.edu".
+ *
+ * Institutions don't publish a canonical domain, they publish whatever URL
+ * their web team uses. MIT's curated entry says mit.edu and Scorecard says
+ * web.mit.edu, which is the same school and was not the same string — so a
+ * full run created a second, prose-less MIT alongside the hand-written one.
+ *
+ * Two labels is right for .edu, which is flat: there is no equivalent of
+ * ".co.uk" to worry about here.
+ */
+function registrableDomain(host: string | null): string | null {
+  if (!host) return null;
+  const parts = host.split(".");
+  return parts.length <= 2 ? host : parts.slice(-2).join(".");
+}
+
 /** Slug from the institution name, unique-ified by IPEDS id on collision. */
 function slugFor(name: string, ipedsId: number): string {
   const base = name
@@ -544,14 +561,33 @@ async function main() {
       IPEDS id stopped working the moment we started stamping one.
     */
     const curatedRows = await db
-      .select({ id: schools.id, website: schools.website })
+      .select({ id: schools.id, website: schools.website, ipedsId: schools.ipedsId })
       .from(schools)
       .where(eq(schools.curated, true));
-    const curatedByDomain = new Map(
-      curatedRows.filter((r) => r.website).map((r) => [r.website!.toLowerCase(), r.id]),
+
+    /*
+      Two ways in, strongest first.
+
+      IPEDS id is exact, and every curated school acquires one the first time
+      it's matched — so after one full run this path alone is enough.
+
+      Domain is the fallback for a school we haven't linked yet, compared at
+      the registrable level so web.mit.edu and mit.edu are the same school.
+      `claimed` stops one curated entry absorbing several Scorecard rows:
+      branch campuses often share a domain with their flagship, and they are
+      separate institutions that should be imported, not swallowed.
+    */
+    const curatedByIpeds = new Map(
+      curatedRows.filter((r) => r.ipedsId != null).map((r) => [r.ipedsId!, r.id]),
     );
+    const curatedByDomain = new Map(
+      curatedRows
+        .filter((r) => r.website)
+        .map((r) => [registrableDomain(r.website!.toLowerCase())!, r.id]),
+    );
+    const claimed = new Set<string>();
     console.log(
-      `Protecting ${curatedRows.length} curated schools (matched by domain, not slug).`,
+      `Protecting ${curatedRows.length} curated schools (${curatedByIpeds.size} already linked by IPEDS id).`,
     );
 
     let page = 0;
@@ -570,10 +606,17 @@ async function main() {
       const curatedHits: { id: string; ipedsId: number }[] = [];
       const fresh: ScorecardRow[] = [];
       for (const r of usable) {
-        const domain = hostname(r["school.school_url"]);
-        const curatedId = domain ? curatedByDomain.get(domain) : undefined;
-        if (curatedId) curatedHits.push({ id: curatedId, ipedsId: r.id });
-        else fresh.push(r);
+        const byIpeds = curatedByIpeds.get(r.id);
+        const domain = registrableDomain(hostname(r["school.school_url"]));
+        const byDomain = domain ? curatedByDomain.get(domain) : undefined;
+        const curatedId = byIpeds ?? (byDomain && !claimed.has(byDomain) ? byDomain : undefined);
+
+        if (curatedId) {
+          claimed.add(curatedId);
+          curatedHits.push({ id: curatedId, ipedsId: r.id });
+        } else {
+          fresh.push(r);
+        }
       }
       for (const hit of curatedHits) {
         await db
@@ -641,6 +684,13 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("\n" + (err instanceof Error ? err.message : String(err)));
+  /*
+    Truncated, because a failing insert on school_logo puts the bytea
+    parameter in the message — several megabytes of PNG down the terminal,
+    with the one useful line pushed far out of sight. The first 500
+    characters carry the statement and the constraint that failed.
+  */
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error("\n" + (msg.length > 500 ? `${msg.slice(0, 500)}… [truncated]` : msg));
   process.exit(1);
 });
