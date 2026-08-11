@@ -14,7 +14,9 @@ Live at [bearings-web-production.up.railway.app](https://bearings-web-production
 
 **Also working:** password reset by email (Resend), read-aloud with a Gemini voice and a live waveform, and budget alerts that fire on a threshold.
 
-**Not yet:** real school data (still the seed set in `lib/data/schools.ts`), a cron schedule calling `/api/cron/budget-alert` (the endpoint exists; Railway cron is configured in the dashboard), live infrastructure cost (needs a project-scoped `RAILWAY_API_TOKEN`), map view, voice interviews.
+**School data:** ~1,900 four-year institutions from the U.S. Department of Education's College Scorecard, imported into Postgres with admit rates, SAT/ACT ranges, net price by income band, graduation rates and median earnings. Forty of them are hand-written entries carrying editorial copy Scorecard has no column for — what a place feels like, what students complain about, what it's quietly good at — and the importer never overwrites those. Coverage is honestly partial: a figure an institution didn't report reads as "not reported", never as zero, and no GPA range is invented for a school that doesn't publish one.
+
+**Not yet:** a cron schedule calling `/api/cron/budget-alert` (the endpoint exists; Railway cron is configured in the dashboard), live infrastructure cost (needs a project-scoped `RAILWAY_API_TOKEN`), map view, voice interviews, streaming counselor replies.
 
 ## Run it
 
@@ -22,11 +24,14 @@ Live at [bearings-web-production.up.railway.app](https://bearings-web-production
 npm install
 npm run db:up        # local Postgres in Docker — signup hangs without it
 npm run db:migrate
-npm run db:seed      # optional: a demo student, parent, and schools
+npm run db:seed      # the forty curated schools, plus a demo student and parent
+npm run import:schools   # the rest, from College Scorecard — needs a free API key
 npm run dev
 ```
 
 Open http://localhost:3000. Copy `.env.example` to `.env.local` first and read the notes in it — the database section in particular.
+
+`COLLEGE_SCORECARD_KEY` is free and instant from [api.data.gov/signup](https://api.data.gov/signup). Without it the importer falls back to `DEMO_KEY`, which is rate-limited to roughly 30 requests an hour — enough to prove the thing runs, not enough to finish ~1,900 institutions.
 
 ## Tests
 
@@ -38,6 +43,8 @@ npm run test:legal        # consent records and cost attribution
 npm run test:onboarding   # onboarding actually persists
 npm run test:admin        # admin queries, feedback, budget settings
 npm run test:budget       # budget alert thresholds and suppression
+npm run test:schools      # the school query layer, and SQL/JS chance-tier parity
+npm run test:audit        # replays the browser walkthrough that found the bugs (needs `npm run dev`)
 npm run test:live         # end-to-end against the real Claude API (costs money)
 ```
 
@@ -74,6 +81,8 @@ Next.js (App Router) · React 19 · TypeScript · Tailwind v4 · Postgres via Dr
 - `lib/db/queries/admin.ts` — admin reads. Counts, status, and money; never content.
 - `lib/costs.ts` — unit economics (server-only). Formatters live in `lib/format.ts` so client components can use them without dragging the cost model into the browser.
 - `lib/legal.ts` — company identity and document versions. Consent is stored per version.
+- `lib/db/queries/schools.ts` — school reads. Assembles rows into the `School` shape and expresses the chance tier as SQL so the explorer can filter by it before paginating; `scripts/test-schools.ts` holds that second implementation to the one in `lib/match.ts`.
+- `lib/data/schools.ts` — seed-only. The forty editorial entries, read by `scripts/seed.ts` and by nothing at runtime.
 - `app/(app)/` — authenticated shell. `app/(legal)/` — public documents. `app/admin/` — the portal.
 - Design tokens in `app/globals.css` (Tailwind v4 `@theme`). One accent (ink blue), muted chance-tier colors, no red/yellow/green.
 
@@ -91,4 +100,3 @@ Next.js (App Router) · React 19 · TypeScript · Tailwind v4 · Postgres via Dr
 - Set a **project-scoped** `RAILWAY_API_TOKEN` (not the account token) plus `RAILWAY_PROJECT_ID`, for live infrastructure cost on `/admin/usage`.
 - Add a Railway cron hitting `/api/cron/budget-alert` with `Authorization: Bearer $CRON_SECRET`. Daily is plenty.
 - Verify a Northstar domain in Resend so email stops coming from a personal one.
-- Replace the seed school data.
