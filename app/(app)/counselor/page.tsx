@@ -38,10 +38,13 @@ interface Thread {
   messages: CounselorMessage[];
 }
 
+/* "How do I stand out with a 3.4?" used to be hardcoded here, so a student
+   with a 3.9 or a 2.8 was offered a question about somebody else's grades.
+   The generic form asks the same thing without inventing a number. */
 const SUGGESTED_PROMPTS = [
   "Am I being realistic?",
   "What schools am I missing?",
-  "How do I stand out with a 3.4?",
+  "How do I stand out with my grades?",
   "Explain early decision vs. early action",
   "Is this school worth the money?",
 ];

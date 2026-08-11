@@ -4,6 +4,7 @@
    Most users are minors; the controls are visible and real. */
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -81,6 +82,8 @@ export default function SettingsPage() {
 
   if (!profile) return null;
 
+  const isParent = profile.role === "parent";
+
   return (
     <div className="animate-fade-up max-w-2xl space-y-10">
       <div>
@@ -103,9 +106,9 @@ export default function SettingsPage() {
             />
           </label>
           <p className="text-[0.85rem] text-gray-mid">
-            Grades, scores, and preferences live in the counselor&apos;s
-            &quot;About you&quot; panel — editable any time, because the AI
-            should know what you tell it, not what it assumes.
+            {isParent
+              ? "Your student's grades, scores and preferences live in their own profile — they own that, and it's what every estimate in here is calculated from."
+              : "Grades, scores, and preferences live in the counselor's “About you” panel — editable any time, because the AI should know what you tell it, not what it assumes."}
           </p>
         </Card>
       </section>
@@ -114,24 +117,55 @@ export default function SettingsPage() {
       <section>
         <SectionLabel className="mb-4">Family linking &amp; boundaries</SectionLabel>
         <Card className="p-5">
-          <Toggle
-            label={parentLinked ? "Parent account linked" : "Link a parent account"}
-            description="A linked parent sees the shared view: your list, statuses, deadlines, and the decision worksheet with aid offers. Nothing else."
-            on={parentLinked}
-            onToggle={() => setParentLinked(!parentLinked)}
-          />
-          <div className="border-t border-hairline my-2" />
-          <Toggle
-            label="Share essay drafts"
-            description="Off by default, and set per essay. Your counselor chats are never visible to a linked parent. A shared draft shows only revisions saved after you shared it."
-            on={shareEssays}
-            onToggle={() => setShareEssays(!shareEssays)}
-          />
-          <p className="text-[0.82rem] text-gray-strong bg-fill rounded-[3px] p-3 mt-3 leading-relaxed">
-            Why the boundary: this process only works if you can think out loud
-            without an audience. Parents get transparency about progress;
-            you keep privacy about process. Both are load-bearing.
-          </p>
+          {isParent ? (
+            /*
+              A parent used to be offered "Link a parent account" — a switch
+              for themselves, backed by nothing: linking is student-initiated
+              and lib/actions/linking.ts refuses a parent caller. Stating the
+              boundary is the honest version of this card.
+            */
+            <>
+              <p className="text-[0.95rem] mb-3">
+                {parentLinked
+                  ? "You're linked to your student's account."
+                  : "You're not linked to a student account yet."}
+              </p>
+              <p className="text-[0.88rem] text-gray-strong leading-relaxed mb-3">
+                {parentLinked
+                  ? "You see their list, application statuses, deadlines, and the decision worksheet with aid offers. You don't see their counselor conversations or essay drafts unless they share one."
+                  : "Your student sends the invitation from their own settings — linking only works in that direction, on purpose."}
+              </p>
+              <p className="text-[0.82rem] text-gray-strong bg-fill rounded-[3px] p-3 leading-relaxed">
+                Why the boundary: this process only works if a student can
+                think out loud without an audience. You get transparency about
+                progress; they keep privacy about process. Both are
+                load-bearing, and the second one is the part that&apos;s easy to
+                underestimate.
+              </p>
+            </>
+          ) : (
+            <>
+              <Toggle
+                label={parentLinked ? "Parent account linked" : "Link a parent account"}
+                description="A linked parent sees the shared view: your list, statuses, deadlines, and the decision worksheet with aid offers. Nothing else."
+                on={parentLinked}
+                onToggle={() => setParentLinked(!parentLinked)}
+              />
+              <div className="border-t border-hairline my-2" />
+              <Toggle
+                label="Share essay drafts"
+                description="Off by default, and set per essay. Your counselor chats are never visible to a linked parent. A shared draft shows only revisions saved after you shared it."
+                on={shareEssays}
+                onToggle={() => setShareEssays(!shareEssays)}
+              />
+              <p className="text-[0.82rem] text-gray-strong bg-fill rounded-[3px] p-3 mt-3 leading-relaxed">
+                Why the boundary: this process only works if you can think out
+                loud without an audience. Parents get transparency about
+                progress; you keep privacy about process. Both are
+                load-bearing.
+              </p>
+            </>
+          )}
         </Card>
       </section>
 
@@ -208,6 +242,24 @@ export default function SettingsPage() {
           (including SOPIPA-style statutes); our commitments here don&apos;t
           wait for a subpoena to matter. What you tell your counselor stays
           between you and your counselor.
+        </p>
+      </section>
+
+      {/* The documents themselves were reachable only from the landing and
+          sign-up pages — nowhere inside the product, for an audience that is
+          mostly minors and their parents. */}
+      <section>
+        <SectionLabel className="mb-4">The documents</SectionLabel>
+        <p className="text-[0.9rem] text-gray-strong leading-relaxed">
+          You agreed to these when you signed up, and they&apos;re worth being
+          able to find again:{" "}
+          <Link href="/privacy" className="text-ink underline underline-offset-4">
+            Privacy Policy
+          </Link>{" "}
+          ·{" "}
+          <Link href="/terms" className="text-ink underline underline-offset-4">
+            Terms of Service
+          </Link>
         </p>
       </section>
     </div>

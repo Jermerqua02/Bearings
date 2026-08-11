@@ -4,6 +4,7 @@
    For underclassmen the job is shaping the profile, not searching schools. */
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import Chip from "@/components/ui/Chip";
@@ -62,6 +63,14 @@ function CoursesTab() {
         <Card className="p-4">
           <p className="label-caps mb-1">Unweighted GPA</p>
           <p className="text-[1.4rem] font-semibold">{gpa.unweighted ?? "—"}</p>
+          {/* Two numbers exist: this one, averaged from the grades entered
+              below, and the self-reported figure from onboarding that the
+              counselor and chance estimates use. Saying which is which stops
+              them reading as a contradiction. */}
+          <p className="text-[0.75rem] text-gray-mid mt-1 leading-snug">
+            From the courses below. Chance estimates use the GPA you reported
+            in onboarding.
+          </p>
         </Card>
         <Card className="p-4">
           <p className="label-caps mb-1">Weighted GPA</p>
@@ -383,8 +392,41 @@ function OpportunitiesTab() {
 /* ————— Page ————— */
 
 export default function PlannerPage() {
-  const { mode } = useApp();
+  const { mode, profile } = useApp();
   const [tab, setTab] = useState<Tab>("courses");
+
+  /*
+    A parent's course plan and activity log are empty by design — those are
+    student-private, so the query layer never fetches them (lib/auth/policy.ts).
+    The page didn't know that, and handed parents an editable, blank grid
+    under the heading "What should I be doing?", which is a question they
+    weren't asking about a record that isn't theirs.
+  */
+  if (profile?.role === "parent") {
+    return (
+      <div className="animate-fade-up max-w-xl">
+        <SectionLabel className="mb-3">Planner</SectionLabel>
+        <TwoTone as="h1" size="lg" className="mb-4">
+          <em>This one belongs to your student.</em>
+        </TwoTone>
+        <p className="body-copy mb-4">
+          Course choices and activities are the part of this process where
+          being watched is least useful — so the planner stays theirs. It
+          feeds their application profile automatically; nothing gets re-typed
+          in senior year.
+        </p>
+        <p className="body-copy">
+          What you can see is on{" "}
+          <Link href="/dashboard" className="underline underline-offset-2 text-ink">
+            your dashboard
+          </Link>
+          : their list, where each application stands, what&apos;s due next, and
+          the aid comparison once offers arrive.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-up">
       <div className="mb-8">

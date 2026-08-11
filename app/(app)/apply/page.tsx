@@ -424,10 +424,22 @@ function EssaysTab() {
           </div>
 
           <p className="text-[0.8rem] text-gray-mid mt-4 border-t border-hairline pt-3 max-w-2xl">
-            Your counselor critiques and asks questions — it never writes your
-            essay. Admissions offices can tell, and more importantly, so can
-            you. This draft is private; a linked parent can&apos;t see it unless
-            you share it.
+            {student ? (
+              <>
+                Your counselor critiques and asks questions — it never writes
+                your essay. Admissions offices can tell, and more importantly,
+                so can you. This draft is private; a linked parent can&apos;t see
+                it unless you share it.
+              </>
+            ) : (
+              /* A parent reading "a linked parent can't see it" is reading
+                 about themselves in the third person. */
+              <>
+                Drafts stay with your student unless they choose to share one.
+                The counselor critiques and asks questions here — it never
+                writes the essay, which is the part that would show.
+              </>
+            )}
           </p>
 
           {feedback && (
