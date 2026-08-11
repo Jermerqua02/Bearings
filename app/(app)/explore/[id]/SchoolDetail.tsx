@@ -124,11 +124,11 @@ export default function SchoolDetail({ school }: { school: School }) {
     ] as [string, number | undefined][]
   ).filter((entry): entry is [string, number] => entry[1] != null);
 
-  // City prose is editorial. Cost of living defaults to "moderate", so it is
-  // only a fact for a school somebody wrote by hand.
+  // Every fact appears when we have it, for every school. Nothing here asks
+  // where the school came from — only whether the answer is known.
   const cityFacts = (
     [
-      school.curated
+      school.cityInfo.costOfLiving
         ? (["Cost of living", school.cityInfo.costOfLiving.replace("-", " ")] as const)
         : null,
       ["Getting around", school.cityInfo.transit] as const,
@@ -136,6 +136,16 @@ export default function SchoolDetail({ school }: { school: School }) {
       ["Jobs & internships", school.cityInfo.internshipMarket] as const,
     ].filter(Boolean) as (readonly [string, string])[]
   ).filter(([, value]) => value);
+
+  // The life section is worth showing if any single part of it is known.
+  const hasLife =
+    !!school.life.vibe ||
+    !!school.life.weather ||
+    !!school.life.commonComplaints ||
+    !!school.life.religiousAffiliation ||
+    school.life.greekLifePresence != null ||
+    school.life.d1Athletics != null ||
+    school.life.housingGuaranteed != null;
 
   return (
     <div className="animate-fade-up max-w-4xl">
@@ -331,21 +341,21 @@ export default function SchoolDetail({ school }: { school: School }) {
           {school.academics.studentFacultyRatio && (
             <Stat label="Student : faculty" value={school.academics.studentFacultyRatio} />
           )}
-          {school.curated && (
-            <>
-              <Stat
-                label="Research access"
-                value={
-                  school.academics.researchOpportunities
-                    ? "Yes — real opportunities"
-                    : "Limited"
-                }
-              />
-              <Stat
-                label="Co-op / internships"
-                value={school.academics.coOp ? "Structured program" : "Standard"}
-              />
-            </>
+          {school.academics.researchOpportunities != null && (
+            <Stat
+              label="Research access"
+              value={
+                school.academics.researchOpportunities
+                  ? "Yes — real opportunities"
+                  : "Limited"
+              }
+            />
+          )}
+          {school.academics.coOp != null && (
+            <Stat
+              label="Co-op / internships"
+              value={school.academics.coOp ? "Structured program" : "Standard"}
+            />
           )}
         </div>
         {school.academics.topMajors.length > 0 && (
@@ -362,18 +372,23 @@ export default function SchoolDetail({ school }: { school: School }) {
         )}
       </section>
 
-      {/* Life & culture — editorial, so it appears only where it was written.
-          An empty vibe used to render as a lone "." in the largest body copy
-          on the page, and greekLifePresence "low" is a schema default rather
-          than a reported fact. */}
-      {school.curated && (
+      {/* Life & culture — each line appears when that fact is known, whoever
+          supplied it. Greek life and housing are null rather than 'low' and 0
+          for a school nobody has assessed, so absence reads as absence. */}
+      {hasLife && (
         <section className="mb-10">
           <SectionLabel className="mb-4">Life &amp; culture</SectionLabel>
           {school.life.vibe && <p className="body-copy text-ink mb-4">{school.life.vibe}.</p>}
           <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-[0.92rem] max-w-2xl">
-            <p><span className="text-gray-mid">Greek life:</span> {school.life.greekLifePresence}</p>
-            <p><span className="text-gray-mid">D1 athletics:</span> {school.life.d1Athletics ? "Yes" : "No"}</p>
-            <p><span className="text-gray-mid">Housing guaranteed:</span> {school.life.housingGuaranteed} year{school.life.housingGuaranteed === 1 ? "" : "s"}</p>
+            {school.life.greekLifePresence && (
+              <p><span className="text-gray-mid">Greek life:</span> {school.life.greekLifePresence}</p>
+            )}
+            {school.life.d1Athletics != null && (
+              <p><span className="text-gray-mid">D1 athletics:</span> {school.life.d1Athletics ? "Yes" : "No"}</p>
+            )}
+            {school.life.housingGuaranteed != null && (
+              <p><span className="text-gray-mid">Housing guaranteed:</span> {school.life.housingGuaranteed} year{school.life.housingGuaranteed === 1 ? "" : "s"}</p>
+            )}
             {school.life.weather && (
               <p><span className="text-gray-mid">Weather:</span> {school.life.weather}</p>
             )}

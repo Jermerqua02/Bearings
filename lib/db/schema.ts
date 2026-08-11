@@ -325,20 +325,33 @@ export const schools = pgTable("school", {
   topMajors: text("top_majors").array().notNull().default([]),
   studentFacultyRatio: text("student_faculty_ratio").notNull().default(""),
   notablePrograms: text("notable_programs").array().notNull().default([]),
-  researchOpportunities: boolean("research_opportunities").notNull().default(false),
-  coOp: boolean("co_op").notNull().default(false),
+  /*
+    Nullable, like every other figure a source might not supply.
+
+    These were `NOT NULL DEFAULT false` (and 'low', 'moderate', 0 below),
+    which made a default indistinguishable from an answer: an imported
+    school would report "Research access: Limited" because nobody had said
+    otherwise, not because anyone looked. The UI worked around it by hiding
+    these fields for anything not hand-written, which quietly split the
+    product in two — forty real schools and 1,900 thin ones.
+
+    A school is a school. What varies is how much we know about it, and
+    that is what null is for.
+  */
+  researchOpportunities: boolean("research_opportunities"),
+  coOp: boolean("co_op"),
 
   // Life
   vibe: text("vibe").notNull().default(""),
-  greekLifePresence: greekPresenceEnum("greek_life_presence").notNull().default("low"),
-  d1Athletics: boolean("d1_athletics").notNull().default(false),
-  housingGuaranteed: integer("housing_guaranteed").notNull().default(0),
+  greekLifePresence: greekPresenceEnum("greek_life_presence"),
+  d1Athletics: boolean("d1_athletics"),
+  housingGuaranteed: integer("housing_guaranteed"),
   weather: text("weather").notNull().default(""),
   commonComplaints: text("common_complaints").notNull().default(""),
   religiousAffiliation: text("religious_affiliation"),
 
   // City
-  costOfLiving: costOfLivingEnum("cost_of_living").notNull().default("moderate"),
+  costOfLiving: costOfLivingEnum("cost_of_living"),
   transit: text("transit").notNull().default(""),
   airportAccess: text("airport_access").notNull().default(""),
   internshipMarket: text("internship_market").notNull().default(""),

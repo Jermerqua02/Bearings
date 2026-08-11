@@ -158,7 +158,24 @@ export async function canRead(
   resource: Resource,
   ownerStudentId: string,
 ): Promise<boolean> {
-  if (viewer.role === "student") return viewer.userId === ownerStudentId;
+  /*
+    Your own records are yours, whatever your role.
+
+    This used to read `viewer.role === "student" && viewer.userId === owner`,
+    so an admin fell through to the parent branch and was denied their own
+    profile. The effect was subtle and total: an operator who walked
+    onboarding saved a profile fine, then found the explorer telling them to
+    set one up, because the read threw and the caller treated the failure as
+    "no profile yet".
+
+    The boundary exists to stop *cross-account* reads. Someone reading rows
+    they created themselves is not what it guards — which loadSnapshot
+    already said in a comment while the rule here disagreed.
+  */
+  if (viewer.userId === ownerStudentId) return true;
+
+  // Beyond that, only a linked parent, and only the shared slices.
+  if (viewer.role === "student") return false;
   if (!PARENT_READABLE.has(resource)) return false;
   return isLinkedParent(viewer.userId, ownerStudentId);
 }
@@ -173,9 +190,13 @@ export async function assertCanRead(
   }
 }
 
-/** Only the owning student may write. Parents have no write path to student data. */
+/** Only the owner may write. Parents have no write path to student data. */
 export async function assertCanWrite(viewer: Viewer, ownerStudentId: string): Promise<void> {
-  if (viewer.role !== "student" || viewer.userId !== ownerStudentId) {
+  // Same rule as canRead: your own rows are yours. Role-gating this denied an
+  // admin every write to data they own — adding a school to their own list,
+  // saving their own essay — while onboarding, which doesn't go through here,
+  // saved happily. Half a working account is worse than none.
+  if (viewer.userId !== ownerStudentId) {
     throw new AuthzError("Not permitted to modify this");
   }
 }
@@ -197,7 +218,9 @@ export async function canReadEssay(viewer: Viewer, essayId: string): Promise<boo
     .limit(1);
   if (!essay) return false;
 
-  if (viewer.role === "student") return viewer.userId === essay.studentId;
+  // The author, whatever their role. Same reason as canRead.
+  if (viewer.userId === essay.studentId) return true;
+  if (viewer.role === "student") return false;
 
   if (!(await isLinkedParent(viewer.userId, essay.studentId))) return false;
 

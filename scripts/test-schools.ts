@@ -89,11 +89,11 @@ async function main() {
   check("unknown id returns null", (await getSchoolById("not-a-school")) === null);
 
   const curated = await getSchoolById("yale");
-  check("a curated school keeps its editorial prose", !!curated?.life.vibe);
+  check("a hand-written school keeps its editorial prose", !!curated?.life.vibe);
   check("a curated school reports full coverage", !!curated?.coverage.admissions);
   check("a curated school has a GPA range", !!curated?.admissions.gpaMid50);
 
-  const thin = batch.find((s) => !s.curated && !s.admissions.gpaMid50);
+  const thin = batch.find((s) => !s.life.vibe && !s.admissions.gpaMid50);
   if (thin) {
     check("an imported school has no invented GPA range", thin.admissions.gpaMid50 === undefined);
     check(

@@ -141,15 +141,19 @@ export interface School {
   undergradEnrollment: number;
   photoQuery: string; // placeholder image seed until real photos
   /*
-    Optional throughout, because a federal dataset is not a hand-written
-    entry. The curated forty have every figure; the ~1,900 institutions from
-    College Scorecard have whatever the institution actually reported, and
-    coverage is genuinely patchy — a small college may publish a net price
-    and no test range.
+    Optional throughout, because sources differ in what they supply. The
+    forty hand-written entries have every figure; the ~1,900 institutions
+    from College Scorecard have whatever the institution actually reported,
+    and coverage is genuinely patchy — a small college may publish a net
+    price and no test range.
 
-    `undefined` here means "not reported", and the UI has to say that rather
-    than print a zero. It is the difference between "we don't know what this
+    `undefined` means "not reported", and the UI has to say that rather than
+    print a zero. It is the difference between "we don't know what this
     costs" and "this costs nothing".
+
+    Note there is deliberately no `curated` flag on this type. Whether a
+    school was typed by hand or imported is an ingest concern; the product
+    shows one set of schools and asks only whether a given fact is known.
   */
   admissions: {
     acceptanceRate?: number; // 0–1
@@ -177,20 +181,20 @@ export interface School {
     topMajors: string[];
     studentFacultyRatio: string; // "8:1"
     notablePrograms: string[];
-    researchOpportunities: boolean;
-    coOp: boolean;
+    researchOpportunities?: boolean;
+    coOp?: boolean;
   };
   life: {
     vibe: string; // plain language
-    greekLifePresence: "none" | "low" | "moderate" | "high";
-    d1Athletics: boolean;
-    housingGuaranteed: number; // years
+    greekLifePresence?: "none" | "low" | "moderate" | "high";
+    d1Athletics?: boolean;
+    housingGuaranteed?: number; // years
     weather: string;
     commonComplaints: string;
     religiousAffiliation?: string;
   };
   cityInfo: {
-    costOfLiving: "low" | "moderate" | "high" | "very-high";
+    costOfLiving?: "low" | "moderate" | "high" | "very-high";
     transit: string;
     airportAccess: string;
     internshipMarket: string;
@@ -203,8 +207,6 @@ export interface School {
   };
   /** Why the counselor might surface this school beyond the obvious. */
   underratedFor?: string;
-  /** Hand-written entry: carries editorial prose an import can't supply. */
-  curated?: boolean;
 }
 
 /* ————————————— List & applications ————————————— */

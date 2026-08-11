@@ -25,6 +25,7 @@ import {
   users,
 } from "@/lib/db/schema";
 import {
+  assertCanWrite,
   canRead,
   canReadEssay,
   essayVersionCutoff,
@@ -130,10 +131,41 @@ async function main() {
   check("activities", await canRead(parent, "activities", SID), false);
   check("course plan", await canRead(parent, "coursePlan", SID), false);
 
+  /*
+    Your own rows are yours, whatever your role.
+
+    An operator with role "admin" who walks onboarding to test the product
+    saved a profile and was then told to go and set one up: canRead gated on
+    role rather than ownership, so an admin fell through to the parent branch
+    and was denied their own about-you panel. The failure surfaced as an empty
+    explorer, which looks like missing data rather than a denied read.
+  */
+  console.log("\n\x1b[1mOwn records — any role may read and write them\x1b[0m");
+  const adminSelf: Viewer = { userId: SID, role: "admin", email: "a@t.local", name: "A" };
+  check("admin reads their own about-you panel", await canRead(adminSelf, "aboutYouPanel", SID), true);
+  check("admin reads their own counselor threads", await canRead(adminSelf, "counselorThreads", SID), true);
+  check("admin reads their own essay", await canReadEssay(adminSelf, sharedEssay.id), true);
+  check(
+    "admin may write their own records",
+    await assertCanWrite(adminSelf, SID).then(() => true).catch(() => false),
+    true,
+  );
+
+  const adminOther: Viewer = { userId: OID, role: "admin", email: "ao@t.local", name: "AO" };
+  check(
+    "but an admin still cannot read someone else's private data",
+    await canRead(adminOther, "aboutYouPanel", SID),
+    false,
+  );
+  check(
+    "nor write it",
+    await assertCanWrite(adminOther, SID).then(() => true).catch(() => false),
+    false,
+  );
+
   console.log("\n\x1b[1mUnlinked parent gets nothing\x1b[0m");
   check("list entries", await canRead(other, "listEntries", SID), false);
   check("essays", await canReadEssay(other, sharedEssay.id), false);
-
   console.log("\n\x1b[1mEssays — default private, per-grant exception\x1b[0m");
   check("student reads own", await canReadEssay(student, privateEssay.id), true);
   check("parent cannot read unshared", await canReadEssay(parent, privateEssay.id), false);

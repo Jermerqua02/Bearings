@@ -71,6 +71,13 @@
       "when": 1786408343655,
       "tag": "0009_lovely_dracula",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786417123636,
+      "tag": "0010_little_doctor_faustus",
+      "breakpoints": true
     }
   ]
 }
