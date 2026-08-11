@@ -22,6 +22,7 @@
     "test:invite": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-invite.ts",
     "test:rate": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-rate-limit.ts",
     "test:budget": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-budget-alert.ts",
+    "test:schools": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-schools.ts",
     "test:admin": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-admin.ts",
     "admin:grant": "NODE_OPTIONS=--conditions=react-server tsx scripts/grant-admin.ts",
     "admin:password": "NODE_OPTIONS=--conditions=react-server tsx scripts/set-password.ts"
@@ -44,6 +45,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "drizzle-kit": "^0.31.10",
+    "playwright": "^1.62.1",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.23.1",
     "typescript": "^5.7.0"
