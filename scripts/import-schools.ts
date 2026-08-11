@@ -25,9 +25,16 @@
 
 import "./_env";
 
-import { eq, inArray, isNull, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { schoolLogos, schools } from "@/lib/db/schema";
+import {
+  schoolAdmissions,
+  schoolCosts,
+  schoolLogos,
+  schoolOutcomes,
+  schools,
+} from "@/lib/db/schema";
+import { CURRENT_CYCLE } from "@/lib/schools";
 
 const API = "https://api.data.gov/ed/collegescorecard/v1/schools";
 const PER_PAGE = 100;
@@ -109,6 +116,28 @@ interface ScorecardRow {
   "school.minority_serving.historically_black": number | null;
   "latest.student.size": number | null;
   "latest.admissions.admission_rate.overall": number | null;
+  "latest.admissions.test_requirements": number | null;
+  "latest.admissions.sat_scores.25th_percentile.critical_reading": number | null;
+  "latest.admissions.sat_scores.75th_percentile.critical_reading": number | null;
+  "latest.admissions.sat_scores.25th_percentile.math": number | null;
+  "latest.admissions.sat_scores.75th_percentile.math": number | null;
+  "latest.admissions.act_scores.25th_percentile.cumulative": number | null;
+  "latest.admissions.act_scores.75th_percentile.cumulative": number | null;
+  "latest.cost.attendance.academic_year": number | null;
+  "latest.cost.avg_net_price.public": number | null;
+  "latest.cost.avg_net_price.private": number | null;
+  "latest.cost.net_price.public.by_income_level.0-30000": number | null;
+  "latest.cost.net_price.public.by_income_level.30001-48000": number | null;
+  "latest.cost.net_price.public.by_income_level.48001-75000": number | null;
+  "latest.cost.net_price.public.by_income_level.75001-110000": number | null;
+  "latest.cost.net_price.public.by_income_level.110001-plus": number | null;
+  "latest.cost.net_price.private.by_income_level.0-30000": number | null;
+  "latest.cost.net_price.private.by_income_level.30001-48000": number | null;
+  "latest.cost.net_price.private.by_income_level.48001-75000": number | null;
+  "latest.cost.net_price.private.by_income_level.75001-110000": number | null;
+  "latest.cost.net_price.private.by_income_level.110001-plus": number | null;
+  "latest.completion.completion_rate_4yr_150nt": number | null;
+  "latest.earnings.10_yrs_after_entry.median": number | null;
 }
 
 const FIELDS = [
@@ -122,7 +151,92 @@ const FIELDS = [
   "school.minority_serving.historically_black",
   "latest.student.size",
   "latest.admissions.admission_rate.overall",
+  "latest.admissions.test_requirements",
+  "latest.admissions.sat_scores.25th_percentile.critical_reading",
+  "latest.admissions.sat_scores.75th_percentile.critical_reading",
+  "latest.admissions.sat_scores.25th_percentile.math",
+  "latest.admissions.sat_scores.75th_percentile.math",
+  "latest.admissions.act_scores.25th_percentile.cumulative",
+  "latest.admissions.act_scores.75th_percentile.cumulative",
+  "latest.cost.attendance.academic_year",
+  "latest.cost.avg_net_price.public",
+  "latest.cost.avg_net_price.private",
+  "latest.cost.net_price.public.by_income_level.0-30000",
+  "latest.cost.net_price.public.by_income_level.30001-48000",
+  "latest.cost.net_price.public.by_income_level.48001-75000",
+  "latest.cost.net_price.public.by_income_level.75001-110000",
+  "latest.cost.net_price.public.by_income_level.110001-plus",
+  "latest.cost.net_price.private.by_income_level.0-30000",
+  "latest.cost.net_price.private.by_income_level.30001-48000",
+  "latest.cost.net_price.private.by_income_level.48001-75000",
+  "latest.cost.net_price.private.by_income_level.75001-110000",
+  "latest.cost.net_price.private.by_income_level.110001-plus",
+  "latest.completion.completion_rate_4yr_150nt",
+  "latest.earnings.10_yrs_after_entry.median",
 ].join(",");
+
+/* ————— Scorecard values → our vocabulary ————— */
+
+/**
+ * SAT mid-50%, summed across the two sections.
+ *
+ * Scorecard reports reading and math separately; students and schools both
+ * talk about the combined 400–1600 number, and that is what `School.satMid50`
+ * and every UI that reads it expect. Both sections must be present — adding a
+ * reported reading score to a missing math score would produce a number
+ * roughly half of what it claims to be.
+ */
+function satRange(r: ScorecardRow): [number, number] | null {
+  const rLow = r["latest.admissions.sat_scores.25th_percentile.critical_reading"];
+  const rHigh = r["latest.admissions.sat_scores.75th_percentile.critical_reading"];
+  const mLow = r["latest.admissions.sat_scores.25th_percentile.math"];
+  const mHigh = r["latest.admissions.sat_scores.75th_percentile.math"];
+  if (rLow == null || rHigh == null || mLow == null || mHigh == null) return null;
+  return [rLow + mLow, rHigh + mHigh];
+}
+
+/**
+ * `latest.admissions.test_requirements`: 1 required, 2 recommended,
+ * 3 neither required nor recommended, 4 unknown, 5 considered but not
+ * required.
+ *
+ * Only code 1 maps to "required". Scorecard has no way to say test-*blind*,
+ * so we never claim it — "optional" is the honest floor, and the explorer's
+ * testing filter only ever excludes "required", so nothing downstream
+ * over-promises.
+ */
+function testPolicyFor(code: number | null): "required" | "optional" {
+  return code === 1 ? "required" : "optional";
+}
+
+/** Public and private institutions report net price in different fields. */
+function netPrice(r: ScorecardRow, ownership: number) {
+  const pub = ownership === 1;
+  const band = (b: string) =>
+    pub
+      ? r[`latest.cost.net_price.public.by_income_level.${b}` as keyof ScorecardRow]
+      : r[`latest.cost.net_price.private.by_income_level.${b}` as keyof ScorecardRow];
+
+  const lowest = band("0-30000") as number | null;
+  const low = band("30001-48000") as number | null;
+
+  // Our schema has four income bands and Scorecard has five: the bottom two
+  // both fall under our "under 48k". Averaged when both are present so the
+  // figure reflects the whole band rather than one end of it.
+  const under48k =
+    lowest != null && low != null
+      ? Math.round((lowest + low) / 2)
+      : (lowest ?? low ?? null);
+
+  return {
+    avg:
+      (r["latest.cost.avg_net_price.public"] ?? r["latest.cost.avg_net_price.private"]) ?? null,
+    under48k,
+    k48to75: band("48001-75000") as number | null,
+    k75to110: band("75001-110000") as number | null,
+    over110k: band("110001-plus") as number | null,
+  };
+}
 
 async function fetchPage(key: string, page: number): Promise<{ rows: ScorecardRow[]; total: number }> {
   const url =
@@ -239,6 +353,99 @@ const CURATED_DOMAINS: Record<string, string> = {
   "truman-state": "truman.edu",
 };
 
+/**
+ * The admissions, cost, and outcome rows for a page of institutions.
+ *
+ * These three tables existed and were written by nothing but the seed
+ * script, so every imported school had a name and a location and not one
+ * number a student could act on — no admit rate, no net price, no test
+ * range. That is the whole reason the explorer could be filtered down to
+ * nothing: forty schools were carrying every combination of filters.
+ *
+ * onConflictDoNothing throughout: the curated forty have hand-written
+ * figures that are better than Scorecard's — they include GPA ranges and
+ * real application deadlines, neither of which Scorecard publishes — and a
+ * re-run must never overwrite them.
+ *
+ * A row is written only if it carries at least one real number. An
+ * all-null row is worse than no row: it reads downstream as "we looked and
+ * the answer is nothing" rather than "we don't know".
+ */
+async function writeChildren(rows: ScorecardRow[]) {
+  const admissions = [];
+  const costs = [];
+  const outcomes = [];
+
+  for (const r of rows) {
+    const id = slugFor(r["school.name"], r.id);
+    const sat = satRange(r);
+    const actLow = r["latest.admissions.act_scores.25th_percentile.cumulative"];
+    const actHigh = r["latest.admissions.act_scores.75th_percentile.cumulative"];
+    const rate = r["latest.admissions.admission_rate.overall"];
+
+    if (rate != null || sat || (actLow != null && actHigh != null)) {
+      admissions.push({
+        schoolId: id,
+        cycle: CURRENT_CYCLE,
+        acceptanceRate: rate,
+        // Scorecard publishes no GPA distribution. Left null rather than
+        // estimated — a made-up range would be plotted against a student's
+        // real GPA on the detail page.
+        gpaMid50Low: null,
+        gpaMid50High: null,
+        satMid50Low: sat?.[0] ?? null,
+        satMid50High: sat?.[1] ?? null,
+        actMid50Low: actLow,
+        actMid50High: actHigh,
+        testPolicy: testPolicyFor(r["latest.admissions.test_requirements"]) as never,
+        // Application plans and their deadlines aren't in Scorecard. The UI
+        // falls back to "see school site" on an empty list.
+        plansOffered: [],
+      });
+    }
+
+    const np = netPrice(r, r["school.ownership"]);
+    const sticker = r["latest.cost.attendance.academic_year"];
+    if (np.avg != null || sticker != null || np.under48k != null) {
+      costs.push({
+        schoolId: id,
+        year: CURRENT_CYCLE,
+        stickerPrice: sticker,
+        avgNetPrice: np.avg,
+        netPriceUnder48k: np.under48k,
+        netPrice48to75k: np.k48to75,
+        netPrice75to110k: np.k75to110,
+        netPriceOver110k: np.over110k,
+        // Both are editorial judgements with no Scorecard equivalent.
+        percentNeedMet: null,
+        meritAid: null,
+      });
+    }
+
+    const grad = r["latest.completion.completion_rate_4yr_150nt"];
+    const earnings = r["latest.earnings.10_yrs_after_entry.median"];
+    if (grad != null || earnings != null) {
+      outcomes.push({
+        schoolId: id,
+        year: CURRENT_CYCLE,
+        gradRate: grad,
+        medianEarnings10yr: earnings,
+        alumniNetwork: null,
+      });
+    }
+  }
+
+  if (admissions.length) {
+    await db.insert(schoolAdmissions).values(admissions).onConflictDoNothing();
+  }
+  if (costs.length) {
+    await db.insert(schoolCosts).values(costs).onConflictDoNothing();
+  }
+  if (outcomes.length) {
+    await db.insert(schoolOutcomes).values(outcomes).onConflictDoNothing();
+  }
+}
+
 async function backfillCuratedDomains() {
   let set = 0;
   for (const [id, domain] of Object.entries(CURATED_DOMAINS)) {
@@ -316,17 +523,40 @@ async function main() {
   }
 
   if (!logosOnly) {
-    // The curated entries are protected: their slugs are hand-written and
-    // carry editorial copy Scorecard cannot supply.
-    const curated = new Set(
-      (await db.select({ id: schools.id }).from(schools).where(isNull(schools.ipedsId))).map(
-        (r) => r.id,
-      ),
+    // Domains have to be on the curated rows before the import runs, because
+    // the domain is what identifies them in the Scorecard feed.
+    await backfillCuratedDomains();
+
+    /*
+      Protecting the curated forty.
+
+      This used to compare Scorecard's generated slug against the curated
+      ids — but the generated slug carries the IPEDS number
+      ("yale-university-130794") and the curated id does not ("yale"), so
+      they never matched and every one of the forty would have been
+      inserted a second time, without its editorial copy. Two of each of
+      the best-written schools in the product.
+
+      The domain is the identity that survives both naming schemes. When a
+      Scorecard row matches a curated one we skip the insert and stamp its
+      IPEDS id onto the curated row, so the link is explicit from then on.
+      The `curated` flag is what protects it — inferring that from a null
+      IPEDS id stopped working the moment we started stamping one.
+    */
+    const curatedRows = await db
+      .select({ id: schools.id, website: schools.website })
+      .from(schools)
+      .where(eq(schools.curated, true));
+    const curatedByDomain = new Map(
+      curatedRows.filter((r) => r.website).map((r) => [r.website!.toLowerCase(), r.id]),
     );
-    console.log(`Protecting ${curated.size} curated schools from being overwritten.`);
+    console.log(
+      `Protecting ${curatedRows.length} curated schools (matched by domain, not slug).`,
+    );
 
     let page = 0;
     let imported = 0;
+    let matchedCurated = 0;
     let total = 0;
 
     while (imported < limit) {
@@ -334,28 +564,44 @@ async function main() {
       total = t;
       if (rows.length === 0) break;
 
-      const values = rows
-        .filter((r) => r["school.name"] && r["school.state"])
-        .map((r) => {
-          const enrollment = r["latest.student.size"] ?? 0;
-          const ownership = r["school.ownership"];
-          const isHbcu = r["school.minority_serving.historically_black"] === 1;
-          return {
-            id: slugFor(r["school.name"], r.id),
-            ipedsId: r.id,
-            name: r["school.name"],
-            shortName: r["school.name"].replace(/^The /, "").slice(0, 40),
-            city: r["school.city"] ?? "",
-            state: r["school.state"],
-            region: (REGION_BY_STATE[r["school.state"]] ?? "west") as never,
-            type: typeFor(ownership, enrollment, isHbcu) as never,
-            setting: settingFor(r["school.locale"]) as never,
-            size: sizeFor(enrollment) as never,
-            undergradEnrollment: enrollment,
-            website: hostname(r["school.school_url"]),
-          };
-        })
-        .filter((v) => !curated.has(v.id));
+      const usable = rows.filter((r) => r["school.name"] && r["school.state"]);
+
+      // Curated schools: link, don't duplicate.
+      const curatedHits: { id: string; ipedsId: number }[] = [];
+      const fresh: ScorecardRow[] = [];
+      for (const r of usable) {
+        const domain = hostname(r["school.school_url"]);
+        const curatedId = domain ? curatedByDomain.get(domain) : undefined;
+        if (curatedId) curatedHits.push({ id: curatedId, ipedsId: r.id });
+        else fresh.push(r);
+      }
+      for (const hit of curatedHits) {
+        await db
+          .update(schools)
+          .set({ ipedsId: hit.ipedsId, updatedAt: new Date() })
+          .where(eq(schools.id, hit.id));
+      }
+      matchedCurated += curatedHits.length;
+
+      const values = fresh.map((r) => {
+        const enrollment = r["latest.student.size"] ?? 0;
+        const ownership = r["school.ownership"];
+        const isHbcu = r["school.minority_serving.historically_black"] === 1;
+        return {
+          id: slugFor(r["school.name"], r.id),
+          ipedsId: r.id,
+          name: r["school.name"],
+          shortName: r["school.name"].replace(/^The /, "").slice(0, 40),
+          city: r["school.city"] ?? "",
+          state: r["school.state"],
+          region: (REGION_BY_STATE[r["school.state"]] ?? "west") as never,
+          type: typeFor(ownership, enrollment, isHbcu) as never,
+          setting: settingFor(r["school.locale"]) as never,
+          size: sizeFor(enrollment) as never,
+          undergradEnrollment: enrollment,
+          website: hostname(r["school.school_url"]),
+        };
+      });
 
       if (values.length > 0) {
         await db
@@ -373,6 +619,8 @@ async function main() {
               updatedAt: new Date(),
             },
           });
+
+        await writeChildren(fresh);
       }
 
       imported += values.length;
@@ -380,7 +628,10 @@ async function main() {
       process.stdout.write(`\r  imported ${imported} of ${total}…`);
       if (rows.length < PER_PAGE) break;
     }
-    console.log(`\n  done — ${imported} institutions in the database.`);
+    console.log(`\n  done — ${imported} institutions imported.`);
+    if (matchedCurated > 0) {
+      console.log(`  ${matchedCurated} matched a curated school and were left alone.`);
+    }
   }
 
   await backfillCuratedDomains();

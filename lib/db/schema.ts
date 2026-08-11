@@ -309,6 +309,17 @@ export const schools = pgTable("school", {
   website: text("website"),
   /** IPEDS UNITID from College Scorecard — the join key back to the source. */
   ipedsId: integer("ipeds_id"),
+  /**
+   * Hand-written, and never overwritten by an import.
+   *
+   * This used to be inferred from `ipeds_id IS NULL`, which conflated two
+   * different facts: "we wrote this by hand" and "we haven't matched it to a
+   * federal record yet". The moment the importer learned to stamp an IPEDS id
+   * onto a curated row, the inference broke and the row lost its protection —
+   * so the next run would have inserted a second copy of it without the
+   * editorial columns. Curation is its own property; it gets its own column.
+   */
+  curated: boolean("curated").notNull().default(false),
 
   // Academics
   topMajors: text("top_majors").array().notNull().default([]),
@@ -339,6 +350,20 @@ export const schools = pgTable("school", {
   ...timestamps,
 });
 
+/*
+  Nullability here tracks what a real source can actually supply.
+
+  The curated forty were hand-written, so every number existed and every
+  column could be NOT NULL. College Scorecard covers ~1,900 institutions and
+  its coverage is patchy — a small college may report a net price and no test
+  range, or an admit rate and no earnings figure. It publishes no GPA
+  distribution at all.
+
+  A missing number has to be storable as missing. The alternative is either
+  dropping the school from the product or inventing a figure to satisfy the
+  column, and inventing one is worse: it would be displayed to a student as
+  fact, next to their own real GPA.
+*/
 export const schoolAdmissions = pgTable(
   "school_admissions",
   {
@@ -347,9 +372,10 @@ export const schoolAdmissions = pgTable(
       .notNull()
       .references(() => schools.id, { onDelete: "cascade" }),
     cycle: text("cycle").notNull(), // "2026-27"
-    acceptanceRate: real("acceptance_rate").notNull(),
-    gpaMid50Low: real("gpa_mid50_low").notNull(),
-    gpaMid50High: real("gpa_mid50_high").notNull(),
+    acceptanceRate: real("acceptance_rate"),
+    /** Scorecard has no GPA data. Null for every imported school. */
+    gpaMid50Low: real("gpa_mid50_low"),
+    gpaMid50High: real("gpa_mid50_high"),
     satMid50Low: integer("sat_mid50_low"),
     satMid50High: integer("sat_mid50_high"),
     actMid50Low: integer("act_mid50_low"),
@@ -384,14 +410,15 @@ export const schoolCosts = pgTable(
       .notNull()
       .references(() => schools.id, { onDelete: "cascade" }),
     year: text("year").notNull(), // "2026-27"
-    stickerPrice: integer("sticker_price").notNull(),
-    avgNetPrice: integer("avg_net_price").notNull(),
-    netPriceUnder48k: integer("net_price_under_48k").notNull(),
-    netPrice48to75k: integer("net_price_48_to_75k").notNull(),
-    netPrice75to110k: integer("net_price_75_to_110k").notNull(),
-    netPriceOver110k: integer("net_price_over_110k").notNull(),
-    percentNeedMet: real("percent_need_met").notNull(),
-    meritAid: meritAidEnum("merit_aid").notNull(),
+    stickerPrice: integer("sticker_price"),
+    avgNetPrice: integer("avg_net_price"),
+    netPriceUnder48k: integer("net_price_under_48k"),
+    netPrice48to75k: integer("net_price_48_to_75k"),
+    netPrice75to110k: integer("net_price_75_to_110k"),
+    netPriceOver110k: integer("net_price_over_110k"),
+    percentNeedMet: real("percent_need_met"),
+    /** Editorial judgement, not a Scorecard field. Null when unknown. */
+    meritAid: meritAidEnum("merit_aid"),
     ...timestamps,
   },
   (t) => [unique("school_cost_year").on(t.schoolId, t.year)],
@@ -405,9 +432,10 @@ export const schoolOutcomes = pgTable(
       .notNull()
       .references(() => schools.id, { onDelete: "cascade" }),
     year: text("year").notNull(),
-    gradRate: real("grad_rate").notNull(),
-    medianEarnings10yr: integer("median_earnings_10yr").notNull(),
-    alumniNetwork: alumniNetworkEnum("alumni_network").notNull(),
+    gradRate: real("grad_rate"),
+    medianEarnings10yr: integer("median_earnings_10yr"),
+    /** Editorial judgement, not a Scorecard field. Null when unknown. */
+    alumniNetwork: alumniNetworkEnum("alumni_network"),
     ...timestamps,
   },
   (t) => [unique("school_outcome_year").on(t.schoolId, t.year)],

@@ -15,6 +15,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { schools as schoolSeed } from "@/lib/data/schools";
 import { opportunities as opportunitySeed } from "@/lib/data/opportunities";
+import { CURRENT_CYCLE } from "@/lib/schools";
 import {
   activities,
   aidStatuses,
@@ -37,7 +38,7 @@ import {
 import { auth } from "@/lib/auth";
 import type { ApplicationPlan } from "@/lib/types";
 
-const CYCLE = "2026-27";
+const CYCLE = CURRENT_CYCLE;
 
 async function seedReferenceData() {
   console.log(`Seeding ${schoolSeed.length} schools…`);
@@ -57,6 +58,9 @@ async function seedReferenceData() {
         size: s.size,
         undergradEnrollment: s.undergradEnrollment,
         photoQuery: s.photoQuery,
+        // Everything seeded from lib/data/schools.ts is hand-written, and the
+        // importer reads this flag to know what it must not overwrite.
+        curated: true,
         topMajors: s.academics.topMajors,
         studentFacultyRatio: s.academics.studentFacultyRatio,
         notablePrograms: s.academics.notablePrograms,
@@ -78,7 +82,42 @@ async function seedReferenceData() {
       })
       .onConflictDoUpdate({
         target: schools.id,
-        set: { name: s.name, updatedAt: new Date() },
+        // Every editorial column, not just the name. This used to update
+        // `name` alone, so rewriting a school's vibe or underratedFor in
+        // lib/data/schools.ts and re-seeding appeared to work and changed
+        // nothing — the database kept the old copy and the UI read that.
+        set: {
+          name: s.name,
+          shortName: s.shortName,
+          city: s.city,
+          state: s.state,
+          region: s.region,
+          type: s.type,
+          setting: s.setting,
+          size: s.size,
+          undergradEnrollment: s.undergradEnrollment,
+          photoQuery: s.photoQuery,
+          curated: true,
+          topMajors: s.academics.topMajors,
+          studentFacultyRatio: s.academics.studentFacultyRatio,
+          notablePrograms: s.academics.notablePrograms,
+          researchOpportunities: s.academics.researchOpportunities,
+          coOp: s.academics.coOp,
+          vibe: s.life.vibe,
+          greekLifePresence: s.life.greekLifePresence,
+          d1Athletics: s.life.d1Athletics,
+          housingGuaranteed: s.life.housingGuaranteed,
+          weather: s.life.weather,
+          commonComplaints: s.life.commonComplaints,
+          religiousAffiliation: s.life.religiousAffiliation ?? null,
+          costOfLiving: s.cityInfo.costOfLiving,
+          transit: s.cityInfo.transit,
+          airportAccess: s.cityInfo.airportAccess,
+          internshipMarket: s.cityInfo.internshipMarket,
+          thingsToDo: s.cityInfo.thingsToDo,
+          underratedFor: s.underratedFor ?? null,
+          updatedAt: new Date(),
+        },
       });
 
     await db
