@@ -33,9 +33,29 @@ export default function SignUpForm() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Mirrors the server rule in lib/actions/auth.ts. `minLength` on the input
+  // alone left the browser to block submission with a native bubble, which
+  // meant onSubmit never ran and this form's own error area stayed empty —
+  // the click looked like it did nothing at all.
+  const PASSWORD_MIN = 10;
+  const passwordTooShort = password.length > 0 && password.length < PASSWORD_MIN;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
+
+    if (!name.trim()) {
+      setError("What should we call you?");
+      return;
+    }
+    if (!email.trim() || !email.includes("@")) {
+      setError("That doesn't look like an email address.");
+      return;
+    }
+    if (password.length < PASSWORD_MIN) {
+      setError(`Password must be at least ${PASSWORD_MIN} characters.`);
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -72,11 +92,7 @@ export default function SignUpForm() {
       router.refresh();
     } catch (err) {
       console.error("[sign-up] unexpected failure:", err);
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "We couldn't reach the server. Check your connection and try again.",
-      );
+      setError("We couldn't reach the server. Check your connection and try again.");
     } finally {
       if (!leaving) setBusy(false);
     }
@@ -99,7 +115,11 @@ export default function SignUpForm() {
             <em>Create your account.</em>
           </TwoTone>
 
-          <form onSubmit={onSubmit} className="flex flex-col gap-4">
+          {/* noValidate: the browser's own bubble pre-empted onSubmit, so a
+              short password produced no request, no message, and no visible
+              reason. Validation is ours now, and it renders in the error area
+              below with the rest of the form's feedback. */}
+          <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
             <fieldset className="flex flex-col gap-2">
               <legend className="text-[0.85rem] text-gray-strong mb-2">I&apos;m a…</legend>
               <div className="grid grid-cols-2 gap-2">
@@ -149,13 +169,24 @@ export default function SignUpForm() {
               <input
                 type="password"
                 required
-                minLength={10}
+                minLength={PASSWORD_MIN}
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="px-4 py-3 border border-hairline rounded-lg bg-surface text-[0.95rem] focus:outline-none focus:border-ink transition-quiet"
+                aria-invalid={passwordTooShort || undefined}
+                aria-describedby="password-hint"
+                className={`px-4 py-3 border rounded-lg bg-surface text-[0.95rem] focus:outline-none transition-quiet ${
+                  passwordTooShort ? "border-ink" : "border-hairline focus:border-ink"
+                }`}
               />
-              <span className="text-[0.8rem] text-gray-mid">At least 10 characters.</span>
+              <span
+                id="password-hint"
+                className={`text-[0.8rem] ${passwordTooShort ? "text-gray-strong" : "text-gray-mid"}`}
+              >
+                {passwordTooShort
+                  ? `${PASSWORD_MIN - password.length} more character${PASSWORD_MIN - password.length === 1 ? "" : "s"} to go.`
+                  : `At least ${PASSWORD_MIN} characters.`}
+              </span>
             </label>
 
             <label className="flex gap-3 items-start pt-1 cursor-pointer">

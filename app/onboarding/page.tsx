@@ -164,6 +164,49 @@ function stepsFor(role?: "student" | "parent"): StepId[] {
 
 /* ————————————— Small inputs ————————————— */
 
+/**
+ * Parse a number a student typed, or return undefined.
+ *
+ * `Number("about a 3.7")` is NaN, and NaN in a numeric column is a database
+ * error — which used to surface as the raw failing statement rendered on the
+ * last onboarding question. The range check is part of the same job: a GPA of
+ * 45 is a typo, not an answer, and it would quietly distort every chance
+ * estimate downstream.
+ *
+ * Commas are stripped so "1,310" works; that is a spelling of the number, not
+ * a different answer.
+ */
+function parseNumber(
+  raw: string | undefined,
+  range: { min: number; max: number },
+): number | undefined {
+  if (raw === undefined) return undefined;
+  const cleaned = raw.trim().replace(/,/g, "");
+  if (!cleaned) return undefined;
+
+  // Number("") is 0 and Number("  ") is 0, both already handled above.
+  const n = Number(cleaned);
+  if (!Number.isFinite(n)) return undefined;
+  if (n < range.min || n > range.max) return undefined;
+  return n;
+}
+
+const RANGES = {
+  gpa: { min: 0, max: 5 },
+  courseCount: { min: 0, max: 30 },
+  sat: { min: 400, max: 1600 },
+  act: { min: 1, max: 36 },
+} as const;
+
+/**
+ * True when the field has content that isn't a usable number — the only case
+ * worth showing an error for. An empty field is "not answered yet", which the
+ * Continue button already communicates by staying disabled.
+ */
+function isBadNumber(raw: string | undefined, range: { min: number; max: number }): boolean {
+  return !!raw?.trim() && parseNumber(raw, range) === undefined;
+}
+
 function TextField(props: {
   value: string;
   onChange: (v: string) => void;
@@ -171,7 +214,12 @@ function TextField(props: {
   autoFocus?: boolean;
   type?: string;
   label?: string;
+  /** Shown under the field, and announced, when the value can't be used. */
+  error?: string;
+  inputMode?: "text" | "decimal" | "numeric";
 }) {
+  const errorId = props.error ? `err-${props.label?.replace(/\W+/g, "-") ?? "field"}` : undefined;
+
   return (
     <label className="block">
       {props.label && (
@@ -179,12 +227,22 @@ function TextField(props: {
       )}
       <input
         type={props.type ?? "text"}
+        inputMode={props.inputMode}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
         autoFocus={props.autoFocus}
-        className="w-full max-w-md border-b border-hairline bg-transparent text-[1.5rem] md:text-[2rem] font-medium py-2 focus:border-ink outline-none placeholder:text-gray-mid/60 transition-quiet"
+        aria-invalid={props.error ? true : undefined}
+        aria-describedby={errorId}
+        className={`w-full max-w-md border-b bg-transparent text-[1.5rem] md:text-[2rem] font-medium py-2 outline-none placeholder:text-gray-mid/60 transition-quiet ${
+          props.error ? "border-ink" : "border-hairline focus:border-ink"
+        }`}
       />
+      {props.error && (
+        <span id={errorId} role="alert" className="block mt-2 text-[0.85rem] text-gray-strong">
+          {props.error}
+        </span>
+      )}
     </label>
   );
 }
@@ -239,19 +297,19 @@ function buildProfile(a: Answers): Profile {
     firstName: a.firstName || "there",
     gradeLevel: a.grade ?? 11,
     gpa: {
-      unweighted: a.gpaUnweighted ? Number(a.gpaUnweighted) : undefined,
-      weighted: a.gpaWeighted ? Number(a.gpaWeighted) : undefined,
+      unweighted: parseNumber(a.gpaUnweighted, RANGES.gpa),
+      weighted: parseNumber(a.gpaWeighted, RANGES.gpa),
     },
     rigor: {
-      apCount: a.apCount ? Number(a.apCount) : 0,
+      apCount: parseNumber(a.apCount, RANGES.courseCount) ?? 0,
       ibCount: 0,
-      honorsCount: a.honorsCount ? Number(a.honorsCount) : 0,
+      honorsCount: parseNumber(a.honorsCount, RANGES.courseCount) ?? 0,
     },
     testScores: {
       sat:
-        a.testChoice === "sat" && a.testScore ? Number(a.testScore) : undefined,
+        a.testChoice === "sat" ? parseNumber(a.testScore, RANGES.sat) : undefined,
       act:
-        a.testChoice === "act" && a.testScore ? Number(a.testScore) : undefined,
+        a.testChoice === "act" ? parseNumber(a.testScore, RANGES.act) : undefined,
       planningToTest: a.testChoice !== "not-yet",
     },
     intendedMajors: undecided
@@ -448,7 +506,11 @@ function OnboardingFlow() {
           prompt:
             "What's your GPA? Rough numbers are fine — we can refine later.",
           note: "Unweighted is on a 4.0 scale. If your school weights honors/AP classes, add that too.",
-          valid: !!answers.gpaUnweighted,
+          // A usable number, not merely a non-empty string. Weighted is
+          // optional, but if it's filled in it still has to parse.
+          valid:
+            parseNumber(answers.gpaUnweighted, RANGES.gpa) !== undefined &&
+            !isBadNumber(answers.gpaWeighted, RANGES.gpa),
           body: (
             <div className="space-y-6">
               <TextField
@@ -457,6 +519,12 @@ function OnboardingFlow() {
                 onChange={(v) => set({ gpaUnweighted: v })}
                 placeholder="3.6"
                 type="text"
+                inputMode="decimal"
+                error={
+                  isBadNumber(answers.gpaUnweighted, RANGES.gpa)
+                    ? "Just the number, on a 0–5.0 scale — like 3.6."
+                    : undefined
+                }
                 autoFocus
               />
               <TextField
@@ -465,6 +533,12 @@ function OnboardingFlow() {
                 onChange={(v) => set({ gpaWeighted: v })}
                 placeholder="4.1"
                 type="text"
+                inputMode="decimal"
+                error={
+                  isBadNumber(answers.gpaWeighted, RANGES.gpa)
+                    ? "Just the number, on a 0–5.0 scale — like 4.1."
+                    : undefined
+                }
               />
             </div>
           ),
@@ -473,7 +547,12 @@ function OnboardingFlow() {
         return {
           prompt: "How many advanced courses have you taken (or are in now)?",
           note: "Colleges read rigor in the context of what your school offers. There's no magic number.",
-          valid: answers.apCount !== undefined || answers.honorsCount !== undefined,
+          // At least one answered, and nothing unparseable in either.
+          valid:
+            (parseNumber(answers.apCount, RANGES.courseCount) !== undefined ||
+              parseNumber(answers.honorsCount, RANGES.courseCount) !== undefined) &&
+            !isBadNumber(answers.apCount, RANGES.courseCount) &&
+            !isBadNumber(answers.honorsCount, RANGES.courseCount),
           body: (
             <div className="space-y-6">
               <TextField
@@ -481,6 +560,12 @@ function OnboardingFlow() {
                 value={answers.apCount ?? ""}
                 onChange={(v) => set({ apCount: v })}
                 placeholder="0"
+                inputMode="numeric"
+                error={
+                  isBadNumber(answers.apCount, RANGES.courseCount)
+                    ? "A whole number, 0–30."
+                    : undefined
+                }
                 autoFocus
               />
               <TextField
@@ -488,6 +573,12 @@ function OnboardingFlow() {
                 value={answers.honorsCount ?? ""}
                 onChange={(v) => set({ honorsCount: v })}
                 placeholder="0"
+                inputMode="numeric"
+                error={
+                  isBadNumber(answers.honorsCount, RANGES.courseCount)
+                    ? "A whole number, 0–30."
+                    : undefined
+                }
               />
             </div>
           ),
@@ -496,7 +587,15 @@ function OnboardingFlow() {
         return {
           prompt: "Where are you with the SAT or ACT?",
           note: "Plenty of strong schools are test-optional. Not having a score yet is a normal answer.",
-          valid: !!answers.testChoice,
+          // Picking "haven't tested" is complete on its own; claiming a score
+          // means the score has to be a real one.
+          valid:
+            !!answers.testChoice &&
+            (answers.testChoice === "not-yet" ||
+              parseNumber(
+                answers.testScore,
+                answers.testChoice === "sat" ? RANGES.sat : RANGES.act,
+              ) !== undefined),
           body: (
             <div className="space-y-6">
               <ChipGroup
@@ -514,6 +613,17 @@ function OnboardingFlow() {
                   value={answers.testScore ?? ""}
                   onChange={(v) => set({ testScore: v })}
                   placeholder={answers.testChoice === "sat" ? "1310" : "29"}
+                  inputMode="numeric"
+                  error={
+                    isBadNumber(
+                      answers.testScore,
+                      answers.testChoice === "sat" ? RANGES.sat : RANGES.act,
+                    )
+                      ? answers.testChoice === "sat"
+                        ? "SAT scores run 400–1600."
+                        : "ACT scores run 1–36."
+                      : undefined
+                  }
                 />
               )}
             </div>

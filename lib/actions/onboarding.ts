@@ -25,6 +25,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireViewer } from "@/lib/auth/policy";
+import { safeError } from "@/lib/actions/_error";
 import { saveProfile } from "@/lib/db/queries/profile";
 import type { Profile } from "@/lib/types";
 
@@ -37,13 +38,13 @@ export async function completeOnboardingAction(profile: Profile): Promise<Comple
     revalidatePath("/dashboard");
     return { ok: true };
   } catch (err) {
-    console.error("[onboarding] could not save profile:", err);
     return {
       ok: false,
-      error:
-        err instanceof Error && err.message
-          ? err.message
-          : "We couldn't save your answers. Try again.",
+      error: safeError(
+        "onboarding",
+        err,
+        "We couldn't save your answers. Try again.",
+      ),
     };
   }
 }

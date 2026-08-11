@@ -16,14 +16,17 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { adminSettings, feedback, users } from "@/lib/db/schema";
-import { requireViewer } from "@/lib/auth/policy";
+import { AuthzError, requireViewer } from "@/lib/auth/policy";
+import { safeError } from "@/lib/actions/_error";
 import { SELF_ASSIGNABLE_ROLES } from "@/lib/types";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 async function requireAdmin() {
   const viewer = await requireViewer();
-  if (viewer.role !== "admin") throw new Error("Not permitted");
+  // AuthzError rather than a bare Error: safeError passes these through to
+  // the user, and "Not permitted" is more use than "Could not save."
+  if (viewer.role !== "admin") throw new AuthzError("Not permitted");
   return viewer;
 }
 
@@ -55,7 +58,7 @@ export async function setUserRole(userId: string, role: string): Promise<ActionR
     revalidatePath("/admin/users");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not change the role." };
+    return { ok: false, error: safeError("admin", err, "Could not change the role.") };
   }
 }
 
@@ -74,7 +77,7 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     revalidatePath("/admin/usage");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not delete." };
+    return { ok: false, error: safeError("admin", err, "Could not delete.") };
   }
 }
 
@@ -122,7 +125,7 @@ export async function saveBudget(input: {
     revalidatePath("/admin/usage");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not save." };
+    return { ok: false, error: safeError("admin", err, "Could not save.") };
   }
 }
 
@@ -145,7 +148,7 @@ export async function setFeedbackStatus(
     revalidatePath("/admin/feedback");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not update." };
+    return { ok: false, error: safeError("admin", err, "Could not update.") };
   }
 }
 
@@ -156,6 +159,6 @@ export async function deleteFeedback(id: string): Promise<ActionResult> {
     revalidatePath("/admin/feedback");
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Could not delete." };
+    return { ok: false, error: safeError("admin", err, "Could not delete.") };
   }
 }

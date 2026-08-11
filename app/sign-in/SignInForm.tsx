@@ -37,12 +37,10 @@ export default function SignInForm() {
       router.push(next);
       router.refresh();
     } catch (err) {
+      // Whatever this is, it isn't something the user can act on, and it may
+      // carry internals. The log gets the detail; they get a next step.
       console.error("[sign-in] unexpected failure:", err);
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : "We couldn't reach the server. Check your connection and try again.",
-      );
+      setError("We couldn't reach the server. Check your connection and try again.");
     } finally {
       if (!leaving) setBusy(false);
     }

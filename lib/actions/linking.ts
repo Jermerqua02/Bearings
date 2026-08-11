@@ -13,14 +13,16 @@ import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { essayShares, essays, parentStudentLinks, users } from "@/lib/db/schema";
-import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
+import { requireStudent, requireViewer } from "@/lib/auth/policy";
+import { safeError } from "@/lib/actions/_error";
 import { parentInviteEmail, sendEmail } from "@/lib/email";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
 function fail(err: unknown): ActionResult {
-  if (err instanceof AuthzError) return { ok: false, error: err.message };
-  return { ok: false, error: err instanceof Error ? err.message : "Something went wrong." };
+  // safeError passes AuthzError messages through — those are authored for
+  // display — and swallows everything else into the generic line below.
+  return { ok: false, error: safeError("linking", err, "Something went wrong.") };
 }
 
 /* ————————————— Linking ————————————— */

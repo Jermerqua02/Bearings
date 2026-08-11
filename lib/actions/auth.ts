@@ -41,10 +41,17 @@ export type SignUpResult = { ok: true } | { ok: false; error: string };
  *
  * Infrastructure errors get a plain-language equivalent: a student seeing
  * "ECONNREFUSED" learns nothing, and an empty message teaches them less.
+ *
+ * Nothing returns `raw`. It routinely carries the failing SQL and its bound
+ * parameters, and this runs on the signup path where those parameters are a
+ * stranger's name and email. Unrecognised errors get the generic line and
+ * the detail goes to the log.
  */
 function friendlyError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err ?? "");
   const code = (err as { code?: string } | null)?.code ?? "";
+
+  console.error("[sign-up]", err);
 
   // Postgres unreachable — usually the local DB is down, or the deploy lost it.
   if (code === "ECONNREFUSED" || code === "ENOTFOUND" || code === "ETIMEDOUT") {
@@ -58,10 +65,9 @@ function friendlyError(err: unknown): string {
     return "That email can't be used. Try signing in instead.";
   }
   if (/password/i.test(raw)) {
-    return raw;
+    return "That password can't be used. Try a different one.";
   }
-  // Never return "" — an empty message renders as no message at all.
-  return raw.trim() || "Something went wrong creating the account. Please try again.";
+  return "Something went wrong creating the account. Please try again.";
 }
 
 export async function signUpWithRole(input: {
