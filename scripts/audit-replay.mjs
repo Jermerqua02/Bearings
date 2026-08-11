@@ -134,6 +134,76 @@ ok('the remove button is visible without hover', await mp.evaluate(() => {
 }));
 await mctx.close();
 
+/* 8. an operator's own account works
+   Three separate bugs shipped because every check ran as role "student":
+   canRead, assertCanWrite and requireStudent each gated on the role rather
+   than on ownership, so an admin could save a profile and not read it back,
+   and could not add a school to their own list or send a counselor message.
+   None of it was visible from a student's seat. This walks an admin. */
+{
+  const { execSync } = await import('node:child_process');
+  const sql = (q) =>
+    execSync('docker exec bearings-postgres psql -U bearings -d bearings -tAc ' + JSON.stringify(q), {
+      encoding: 'utf8',
+    }).trim();
+
+  const before = sql("select role from \"user\" where email='maya@example.com'");
+  sql("update \"user\" set role='admin' where email='maya@example.com'");
+  try {
+    const actx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    const ap = await actx.newPage();
+    await ap.goto(`${BASE}/sign-in`);
+    await ap.fill('input[type=email]', 'maya@example.com');
+    await ap.fill('input[type=password]', 'correct-horse-battery');
+    await ap.click('button[type=submit]');
+    await ap.waitForURL('**/dashboard', { timeout: 30000 });
+
+    await ap.goto(`${BASE}/explore`, { waitUntil: 'networkidle' });
+    await ap.waitForTimeout(1200);
+    const exploreText = await ap.evaluate(() => document.body.innerText);
+    ok('admin reads their own profile (explore is not an onboarding prompt)',
+       !/Set up your profile/.test(exploreText) && /schools/.test(exploreText));
+
+    // a write against their own records
+    const listBefore = Number(sql("select count(*) from list_entry l join \"user\" u on u.id=l.student_id where u.email='maya@example.com'"));
+    const addBtn = ap.locator('button:has-text("+ ADD TO LIST")').first();
+    if (await addBtn.count()) {
+      await addBtn.click();
+      await ap.waitForTimeout(2500);
+    }
+    const listAfter = Number(sql("select count(*) from list_entry l join \"user\" u on u.id=l.student_id where u.email='maya@example.com'"));
+    ok('admin may write their own list', listAfter === listBefore + 1, `${listBefore} -> ${listAfter}`);
+    if (listAfter > listBefore) {
+      sql("delete from list_entry where id in (select l.id from list_entry l join \"user\" u on u.id=l.student_id where u.email='maya@example.com' order by l.created_at desc limit 1)");
+    }
+
+    // Start from no threads so the fresh state is deterministic; a thread
+    // left by an earlier check makes this assert the wrong screen.
+    sql("delete from counselor_thread where student_id = (select id from \"user\" where email='maya@example.com')");
+    await ap.goto(`${BASE}/counselor`, { waitUntil: 'networkidle' });
+    await ap.waitForTimeout(2500);
+    const counselorText = await ap.evaluate(() => document.body.innerText);
+    // A greeting only exists if createThreadAction and greetAction both ran,
+    // and createThreadAction is the one behind requireStudent. Checking the
+    // page merely renders is not enough — it renders fine while send fails.
+    // createThreadAction sits behind requireStudent, so a thread row is
+    // direct proof the gate let this account through. Asserting on the
+    // rendered page instead would mean waiting out a ~20s greeting, and the
+    // page renders fine while sending is broken — which is how this shipped.
+    const threads = Number(
+      sql("select count(*) from counselor_thread t join \"user\" u on u.id = t.student_id where u.email='maya@example.com'"),
+    );
+    ok('admin reaches the counselor, not "Students only"',
+       !/Students only/i.test(counselorText) &&
+       !!(await ap.locator('#counselor-input').count()) &&
+       threads > 0,
+       `threads=${threads}`);
+    await actx.close();
+  } finally {
+    sql(`update \"user\" set role='${before}' where email='maya@example.com'`);
+  }
+}
+
 /* 8. parent voice */
 const pctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
 const pp = await pctx.newPage();
