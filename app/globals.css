@@ -56,11 +56,42 @@ body {
   color: #ffffff;
 }
 
-/* Focus visibility — accessibility is not optional */
+/* ————————————————————————————————————————
+   Focus visibility.
+
+   Still not optional — every interactive element must show where the
+   keyboard is. But a 2px accent ring with a 2px offset drew a heavy box
+   around text fields that already announce focus by darkening their own
+   rule, so the indicator arrived twice and the louder one won. The fields
+   are drawn as a line; the ring made them look like a form control from a
+   different product.
+
+   So: the ring stays for buttons, links, chips and anything else with no
+   focus treatment of its own. Text fields darken their border to ink
+   instead, which is the treatment they were already designed around — full
+   width, high contrast against paper, and quiet.
+
+   The rule is unlayered on purpose. Tailwind utilities sit in a layer, and
+   an unlayered declaration beats them, which is why an `outline-none` on
+   the element could not turn the old ring off.
+   ———————————————————————————————————————— */
 :focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
   border-radius: 2px;
+}
+
+input:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-ink);
+}
+
+/* Checkboxes and radios have no border to darken, so they keep the ring. */
+input[type="checkbox"]:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 /* ————————————————————————————————————————
