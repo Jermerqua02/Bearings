@@ -22,6 +22,7 @@ import {
   checkInActions,
   coursePlanEntries,
   essayVersions,
+  userPreferences,
   essays,
   listEntries,
   recentlyViewed,
@@ -362,4 +363,32 @@ export async function updateStudentProfileAction(patch: Record<string, unknown>)
     .set({ ...patch, ...touch })
     .where(eq(studentProfiles.userId, s.userId));
   revalidatePath("/dashboard");
+}
+
+/* ————————————— Notification preferences ————————————— */
+
+/**
+ * The settings toggles.
+ *
+ * `user_preference` has existed since the schema was written, with exactly
+ * these four columns, and nothing read or wrote it: the switches were
+ * `useState`, so they moved, looked saved, and reset on the next load. A
+ * control that does nothing is worse than one that isn't there, and these
+ * sit on the page that promises the student owns their data.
+ */
+export async function updatePreferencesAction(patch: {
+  notifyDeadlines?: boolean;
+  notifyCheckIn?: boolean;
+  notifyNudges?: boolean;
+  shareEssaysByDefault?: boolean;
+}) {
+  const s = await requireStudent();
+  await db
+    .insert(userPreferences)
+    .values({ userId: s.userId, ...patch })
+    .onConflictDoUpdate({
+      target: userPreferences.userId,
+      set: { ...patch, ...touch },
+    });
+  revalidatePath("/settings");
 }

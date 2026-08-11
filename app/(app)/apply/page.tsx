@@ -12,8 +12,16 @@ import TwoTone from "@/components/ui/TwoTone";
 import { type EssayFeedback } from "@/lib/counselor";
 import { essayFeedbackAction } from "@/lib/actions/counselor";
 import { daysUntil, nextDeadline } from "@/lib/match";
+import { plansFor } from "@/lib/schools";
 import { useApp } from "@/lib/profile-context";
-import type { AidStatus, Essay, ListEntry, Recommender, School } from "@/lib/types";
+import type {
+  AidStatus,
+  ApplicationPlan,
+  Essay,
+  ListEntry,
+  Recommender,
+  School,
+} from "@/lib/types";
 
 type Tab = "tracker" | "profile" | "essays" | "recommenders" | "deadlines" | "aid";
 
@@ -61,15 +69,69 @@ const pipelineLabel: Record<ListEntry["status"], string> = {
 function TrackerTab() {
   const { list, updateListEntry, essays, recommenders, schoolById } = useApp();
   const applying = list.filter((e) => e.status !== "considering" || e.plan);
+  const waiting = list.filter((e) => e.status === "considering" && !e.plan);
 
   return (
     <div className="space-y-4">
       {applying.length === 0 && (
-        <p className="body-copy">
-          Nothing in motion yet. Pick a plan for a school on{" "}
-          <Link href="/list" className="underline underline-offset-2 text-ink">your list</Link>{" "}
-          and it appears here.
-        </p>
+        <div className="max-w-2xl">
+          {waiting.length === 0 ? (
+            <p className="body-copy">
+              Nothing in motion yet. Add a school on{" "}
+              <Link href="/explore" className="underline underline-offset-2 text-ink">
+                the explorer
+              </Link>{" "}
+              and pick how you&apos;re applying, and it appears here.
+            </p>
+          ) : (
+            /*
+              A student with schools saved and no plan chosen used to be told
+              "nothing in motion" and sent to another page to find a dropdown.
+              The dropdown belongs here: this is the page about applying.
+            */
+            <>
+              <p className="body-copy mb-1">
+                Nothing in motion yet — pick how you&apos;re applying to each of
+                these and it starts tracking.
+              </p>
+              <p className="text-[0.85rem] text-gray-mid mb-5">
+                Check the school&apos;s admissions page for which plans it
+                offers and when they close.
+              </p>
+              <ul className="border-t border-hairline">
+                {waiting.map((e) => {
+                  const s = schoolById(e.schoolId);
+                  if (!s) return null;
+                  return (
+                    <li
+                      key={e.schoolId}
+                      className="flex items-center justify-between gap-4 py-3 border-b border-hairline"
+                    >
+                      <span className="text-[0.95rem] min-w-0 truncate">{s.name}</span>
+                      <select
+                        value=""
+                        onChange={(ev) =>
+                          updateListEntry(e.schoolId, {
+                            plan: ev.target.value as ApplicationPlan,
+                          })
+                        }
+                        aria-label={`How you're applying to ${s.shortName}`}
+                        className="shrink-0 border border-hairline rounded-[3px] bg-surface px-2 h-9 text-[0.85rem] outline-none focus:border-ink"
+                      >
+                        <option value="">Pick a plan…</option>
+                        {plansFor(s).plans.map((p) => (
+                          <option key={p} value={p}>
+                            {p}
+                          </option>
+                        ))}
+                      </select>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
+        </div>
       )}
       {applying.map((entry) => {
         const school = schoolById(entry.schoolId);
@@ -309,7 +371,7 @@ function AddHonor({ onAdd }: { onAdd: (h: string) => void }) {
 /* ————— Essays tab ————— */
 
 function EssaysTab() {
-  const { essays, updateEssay, addEssay, profile, list, schoolById } = useApp();
+  const { essays, updateEssay, addEssay, saveEssayVersion, profile, list, schoolById } = useApp();
   const student = profile?.role === "student" ? profile : null;
   const [activeId, setActiveId] = useState<string | null>(essays[0]?.id ?? null);
   const [feedback, setFeedback] = useState<EssayFeedback | null>(null);
@@ -329,12 +391,7 @@ function EssaysTab() {
 
   const saveVersion = () => {
     if (!active) return;
-    updateEssay(active.id, {
-      versions: [
-        ...active.versions,
-        { id: `v-${Date.now()}`, text: active.text, savedAt: new Date().toISOString() },
-      ],
-    });
+    saveEssayVersion(active.id, active.text);
   };
 
   const addSupplement = () => {

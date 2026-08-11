@@ -12,6 +12,7 @@ import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
 import { daysUntil, listBalance, nextDeadline } from "@/lib/match";
 import { formatDollars, formatRate, formatThousands } from "@/lib/format";
+import { plansFor } from "@/lib/schools";
 import { useApp } from "@/lib/profile-context";
 import type { ApplicationPlan, ChanceTier, ListEntry, School } from "@/lib/types";
 
@@ -98,7 +99,7 @@ function ListRow({
           className="border border-hairline rounded-[3px] bg-surface px-1.5 h-8 text-[0.78rem] outline-none focus:border-ink"
         >
           <option value="">Plan…</option>
-          {school.admissions.plansOffered.map((p) => (
+          {plansFor(school).plans.map((p) => (
             <option key={p} value={p}>{p}</option>
           ))}
         </select>

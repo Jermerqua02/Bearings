@@ -11,6 +11,7 @@
    ———————————————————————————————————————— */
 
 import type {
+  ApplicationPlan,
   CampusSetting,
   ChanceTier,
   Region,
@@ -29,6 +30,37 @@ export const CURRENT_CYCLE = "2026-27";
 
 /** Results per page in the explorer. */
 export const PAGE_SIZE = 24;
+
+/**
+ * The plans a student can record when we don't know what a school offers.
+ *
+ * Scorecard publishes no application plans, so 1,545 of the 1,585 schools in
+ * the explorer have an empty list — and the plan selector on a student's list
+ * was built from that list. It rendered empty, no plan could be chosen, and
+ * because the application tracker only shows entries with a plan, Apply
+ * stayed permanently empty for anyone whose list wasn't the curated forty.
+ *
+ * Offering the full set is honest: this field records which plan the *student*
+ * is applying under, read off the school's own admissions page. It has never
+ * been a claim about what the school offers, and presenting it as one is what
+ * made an unknown list mean an unusable one.
+ */
+export const ALL_APPLICATION_PLANS: ApplicationPlan[] = [
+  "ED",
+  "ED2",
+  "EA",
+  "REA",
+  "RD",
+  "rolling",
+];
+
+/** What to show in a plan selector for a given school. */
+export function plansFor(school: {
+  admissions: { plansOffered: ApplicationPlan[] };
+}): { plans: ApplicationPlan[]; known: boolean } {
+  const known = school.admissions.plansOffered.length > 0;
+  return { plans: known ? school.admissions.plansOffered : ALL_APPLICATION_PLANS, known };
+}
 
 /* ————————————— Filter vocabulary ————————————— */
 

@@ -57,12 +57,11 @@ export default function SettingsPage() {
   const {
     profile, updateProfile, parentLinked, setParentLinked,
     list, essays, activities, coursePlan, universal, resetAll,
+    preferences, updatePreferences,
   } = useApp();
 
-  const [notifDeadlines, setNotifDeadlines] = useState(true);
-  const [notifCheckIn, setNotifCheckIn] = useState(true);
-  const [notifNudges, setNotifNudges] = useState(false);
-  const [shareEssays, setShareEssays] = useState(false);
+  // These four were useState and nothing else: they moved, looked saved, and
+  // reset on the next load. user_preference had held the columns all along.
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const exportData = () => {
@@ -155,8 +154,8 @@ export default function SettingsPage() {
               <Toggle
                 label="Share essay drafts"
                 description="Off by default, and set per essay. Your counselor chats are never visible to a linked parent. A shared draft shows only revisions saved after you shared it."
-                on={shareEssays}
-                onToggle={() => setShareEssays(!shareEssays)}
+                on={preferences.shareEssaysByDefault}
+                onToggle={() => updatePreferences({ shareEssaysByDefault: !preferences.shareEssaysByDefault })}
               />
               <p className="text-[0.82rem] text-gray-strong bg-fill rounded-[3px] p-3 mt-3 leading-relaxed">
                 Why the boundary: this process only works if you can think out
@@ -176,22 +175,22 @@ export default function SettingsPage() {
           <Toggle
             label="Deadline reminders"
             description="14 days, 7 days, and 48 hours before anything is due."
-            on={notifDeadlines}
-            onToggle={() => setNotifDeadlines(!notifDeadlines)}
+            on={preferences.notifyDeadlines}
+            onToggle={() => updatePreferences({ notifyDeadlines: !preferences.notifyDeadlines })}
           />
           <div className="border-t border-hairline my-2" />
           <Toggle
             label="Weekly check-in"
             description="Your three things for the week, Monday mornings."
-            on={notifCheckIn}
-            onToggle={() => setNotifCheckIn(!notifCheckIn)}
+            on={preferences.notifyCheckIn}
+            onToggle={() => updatePreferences({ notifyCheckIn: !preferences.notifyCheckIn })}
           />
           <div className="border-t border-hairline my-2" />
           <Toggle
             label="Counselor nudges"
             description="Occasional observations between check-ins. Off is a fine choice."
-            on={notifNudges}
-            onToggle={() => setNotifNudges(!notifNudges)}
+            on={preferences.notifyNudges}
+            onToggle={() => updatePreferences({ notifyNudges: !preferences.notifyNudges })}
           />
         </Card>
       </section>

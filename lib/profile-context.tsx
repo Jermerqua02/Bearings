@@ -20,6 +20,7 @@ import {
   useCallback,
   useContext,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -55,6 +56,8 @@ interface AppState {
   essays: Essay[];
   addEssay: (e: Essay) => void;
   updateEssay: (id: string, patch: Partial<Essay>) => void;
+  /** Snapshot the current draft. Kept server-side in essay_version. */
+  saveEssayVersion: (id: string, text: string) => void;
   removeEssay: (id: string) => void;
 
   recommenders: Recommender[];
@@ -104,6 +107,10 @@ interface AppState {
   parentLinked: boolean;
   setParentLinked: (b: boolean) => void;
 
+  /** Notification and sharing switches, persisted in user_preference. */
+  preferences: AppSnapshot["preferences"];
+  updatePreferences: (patch: Partial<AppSnapshot["preferences"]>) => void;
+
   resetAll: () => void;
 }
 
@@ -135,6 +142,33 @@ export function AppProvider({
   const [checkIns, setCheckIns] = useState<WeeklyCheckIn[]>(snapshot.checkIns);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>(snapshot.recentlyViewed);
   const [parentLinked, setParentLinked] = useState(snapshot.parentLinked);
+  const [preferences, setPreferences] = useState(snapshot.preferences);
+  const prefsRef = useRef(snapshot.preferences);
+
+  /*
+    Sends the whole object, not the one field that changed.
+
+    Toggling several switches quickly fired several partial upserts at once
+    and only the last one survived; three of four writes vanished. Sending
+    the merged state makes each write self-contained, so whichever arrives
+    last is still correct rather than partial — and it reads from the
+    updater's `prev`, not a closure that a fast second click has staled.
+  */
+  const updatePreferences = useCallback(
+    (patch: Partial<AppSnapshot["preferences"]>) => {
+      // The ref is the source of truth between renders: a second click lands
+      // before React has re-rendered, and reading state from the closure gave
+      // it a stale base, so one of the two writes was computed from the wrong
+      // starting point and lost. Firing from inside the state updater is not
+      // the fix either — React may replay an updater.
+      const next = { ...prefsRef.current, ...patch };
+      prefsRef.current = next;
+      setPreferences(next);
+      // The whole object, so whichever request lands last is still complete.
+      fire(actions.updatePreferencesAction(next));
+    },
+    [],
+  );
 
   /* Schools the server hydrated for this student's own records. Not state:
      they change when the server sends a new snapshot, never from the client. */
@@ -191,6 +225,30 @@ export function AppProvider({
   const updateEssay = useCallback((id: string, patch: Partial<Essay>) => {
     setEssays((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
     fire(actions.updateEssayAction(id, patch));
+  }, []);
+
+  /*
+    "Save version" wrote the snapshot into the essay's `versions` array and
+    called updateEssayAction, which persists title, promptText, wordLimit and
+    text — and silently drops versions. So an explicit save produced nothing
+    on the server. saveEssayVersionAction and the essay_version table both
+    already existed; nothing was calling them.
+  */
+  const saveEssayVersion = useCallback((id: string, text: string) => {
+    setEssays((prev) =>
+      prev.map((e) =>
+        e.id === id
+          ? {
+              ...e,
+              versions: [
+                ...e.versions,
+                { id: `v-${Date.now()}`, text, savedAt: new Date().toISOString() },
+              ],
+            }
+          : e,
+      ),
+    );
+    fire(actions.saveEssayVersionAction(id, text));
   }, []);
 
   const removeEssay = useCallback((id: string) => {
@@ -329,7 +387,7 @@ export function AppProvider({
     () => ({
       profile, setProfile, updateProfile, mode,
       list, addToList, removeFromList, updateListEntry,
-      essays, addEssay, updateEssay, removeEssay,
+      essays, addEssay, updateEssay, removeEssay, saveEssayVersion,
       recommenders, addRecommender, updateRecommender, removeRecommender,
       universal, updateUniversal,
       aidStatus, setAidStatus, aidOffers, upsertAidOffer,
@@ -339,19 +397,21 @@ export function AppProvider({
       recentlyViewed, markViewed,
       schoolById,
       parentLinked, setParentLinked,
+      preferences, updatePreferences,
       resetAll,
     }),
     [
       profile, updateProfile, mode,
       list, addToList, removeFromList, updateListEntry,
-      essays, addEssay, updateEssay, removeEssay,
+      essays, addEssay, updateEssay, removeEssay, saveEssayVersion,
       recommenders, addRecommender, updateRecommender, removeRecommender,
       universal, updateUniversal,
       aidStatus, setAidStatus, aidOffers, upsertAidOffer,
       coursePlan, addCourse, updateCourse, removeCourse,
       activities, addActivity, updateActivity, removeActivity,
       checkIns, dismissCheckIn, toggleCheckInAction,
-      recentlyViewed, markViewed, schoolById, parentLinked, resetAll,
+      recentlyViewed, markViewed, schoolById, parentLinked,
+      preferences, updatePreferences, resetAll,
     ],
   );
 

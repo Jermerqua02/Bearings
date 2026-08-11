@@ -11,7 +11,7 @@
 
 import { desc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { recentlyViewed as recentlyViewedTable } from "@/lib/db/schema";
+import { recentlyViewed as recentlyViewedTable, userPreferences } from "@/lib/db/schema";
 import {
   getActivities,
   getAidOffers,
@@ -68,6 +68,13 @@ export interface AppSnapshot {
    * set — that is ~1,900 rows and grows.
    */
   schools: School[];
+  /** Notification and sharing switches. Defaults match the column defaults. */
+  preferences: {
+    notifyDeadlines: boolean;
+    notifyCheckIn: boolean;
+    notifyNudges: boolean;
+    shareEssaysByDefault: boolean;
+  };
   /** Whose records these are. A parent is viewing their linked student's. */
   subjectStudentId: string | null;
   viewerRole: Role;
@@ -110,6 +117,12 @@ function emptySnapshot(role: Role): AppSnapshot {
     recentlyViewed: [],
     parentLinked: false,
     schools: [],
+    preferences: {
+      notifyDeadlines: true,
+      notifyCheckIn: true,
+      notifyNudges: false,
+      shareEssaysByDefault: false,
+    },
     subjectStudentId: null,
     viewerRole: role,
   };
@@ -287,6 +300,20 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     ]),
   ];
   snap.schools = await safe(() => getSchoolsByIds(referenced), []);
+
+  const [prefs] = await safe(
+    () =>
+      db.select().from(userPreferences).where(eq(userPreferences.userId, viewer.userId)).limit(1),
+    [],
+  );
+  if (prefs) {
+    snap.preferences = {
+      notifyDeadlines: prefs.notifyDeadlines,
+      notifyCheckIn: prefs.notifyCheckIn,
+      notifyNudges: prefs.notifyNudges,
+      shareEssaysByDefault: prefs.shareEssaysByDefault,
+    };
+  }
 
   return snap;
 }

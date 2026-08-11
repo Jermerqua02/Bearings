@@ -287,24 +287,52 @@ function CounselorInner() {
   const [showAbout, setShowAbout] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const startedRef = useRef(false);
+  const startingRef = useRef(false);
 
   const active = threads.find((t) => t.id === activeId) ?? null;
 
   const startThread = useCallback(async () => {
     if (!profile) return;
-    // The thread is created server-side so it persists; the id comes back
-    // from the database rather than being minted in the browser.
-    const id = await createThreadAction(
-      contextSchool ? `About ${contextSchool.shortName}` : undefined,
-    );
-    const greeting = await greetAction(id);
-    const t: Thread = {
-      id,
-      title: contextSchool ? `About ${contextSchool.shortName}` : "New conversation",
-      messages: [greeting],
-    };
-    setThreads((prev) => [t, ...prev]);
-    setActiveId(t.id);
+    /*
+      A synchronous guard, not a state flag.
+
+      This awaited both the thread insert and the greeting — a model call
+      that takes about twenty seconds — before touching any state, so the
+      click produced nothing visible for that whole time. People clicked
+      again, reasonably, and each click created another conversation.
+
+      A `busy` state can't stop that: state lands on the next render, and
+      the second click arrives before it. A ref is set in the same tick.
+    */
+    if (startingRef.current) return;
+    startingRef.current = true;
+
+    const title = contextSchool ? `About ${contextSchool.shortName}` : "New conversation";
+    // Placeholder id: the real one comes from the database, but the thread
+    // has to appear now. Swapped below once it exists.
+    const tempId = `pending-${Date.now()}`;
+    setThreads((prev) => [{ id: tempId, title, messages: [] }, ...prev]);
+    setActiveId(tempId);
+    setBusy(true);
+
+    try {
+      const id = await createThreadAction(
+        contextSchool ? `About ${contextSchool.shortName}` : undefined,
+      );
+      const greeting = await greetAction(id);
+      setThreads((prev) =>
+        prev.map((t) => (t.id === tempId ? { id, title, messages: [greeting] } : t)),
+      );
+      // Don't yank them out of a thread they switched to while this ran.
+      setActiveId((cur) => (cur === tempId ? id : cur));
+    } catch (err) {
+      console.error("[counselor] could not start a conversation:", err);
+      setThreads((prev) => prev.filter((t) => t.id !== tempId));
+      setActiveId((cur) => (cur === tempId ? null : cur));
+    } finally {
+      setBusy(false);
+      startingRef.current = false;
+    }
   }, [profile, contextSchool]);
 
   useEffect(() => {
@@ -389,7 +417,8 @@ function CounselorInner() {
       >
         <button
           onClick={() => void startThread()}
-          className="text-left px-3 py-2 rounded-[3px] border border-hairline text-[0.88rem] hover:border-ink transition-quiet mb-2"
+          disabled={busy}
+          className="text-left px-3 py-2 rounded-[3px] border border-hairline text-[0.88rem] hover:border-ink disabled:text-gray-mid disabled:hover:border-hairline transition-quiet mb-2"
         >
           + New conversation
         </button>
