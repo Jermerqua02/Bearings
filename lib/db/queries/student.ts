@@ -29,6 +29,7 @@ import {
   listEntries,
   recommenders,
   studentProfiles,
+  transcripts,
   universalProfiles,
   weeklyCheckIns,
 } from "@/lib/db/schema";
@@ -100,6 +101,32 @@ export async function getCoursePlan(viewer: Viewer, studentId: string) {
     .from(coursePlanEntries)
     .where(eq(coursePlanEntries.studentId, studentId))
     .orderBy(asc(coursePlanEntries.year));
+}
+
+/**
+ * Uploaded transcripts, without their bytes.
+ *
+ * The `bytes` column is deliberately not selected: this feeds the snapshot
+ * that ships to the browser, and a megabyte of base64 PDF would ride along
+ * on every page load to render a filename and a link.
+ */
+export async function getTranscripts(viewer: Viewer, studentId: string) {
+  await assertCanRead(viewer, "transcripts", studentId);
+  return db
+    .select({
+      id: transcripts.id,
+      filename: transcripts.filename,
+      contentType: transcripts.contentType,
+      sizeBytes: transcripts.sizeBytes,
+      extraction: transcripts.extraction,
+      reportedGpa: transcripts.reportedGpa,
+      reportedGpaWeighted: transcripts.reportedGpaWeighted,
+      reportedCredits: transcripts.reportedCredits,
+      createdAt: transcripts.createdAt,
+    })
+    .from(transcripts)
+    .where(eq(transcripts.studentId, studentId))
+    .orderBy(desc(transcripts.createdAt));
 }
 
 export async function getUniversalProfile(viewer: Viewer, studentId: string) {

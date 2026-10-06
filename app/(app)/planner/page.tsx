@@ -3,7 +3,7 @@
 /* Academic & activity planner — the primary surface in Build mode.
    For underclassmen the job is shaping the profile, not searching schools. */
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
@@ -11,8 +11,28 @@ import Chip from "@/components/ui/Chip";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { opportunities } from "@/lib/data/opportunities";
+import { readTranscriptAction } from "@/lib/actions/transcript";
+import { formatBytes } from "@/lib/format";
+// Shared with the server, which computes the same numbers for the counselor.
+import { gpaFrom, gradePoints } from "@/lib/coursework";
+import { COMMON_APP, orderActivities } from "@/lib/packet";
 import { useApp } from "@/lib/profile-context";
-import type { Activity, CoursePlanEntry, GradeLevel } from "@/lib/types";
+import type {
+  Activity,
+  CoursePlanEntry,
+  ExtractedCourse,
+  GradeLevel,
+  ReportedGpa,
+  TranscriptFile,
+} from "@/lib/types";
+
+/** A reading held in the page while the student checks it over. */
+interface Reading {
+  transcriptId: string;
+  courses: ExtractedCourse[];
+  notes: string[];
+  reportedGpa: ReportedGpa;
+}
 
 type Tab = "courses" | "activities" | "opportunities";
 
@@ -22,36 +42,332 @@ const SUBJECTS: CoursePlanEntry["subject"][] = [
 
 const GRADES: GradeLevel[] = [9, 10, 11, 12];
 
-const gradePoints: Record<string, number> = {
-  "A+": 4.0, A: 4.0, "A-": 3.7, "B+": 3.3, B: 3.0, "B-": 2.7,
-  "C+": 2.3, C: 2.0, "C-": 1.7, D: 1.0, F: 0,
-};
 
-function gpaFrom(courses: CoursePlanEntry[]) {
-  const graded = courses.filter((c) => c.grade && gradePoints[c.grade] !== undefined);
-  if (!graded.length) return { unweighted: null as number | null, weighted: null as number | null };
-  let uw = 0;
-  let w = 0;
-  for (const c of graded) {
-    const pts = gradePoints[c.grade!];
-    uw += pts;
-    w += pts + (c.level === "ap" || c.level === "ib" ? 1 : c.level === "honors" ? 0.5 : 0);
+/* ————— Transcript upload ————— */
+
+/**
+ * Upload a transcript, have it read, confirm what it found.
+ *
+ * The middle step is the point of the design. Typing four years of courses
+ * into the grid below is the single most tedious thing this page asks for,
+ * and a transcript already contains all of it — but a model reading a
+ * scanned table gets things wrong, and what it is writing into is the
+ * student's academic record. So nothing lands until they say so, and the
+ * caveats the model raises are shown to them rather than logged.
+ */
+function TranscriptPanel() {
+  const {
+    transcripts,
+    addTranscript,
+    updateTranscript,
+    removeTranscript,
+    addCoursesFromTranscript,
+  } = useApp();
+
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState<null | "uploading" | "reading" | "adding">(null);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+  const [reading, setReading] = useState<Reading | null>(null);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+
+  async function read(transcriptId: string, force: boolean) {
+    setBusy("reading");
+    setError(null);
+    setStatus(null);
+    try {
+      const result = await readTranscriptAction(transcriptId, { force });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      if (!result.looksLikeTranscript) {
+        setError("That doesn't look like a transcript. Check you uploaded the right file.");
+        return;
+      }
+      setReading({
+        transcriptId,
+        courses: result.courses,
+        notes: result.notes,
+        reportedGpa: result.reportedGpa,
+      });
+      setPicked(new Set(result.courses.map((_, i) => i)));
+      updateTranscript(transcriptId, {
+        courseCount: result.courses.length,
+        reportedGpa: result.reportedGpa,
+      });
+    } catch (err) {
+      console.error("[transcript]", err);
+      setError("Something went wrong reading that file. Try again.");
+    } finally {
+      setBusy(null);
+    }
   }
-  return {
-    unweighted: Math.round((uw / graded.length) * 100) / 100,
-    weighted: Math.round((w / graded.length) * 100) / 100,
-  };
+
+  async function upload(file: File) {
+    setBusy("uploading");
+    setError(null);
+    setStatus(null);
+    try {
+      const body = new FormData();
+      body.append("file", file);
+      const res = await fetch("/api/transcript", { method: "POST", body });
+      const json = await res.json();
+      if (!res.ok) {
+        setError(json?.error ?? "We couldn't save that file.");
+        setBusy(null);
+        return;
+      }
+      addTranscript(json as TranscriptFile);
+      await read(json.id, true);
+    } catch (err) {
+      console.error("[transcript]", err);
+      setError("The upload didn't go through. Check your connection and try again.");
+      setBusy(null);
+    }
+  }
+
+  async function addPicked() {
+    if (!reading) return;
+    setBusy("adding");
+    setError(null);
+    try {
+      const chosen = reading.courses.filter((_, i) => picked.has(i));
+      const result = await addCoursesFromTranscript(chosen);
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setReading(null);
+      if (result.added.length === 0) {
+        setStatus("Those were all on your plan already — nothing to add.");
+        return;
+      }
+      // Say that the rigor counts moved. They feed the chance tiers on the
+      // list, so changing them silently would be a change to the student's
+      // reach/target/likely split that nobody announced.
+      const rigor = result.rigor
+        ? ` Your rigor is now ${result.rigor.apCount} AP, ${result.rigor.ibCount} IB, ${result.rigor.honorsCount} honors — the counselor and your chance estimates use this.`
+        : "";
+      setStatus(
+        `Added ${result.added.length} course${result.added.length === 1 ? "" : "s"} below.${
+          result.skipped ? ` ${result.skipped} were already there.` : ""
+        }${rigor}`,
+      );
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <Card className="p-5 mb-8">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+        <div className="max-w-xl">
+          <p className="font-semibold mb-1">Your transcript</p>
+          <p className="text-[0.85rem] text-gray-mid leading-relaxed">
+            Upload it and we&apos;ll read the coursework onto this page, so you
+            aren&apos;t typing four years of classes by hand. The file stays
+            here — yours to download whenever you need it, and never shown to a
+            linked parent.
+          </p>
+        </div>
+        <div>
+          <input
+            ref={fileInput}
+            type="file"
+            accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              // Reset first, so choosing the same file twice still fires.
+              e.target.value = "";
+              if (file) void upload(file);
+            }}
+          />
+          <Button
+            variant="primary"
+            onClick={() => fileInput.current?.click()}
+            disabled={busy !== null}
+          >
+            {busy === "uploading"
+              ? "Uploading…"
+              : busy === "reading"
+                ? "Reading…"
+                : "Upload a transcript"}
+          </Button>
+          <p className="text-[0.72rem] text-gray-mid mt-1.5 text-right">
+            PDF or a photo, up to 15 MB
+          </p>
+        </div>
+      </div>
+
+      {error && (
+        <p role="alert" className="text-[0.85rem] text-reach mb-3">
+          {error}
+        </p>
+      )}
+      {status && (
+        <p role="status" className="text-[0.85rem] text-target mb-3">
+          {status}
+        </p>
+      )}
+
+      {transcripts.length > 0 && (
+        <ul className="divide-y divide-hairline border-t border-hairline">
+          {transcripts.map((t) => (
+            <li key={t.id} className="py-2.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="text-[0.88rem] font-medium break-all">{t.filename}</span>
+              <span className="label-caps">
+                {formatBytes(t.sizeBytes)}
+                {t.courseCount != null ? ` · ${t.courseCount} courses read` : " · not read yet"}
+              </span>
+              <span className="ml-auto flex items-center gap-3">
+                <a
+                  href={`/api/transcript/${t.id}`}
+                  className="text-[0.82rem] underline underline-offset-2 min-h-[38px] flex items-center"
+                >
+                  Download
+                </a>
+                <button
+                  onClick={() => void read(t.id, true)}
+                  disabled={busy !== null}
+                  className="text-[0.82rem] text-gray-mid hover:text-ink underline underline-offset-2 min-h-[38px] disabled:opacity-40"
+                >
+                  {t.courseCount != null ? "Read again" : "Read it"}
+                </button>
+                <button
+                  onClick={() => {
+                    removeTranscript(t.id);
+                    if (reading?.transcriptId === t.id) setReading(null);
+                  }}
+                  aria-label={`Remove ${t.filename}`}
+                  className="text-[0.82rem] text-gray-mid hover:text-ink min-h-[38px] min-w-[38px]"
+                >
+                  ✕
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {reading && (
+        <div className="mt-5 pt-5 border-t border-hairline">
+          <p className="font-semibold text-[0.92rem] mb-1">
+            {reading.courses.length === 0
+              ? "We couldn't pick out any courses"
+              : `We read ${reading.courses.length} course${reading.courses.length === 1 ? "" : "s"}`}
+          </p>
+          <p className="text-[0.82rem] text-gray-mid mb-3 max-w-2xl leading-relaxed">
+            Check these against the document before adding them — this is your
+            academic record, and a scan is not always read correctly. Untick
+            anything wrong; you can edit or delete any of it afterwards.
+            {reading.courses.some((c) => c.term) && (
+              <>
+                {" "}
+                A course you took all year appears once per grading period,
+                with that period&apos;s own grade — those repeats are what the
+                transcript says, not a mistake.
+              </>
+            )}
+          </p>
+
+          {reading.notes.length > 0 && (
+            <ul className="text-[0.82rem] text-gray-strong mb-3 space-y-1 max-w-2xl">
+              {reading.notes.map((n, i) => (
+                <li key={i}>— {n}</li>
+              ))}
+            </ul>
+          )}
+
+          {reading.courses.length > 0 && (
+            <>
+              <div className="max-h-80 overflow-y-auto border border-hairline rounded-[3px] divide-y divide-hairline mb-3">
+                {reading.courses.map((c, i) => (
+                  <label
+                    key={i}
+                    className="flex items-start gap-3 px-3 py-2 cursor-pointer hover:bg-surface"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={picked.has(i)}
+                      onChange={() =>
+                        setPicked((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(i)) next.delete(i);
+                          else next.add(i);
+                          return next;
+                        })
+                      }
+                      className="mt-1"
+                    />
+                    <span className="min-w-0">
+                      <span className="text-[0.88rem]">{c.name}</span>
+                      <span className="block text-[0.72rem] uppercase tracking-[0.06em] text-gray-mid">
+                        {c.year}th · {c.subject} · {c.level}
+                        {/* The term is what distinguishes two rows for the
+                            same class — without it a semestered course reads
+                            as a duplicate. */}
+                        {c.term ? ` · ${c.term}` : ""}
+                        {c.grade ? ` · ${c.grade}` : " · in progress"}
+                        {c.credits ? ` · ${c.credits} cr` : ""}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Button onClick={() => void addPicked()} disabled={busy !== null || picked.size === 0}>
+                  {busy === "adding"
+                    ? "Adding…"
+                    : `Add ${picked.size} course${picked.size === 1 ? "" : "s"}`}
+                </Button>
+                <button
+                  onClick={() =>
+                    setPicked(
+                      picked.size === reading.courses.length
+                        ? new Set()
+                        : new Set(reading.courses.map((_, i) => i)),
+                    )
+                  }
+                  className="text-[0.82rem] text-gray-mid hover:text-ink underline underline-offset-2"
+                >
+                  {picked.size === reading.courses.length ? "Untick all" : "Tick all"}
+                </button>
+                <button
+                  onClick={() => setReading(null)}
+                  className="text-[0.82rem] text-gray-mid hover:text-ink underline underline-offset-2"
+                >
+                  Not now
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </Card>
+  );
 }
 
 /* ————— Courses tab ————— */
 
 function CoursesTab() {
-  const { coursePlan, addCourse, removeCourse, updateCourse } = useApp();
+  const { coursePlan, transcripts, addCourse, removeCourse, updateCourse } = useApp();
   const [adding, setAdding] = useState<{ year: GradeLevel; subject: CoursePlanEntry["subject"] } | null>(null);
   const [newName, setNewName] = useState("");
   const [newLevel, setNewLevel] = useState<CoursePlanEntry["level"]>("regular");
 
   const gpa = gpaFrom(coursePlan);
+
+  /*
+    The GPA a transcript prints for itself beats anything computed here.
+    Schools exclude pass/fail work, weight by credit, count or ignore
+    middle-school credit, and apply their own scale — a reconstruction from
+    a course list will differ, and the first real upload differed by half a
+    point. The number a student quotes to a college has to be the school's.
+  */
+  const reported = transcripts.find((t) => t.reportedGpa?.unweighted != null)?.reportedGpa;
   const advanced = coursePlan.filter((c) => c.level === "ap" || c.level === "ib").length;
   const planned = coursePlan.filter(
     (c) => (c.level === "ap" || c.level === "ib") && c.status !== "completed"
@@ -59,22 +375,44 @@ function CoursesTab() {
 
   return (
     <div>
+      <TranscriptPanel />
+
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
         <Card className="p-4">
           <p className="label-caps mb-1">Unweighted GPA</p>
-          <p className="text-[1.4rem] font-semibold">{gpa.unweighted ?? "—"}</p>
-          {/* Two numbers exist: this one, averaged from the grades entered
-              below, and the self-reported figure from onboarding that the
-              counselor and chance estimates use. Saying which is which stops
-              them reading as a contradiction. */}
+          <p className="text-[1.4rem] font-semibold">
+            {reported?.unweighted ?? gpa.unweighted ?? "—"}
+          </p>
+          {/* Three numbers can exist: the one printed on the transcript, the
+              one averaged from the rows below, and the self-reported figure
+              from onboarding. Saying which is on screen stops them reading
+              as a contradiction — and the transcript's own is the one that
+              goes on an application. */}
           <p className="text-[0.75rem] text-gray-mid mt-1 leading-snug">
-            From the courses below. Chance estimates use the GPA you reported
-            in onboarding.
+            {reported?.unweighted != null ? (
+              <>
+                As printed on your transcript
+                {reported.credits ? ` (over ${reported.credits} credits)` : ""}. This
+                is the figure your school reports.
+                {gpa.unweighted != null && Math.abs(gpa.unweighted - reported.unweighted) >= 0.05
+                  ? ` Averaging the courses below gives ${gpa.unweighted} — schools count credits and exclude pass/fail work, so the two rarely match exactly.`
+                  : ""}
+              </>
+            ) : (
+              <>From the courses below. Chance estimates use the GPA you reported in onboarding.</>
+            )}
           </p>
         </Card>
         <Card className="p-4">
           <p className="label-caps mb-1">Weighted GPA</p>
-          <p className="text-[1.4rem] font-semibold">{gpa.weighted ?? "—"}</p>
+          <p className="text-[1.4rem] font-semibold">
+            {reported?.weighted ?? gpa.weighted ?? "—"}
+          </p>
+          <p className="text-[0.75rem] text-gray-mid mt-1 leading-snug">
+            {reported?.weighted != null
+              ? "As printed on your transcript."
+              : "Estimated from the courses below — AP and IB add a point, honors half."}
+          </p>
         </Card>
         <Card className="p-4">
           <p className="label-caps mb-1">Rigor read</p>
@@ -128,7 +466,11 @@ function CoursesTab() {
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
                               <span className="text-[0.7rem] uppercase tracking-[0.06em] text-gray-mid">
-                                {c.level}{c.status === "planned" ? " · planned" : c.status === "in-progress" ? " · now" : ""}
+                                {c.level}
+                                {/* Two rows for the same class are two grading
+                                    periods, not a duplicate. Say which. */}
+                                {c.term ? ` · ${c.term}` : ""}
+                                {c.status === "planned" ? " · planned" : c.status === "in-progress" ? " · now" : ""}
                               </span>
                               {c.status === "completed" ? (
                                 <select
@@ -240,9 +582,20 @@ function CoursesTab() {
 /* ————— Activities tab ————— */
 
 function ActivitiesTab() {
-  const { activities, addActivity, updateActivity, removeActivity } = useApp();
+  const { activities, addActivity, updateActivity, removeActivity, reorderActivities } =
+    useApp();
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
+
+  /* The student's own ranking where they've given one, entry order until then. */
+  const ordered = orderActivities(activities);
+  const move = (index: number, by: -1 | 1) => {
+    const next = [...ordered];
+    const to = index + by;
+    if (to < 0 || to >= next.length) return;
+    [next[index], next[to]] = [next[to], next[index]];
+    reorderActivities(next.map((a) => a.id));
+  };
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -253,22 +606,64 @@ function ActivitiesTab() {
           This log feeds your applications automatically senior year.
         </p>
       </Card>
-      {activities.map((a) => (
+      {ordered.length > 1 && (
+        <p className="text-[0.85rem] text-gray-mid">
+          Applications ask for these in order of importance to you, and only the
+          first {COMMON_APP.activitySlots} fit. Put the one you&apos;d talk about
+          first at the top.
+        </p>
+      )}
+      {ordered.map((a, i) => (
         <Card key={a.id} className="p-5">
           <div className="flex items-start justify-between gap-3 mb-1">
-            <div>
-              <p className="font-semibold">
-                {a.name}
-                {a.leadership && (
-                  <span className="ml-2 text-[0.7rem] uppercase tracking-[0.08em] text-accent font-medium">
-                    Leadership
+            <div className="flex items-start gap-3 min-w-0">
+              {ordered.length > 1 && (
+                <div className="flex flex-col items-center shrink-0 -mt-1">
+                  <button
+                    onClick={() => move(i, -1)}
+                    disabled={i === 0}
+                    aria-label={`Move ${a.name} up`}
+                    className="min-h-[28px] min-w-[32px] text-gray-mid hover:text-ink disabled:opacity-30 disabled:hover:text-gray-mid"
+                  >
+                    ▲
+                  </button>
+                  <span
+                    className={`text-[0.75rem] tabular-nums ${
+                      i < COMMON_APP.activitySlots ? "text-gray-mid" : "!text-reach"
+                    }`}
+                  >
+                    {i + 1}
                   </span>
+                  <button
+                    onClick={() => move(i, 1)}
+                    disabled={i === ordered.length - 1}
+                    aria-label={`Move ${a.name} down`}
+                    className="min-h-[28px] min-w-[32px] text-gray-mid hover:text-ink disabled:opacity-30 disabled:hover:text-gray-mid"
+                  >
+                    ▼
+                  </button>
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold">
+                  {a.name}
+                  {a.leadership && (
+                    <span className="ml-2 text-[0.7rem] uppercase tracking-[0.08em] text-accent font-medium">
+                      Leadership
+                    </span>
+                  )}
+                </p>
+                <p className="text-[0.85rem] text-gray-mid">
+                  {a.role} · {a.hoursPerWeek} hr/wk · {a.weeksPerYear} wk/yr · grades{" "}
+                  {a.yearsInvolved.join(", ") || "—"}
+                </p>
+                {i >= COMMON_APP.activitySlots && (
+                  <p className="text-[0.78rem] !text-reach mt-0.5">
+                    Past the {COMMON_APP.activitySlots}-slot limit — won&apos;t fit
+                    on the application.
+                  </p>
                 )}
-              </p>
-              <p className="text-[0.85rem] text-gray-mid">
-                {a.role} · {a.hoursPerWeek} hr/wk · {a.weeksPerYear} wk/yr · grades{" "}
-                {a.yearsInvolved.join(", ") || "—"}
-              </p>
+              </div>
             </div>
             <button
               onClick={() => removeActivity(a.id)}
@@ -286,6 +681,19 @@ function ActivitiesTab() {
             placeholder="What did you actually do? Specifics beat titles."
             className="w-full border border-hairline rounded-[3px] bg-surface p-2.5 text-[0.9rem] leading-relaxed outline-none focus:border-ink resize-none mt-2"
           />
+          {/* The cut to 150 characters has to happen somewhere; better here,
+              with time, than inside the real form on deadline day. */}
+          <p
+            className={`text-[0.75rem] tabular-nums text-right ${
+              a.description.length > COMMON_APP.descriptionChars
+                ? "!text-reach font-medium"
+                : "text-gray-mid"
+            }`}
+          >
+            {a.description.length}/{COMMON_APP.descriptionChars}
+            {a.description.length > COMMON_APP.descriptionChars &&
+              ` — ${a.description.length - COMMON_APP.descriptionChars} over`}
+          </p>
           <button
             onClick={() => updateActivity(a.id, { leadership: !a.leadership })}
             aria-pressed={a.leadership}

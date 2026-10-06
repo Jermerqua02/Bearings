@@ -68,6 +68,58 @@ export const applicationPlanEnum = pgEnum("application_plan", [
   "RD",
   "rolling",
 ]);
+
+/**
+ * Where a student actually files. This is the *platform*, not the plan —
+ * `applicationPlanEnum` above is ED/EA/RD, which is a different question.
+ *
+ * Derived by clustering the application URLs: a hostname shared by many
+ * schools is a platform, and the systems that matter here (UC, Cal State,
+ * ApplyTexas) all route their campuses through one address.
+ */
+export const applicationPlatformEnum = pgEnum("application_platform", [
+  "common-app",
+  "coalition",
+  "uc",
+  "cal-state",
+  "applytexas",
+  "direct",
+]);
+
+/**
+ * IPEDS's four answers to "does this school require X", in the wording the
+ * 2022 survey restated them to.
+ *
+ * Not a boolean, deliberately. Collapsing this to yes/no loses the single
+ * most decision-relevant distinction in the dataset: a school that ignores
+ * test scores entirely ("not-considered", which IPEDS labels *Test Blind*)
+ * and one that reads them if you send them ("considered", labelled *Test
+ * Optional*) are opposite advice for a student deciding whether to sit the
+ * SAT, and a boolean makes them the same cell.
+ *
+ * `recommended` is retained for completeness but does not occur in 2022 or
+ * later — IPEDS dropped it when it added "considered but not required".
+ */
+export const requirementEnum = pgEnum("requirement", [
+  "required",
+  "recommended",
+  "considered",
+  "not-considered",
+]);
+
+/**
+ * Which source a group of facts came from, so the UI can attribute them.
+ *
+ * With coverage this uneven, a fact with no source is not shippable: the
+ * product's rule is that a default is never presented as an answer, and
+ * "$75" with nothing behind it is exactly the defect this table replaces.
+ */
+export const factSourceEnum = pgEnum("fact_source", [
+  "ipeds",
+  "common-app",
+  "cds",
+  "curated",
+]);
 export const listStatusEnum = pgEnum("list_status", [
   "considering",
   "applying",
@@ -400,6 +452,87 @@ export const schoolAdmissions = pgTable(
   (t) => [unique("school_admissions_cycle").on(t.schoolId, t.cycle)],
 );
 
+/*
+  What a school asks an applicant for, and where they file it.
+
+  This replaces a function that derived requirements from whether a school
+  was private: two teacher recs and a $75 fee for anything non-public, a $50
+  fee otherwise. A student read that as a fact about the college. It was a
+  guess, and being wrong here costs an unwritten essay or a missed fee.
+
+  Every column is nullable and every group carries its source, because the
+  coverage is genuinely uneven — IPEDS answers the requirement questions for
+  nearly every school, Common App carries fee and deadline data for its
+  members only, and the rest is unknown until someone reads a Common Data
+  Set. A null here means "we have not been told", and the UI must say that
+  rather than fill it in.
+
+  `openAdmissions` is the exception worth reading carefully: when it is true,
+  the requirement columns are null because the school skips the admissions
+  survey entirely — there is nothing to require. That is an answer, not a
+  gap, and it reads differently to a student.
+*/
+export const schoolApplications = pgTable(
+  "school_application",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schoolId: text("school_id")
+      .notNull()
+      .references(() => schools.id, { onDelete: "cascade" }),
+    cycle: text("cycle").notNull(), // "2026-27"
+
+    /* Where to apply. */
+    platform: applicationPlatformEnum("platform"),
+    applicationUrl: text("application_url"),
+    netPriceCalculatorUrl: text("net_price_calculator_url"),
+    urlSource: factSourceEnum("url_source"),
+
+    /* What they ask for — IPEDS, whose survey year is not our cycle. */
+    openAdmissions: boolean("open_admissions"),
+    reqEssay: requirementEnum("req_essay"),
+    reqRecommendations: requirementEnum("req_recommendations"),
+    reqTranscript: requirementEnum("req_transcript"),
+    reqTestScores: requirementEnum("req_test_scores"),
+    reqGpa: requirementEnum("req_gpa"),
+    reqClassRank: requirementEnum("req_class_rank"),
+    requirementsSource: factSourceEnum("requirements_source"),
+    /** The survey year these answers describe, e.g. "2022". Not the cycle. */
+    requirementsYear: text("requirements_year"),
+
+    /* How many, and which forms — Common App's grid, for its members. */
+    teacherRecs: integer("teacher_recs"),
+    otherRecs: integer("other_recs"),
+    counselorRec: boolean("counselor_rec"),
+    midyearReport: boolean("midyear_report"),
+    writingSupplement: boolean("writing_supplement"),
+    coursesAndGrades: boolean("courses_and_grades"),
+    /** "SR" SlideRoom, "COL" the school's own system, null if none collected. */
+    portfolio: text("portfolio"),
+    supplementsSource: factSourceEnum("supplements_source"),
+
+    /* What it costs. Nothing in IPEDS after 2023; Common App or a Data Set. */
+    feeUsd: integer("fee_usd"),
+    feeInternationalUsd: integer("fee_international_usd"),
+    /** Free text: Common App reports "Accepted", "U.S. only", or a refusal. */
+    feeWaiver: text("fee_waiver"),
+    feeSource: factSourceEnum("fee_source"),
+    /**
+     * The cycle or survey year the fee describes — "2026-27" from Common App,
+     * "2023" from the federal survey.
+     *
+     * Not decoration. IPEDS collected the undergraduate application fee up to
+     * 2023 and then dropped the field, so that figure can never get fresher,
+     * and roughly a fifth of fees have changed since — nearly always downward,
+     * as colleges drop them. A student must be able to see that the number
+     * they are budgeting against is three years old.
+     */
+    feeYear: text("fee_year"),
+
+    ...timestamps,
+  },
+  (t) => [unique("school_application_cycle").on(t.schoolId, t.cycle)],
+);
+
 export const schoolDeadlines = pgTable(
   "school_deadline",
   {
@@ -612,6 +745,8 @@ export const recommenders = pgTable("recommender", {
     .references(() => users.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   roleTitle: text("role_title").notNull().default(""),
+  /** Needed to produce the invite block a real application asks for. */
+  email: text("email").notNull().default(""),
   type: recommenderTypeEnum("type").notNull().default("teacher"),
   status: recommenderStatusEnum("status").notNull().default("invited"),
   ...timestamps,
@@ -666,6 +801,15 @@ export const activities = pgTable("activity", {
   description: text("description").notNull().default(""),
   yearsInvolved: integer("years_involved").array().notNull().default([]),
   leadership: boolean("leadership").notNull().default(false),
+  /*
+    Where this sits when the student ranks their activities.
+
+    Common App asks for up to ten in order of significance, and the only
+    ordering this table had was createdAt — the order they happened to be
+    typed in. Listing them that way in a packet asserts a ranking the student
+    never made. Null means unranked, which is honest until they say.
+  */
+  position: integer("position"),
   ...timestamps,
 });
 
@@ -680,6 +824,16 @@ export const coursePlanEntries = pgTable("course_plan_entry", {
   level: courseLevelEnum("level").notNull().default("regular"),
   status: courseStatusEnum("status").notNull().default("planned"),
   grade: text("grade"),
+  /**
+   * The grading period, when it came from a transcript — "S1", "06/2022".
+   *
+   * Transcripts are per-term, so a year-long course is two rows with two
+   * grades. Without this the two are indistinguishable on screen and read
+   * as an import bug.
+   */
+  term: text("term"),
+  /** Credits earned, as printed. GPA is credit-weighted where schools say so. */
+  credits: doublePrecision("credits"),
   ...timestamps,
 });
 
@@ -835,6 +989,7 @@ export const schoolExplanations = pgTable(
    ———————————————————————————————————————— */
 
 export const aiFeatureEnum = pgEnum("ai_feature", [
+  "thread_title",
   "chat",
   "greet",
   "essay_feedback",
@@ -845,6 +1000,10 @@ export const aiFeatureEnum = pgEnum("ai_feature", [
   // Text-to-speech. Priced per audio output token by a different provider
   // (Gemini), which is why lib/costs.ts keeps a separate rate for it.
   "speech",
+  // Reading an uploaded transcript into course rows. Input-heavy — a PDF
+  // costs far more in input tokens than any chat turn — so it gets its own
+  // line rather than hiding inside another feature's total.
+  "transcript",
 ]);
 
 export const aiUsage = pgTable(
@@ -995,3 +1154,56 @@ export const schoolLogos = pgTable("school_logo", {
   fetchedAt: timestamp("fetched_at", { withTimezone: true }).notNull().defaultNow(),
   ...timestamps,
 });
+
+/* ————————————————————————————————————————
+   Uploaded transcripts.
+
+   The file itself lives here, in Postgres, for the same reason the logos do
+   and one more: a transcript is the single most sensitive document a student
+   will hand this product. Keeping the bytes inside the database the rest of
+   their record already lives in means one place to secure, one backup, and
+   one `ON DELETE CASCADE` when an account goes away — rather than an object
+   store with its own access rules and its own orphans. At a few hundred KB
+   per file and a handful of files per student, the size argument for object
+   storage doesn't arrive for a long time.
+
+   `extraction` caches what the model read out of the file. Parsing a PDF is
+   an expensive call, and without this every page load that wants to show
+   "we found 24 courses" would either re-bill it or lose it.
+   ———————————————————————————————————————— */
+
+export const transcripts = pgTable(
+  "transcript",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    studentId: text("student_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** What the student called it, shown in the list and on download. */
+    filename: text("filename").notNull(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull().default(0),
+    bytes: bytea("bytes").notNull(),
+    /**
+     * Courses the model read out of this file, in the shape of
+     * lib/types.ts `ExtractedCourse[]`. Null until it has been read.
+     */
+    extraction: jsonb("extraction"),
+    /**
+     * The GPA the document prints for itself.
+     *
+     * Kept separate from anything we compute. A school's own cumulative GPA
+     * is the number that goes on applications, and it is not reproducible
+     * from a course list — it excludes pass/fail work, weights by credit,
+     * and follows the school's own scale. Recomputing and showing a
+     * different number is how a student ends up telling a college 3.58 when
+     * their counselor reports 3.01.
+     */
+    reportedGpa: doublePrecision("reported_gpa"),
+    reportedGpaWeighted: doublePrecision("reported_gpa_weighted"),
+    reportedCredits: doublePrecision("reported_credits"),
+    extractedAt: timestamp("extracted_at", { withTimezone: true }),
+    ...timestamps,
+  },
+  (t) => [index("transcript_student_idx").on(t.studentId)],
+);

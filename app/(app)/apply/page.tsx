@@ -1,7 +1,8 @@
 "use client";
 
 /* Application manager — our own workflow, Common App-capable in spirit.
-   Tabs: Tracker · Profile · Essays · Recommenders · Deadlines · Aid. */
+   Tabs: Your applications · Packet · Profile · Essays · Recommenders ·
+   Deadlines · Aid. */
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
@@ -12,7 +13,28 @@ import TwoTone from "@/components/ui/TwoTone";
 import { type EssayFeedback } from "@/lib/counselor";
 import { essayFeedbackAction } from "@/lib/actions/counselor";
 import { daysUntil, nextDeadline } from "@/lib/match";
-import { plansFor } from "@/lib/schools";
+import {
+  COMMON_APP,
+  buildPacket,
+  overLimit,
+  packetToText,
+  type Field,
+} from "@/lib/packet";
+import {
+  applyRoutes,
+  attribution,
+  emptyReason,
+  feeLabel,
+  requirementLines,
+} from "@/lib/requirements";
+import {
+  PLAN_PLACEHOLDER,
+  planLabel,
+  planOption,
+  planPrompt,
+  planWhy,
+  plansFor,
+} from "@/lib/schools";
 import { useApp } from "@/lib/profile-context";
 import type {
   AidStatus,
@@ -23,10 +45,11 @@ import type {
   School,
 } from "@/lib/types";
 
-type Tab = "tracker" | "profile" | "essays" | "recommenders" | "deadlines" | "aid";
+type Tab = "tracker" | "packet" | "profile" | "essays" | "recommenders" | "deadlines" | "aid";
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "tracker", label: "Tracker" },
+  { id: "tracker", label: "Your applications" },
+  { id: "packet", label: "Packet" },
   { id: "profile", label: "Profile" },
   { id: "essays", label: "Essays" },
   { id: "recommenders", label: "Recommenders" },
@@ -34,18 +57,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "aid", label: "Financial aid" },
 ];
 
-/* Per-school requirements — derived from school data (mock heuristics). */
-function requirementsFor(school: School) {
-  const isPrivateish = school.type !== "public" && school.type !== "public-flagship";
-  return {
-    supplements: isPrivateish ? 1 : 0,
-    teacherRecs: isPrivateish ? 2 : school.type === "public-flagship" ? 1 : 0,
-    counselorRec: isPrivateish,
-    interview: isPrivateish && (school.admissions.acceptanceRate ?? 1) < 0.35,
-    fee: school.type === "public" ? 50 : 75,
-    feeWaiverAvailable: true,
-  };
-}
+/* Per-school requirements now come from `school_application`, sourced and
+   attributed — see lib/requirements.ts. The function that used to live here
+   inferred them from whether a school was private. */
 
 const PIPELINE: ListEntry["status"][] = [
   "considering",
@@ -66,85 +80,142 @@ const pipelineLabel: Record<ListEntry["status"], string> = {
 
 /* ————— Tracker tab ————— */
 
+/**
+ * The plan line on a tracker card.
+ *
+ * Shows a control only where choosing changes something. For a school with
+ * one published deadline it states the date; for one with none it points at
+ * the school's own page, which is the only place the answer exists. In both
+ * cases the student can still record a plan if they want to — it just isn't
+ * put in front of them as a question with no consequence.
+ */
+function PlanRow({
+  school,
+  entry,
+  onChange,
+}: {
+  school: School;
+  entry: ListEntry;
+  onChange: (plan: ApplicationPlan | undefined) => void;
+}) {
+  const prompt = planPrompt(school);
+  const [open, setOpen] = useState(false);
+  const route = applyRoutes(school)[0];
+
+  const select = (
+    <select
+      value={entry.plan ?? ""}
+      onChange={(e) => onChange((e.target.value || undefined) as ApplicationPlan | undefined)}
+      aria-label={`How you're applying to ${school.shortName}`}
+      className="border border-hairline rounded-[3px] bg-surface px-2 h-8 text-[0.82rem] outline-none focus:border-ink"
+    >
+      <option value="">{PLAN_PLACEHOLDER}</option>
+      {prompt.mode === "choose" ? (
+        <>
+          <optgroup label="Deadlines we have">
+            {prompt.dated.map((p: ApplicationPlan) => (
+              <option key={p} value={p}>{planOption(p, school.admissions.deadlines)}</option>
+            ))}
+          </optgroup>
+          {prompt.others.length > 0 && (
+            <optgroup label="Other rounds — check the school's page">
+              {prompt.others.map((p: ApplicationPlan) => (
+                <option key={p} value={p}>{planLabel[p]}</option>
+              ))}
+            </optgroup>
+          )}
+        </>
+      ) : (
+        plansFor(school).plans.map((p) => (
+          <option key={p} value={p}>{planOption(p, school.admissions.deadlines)}</option>
+        ))
+      )}
+    </select>
+  );
+
+  if (prompt.mode === "choose") {
+    return (
+      <div className="flex flex-wrap items-center gap-2 mt-1">
+        <span className="text-[0.82rem] text-gray-mid">Applying:</span>
+        {select}
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-0.5">
+      <p className="text-[0.82rem] text-gray-mid">
+        {entry.plan ? (
+          planLabel[entry.plan]
+        ) : prompt.mode === "single" ? (
+          <>
+            {planLabel[prompt.plan]} · due {prompt.due}
+          </>
+        ) : (
+          <>
+            Deadline not published here —{" "}
+            {route ? (
+              <a
+                href={route.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline underline-offset-2"
+              >
+                check {school.shortName}&apos;s page
+              </a>
+            ) : (
+              <>check {school.shortName}&apos;s admissions page</>
+            )}
+          </>
+        )}
+      </p>
+      {open ? (
+        <div className="mt-1.5">{select}</div>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="text-[0.75rem] text-gray-mid hover:text-ink underline underline-offset-2 mt-0.5"
+        >
+          {entry.plan ? "Change round" : "Record which round you're applying"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TrackerTab() {
   const { list, updateListEntry, essays, recommenders, schoolById } = useApp();
-  const applying = list.filter((e) => e.status !== "considering" || e.plan);
-  const waiting = list.filter((e) => e.status === "considering" && !e.plan);
+  /*
+    Every school on the list is here.
+
+    It used to be `list.filter(e => e.status !== "considering" || e.plan)` —
+    a school appeared only once a plan had been chosen. That made the plan
+    picker a toll gate rather than a useful control, and it is why choosing
+    a plan for one school made the others disappear.
+
+    Nothing is gained by the gate. `status` already says where each
+    application stands, from "Not started" to "Decision", and it says it
+    without asking the student to answer a question the product only needs
+    an answer to for the 317 schools where more than one deadline exists.
+  */
+  const entries = list;
 
   return (
     <div className="space-y-4">
-      {applying.length === 0 && (
-        <div className="max-w-2xl">
-          {waiting.length === 0 ? (
-            <p className="body-copy">
-              Nothing in motion yet. Add a school on{" "}
-              <Link href="/explore" className="underline underline-offset-2 text-ink">
-                the explorer
-              </Link>{" "}
-              and pick how you&apos;re applying, and it appears here.
-            </p>
-          ) : (
-            /*
-              A student with schools saved and no plan chosen used to be told
-              "nothing in motion" and sent to another page to find a dropdown.
-              The dropdown belongs here: this is the page about applying.
-            */
-            <>
-              <p className="body-copy mb-1">
-                Nothing in motion yet — pick how you&apos;re applying to each of
-                these and it starts tracking.
-              </p>
-              <p className="text-[0.85rem] text-gray-mid mb-5">
-                Check the school&apos;s admissions page for which plans it
-                offers and when they close.
-              </p>
-              <ul className="border-t border-hairline">
-                {waiting.map((e) => {
-                  const s = schoolById(e.schoolId);
-                  if (!s) return null;
-                  return (
-                    <li
-                      key={e.schoolId}
-                      className="flex items-center justify-between gap-4 py-3 border-b border-hairline"
-                    >
-                      <span className="text-[0.95rem] min-w-0 truncate">{s.name}</span>
-                      <select
-                        value=""
-                        onChange={(ev) =>
-                          updateListEntry(e.schoolId, {
-                            plan: ev.target.value as ApplicationPlan,
-                          })
-                        }
-                        aria-label={`How you're applying to ${s.shortName}`}
-                        className="shrink-0 border border-hairline rounded-[3px] bg-surface px-2 h-9 text-[0.85rem] outline-none focus:border-ink"
-                      >
-                        <option value="">Pick a plan…</option>
-                        {plansFor(s).plans.map((p) => (
-                          <option key={p} value={p}>
-                            {p}
-                          </option>
-                        ))}
-                      </select>
-                    </li>
-                  );
-                })}
-              </ul>
-            </>
-          )}
-        </div>
+      {entries.length === 0 && (
+        <p className="body-copy max-w-2xl">
+          Nothing here yet. Add a school on{" "}
+          <Link href="/explore" className="underline underline-offset-2 text-ink">
+            the explorer
+          </Link>{" "}
+          and it appears here.
+        </p>
       )}
-      {applying.map((entry) => {
+      {entries.map((entry) => {
         const school = schoolById(entry.schoolId);
         if (!school) return null;
-        const req = requirementsFor(school);
         const dl = nextDeadline(school, entry.plan);
         const days = dl ? daysUntil(dl.date) : null;
-        const supplementDone =
-          req.supplements === 0 ||
-          essays.some((e) => e.schoolId === school.id && e.text.trim().length > 50);
-        const recsAssigned = recommenders.filter((r) =>
-          r.schoolIds.includes(school.id)
-        ).length;
         const stageIndex = PIPELINE.indexOf(
           entry.status === "applying" ? "in-progress" : entry.status
         );
@@ -159,12 +230,18 @@ function TrackerTab() {
                 >
                   {school.name}
                 </Link>
-                <p className="text-[0.82rem] text-gray-mid mt-0.5">
-                  {entry.plan ?? "No plan chosen"}
-                  {dl && days !== null && days >= 0 && (
-                    <> · due {dl.date.toLocaleDateString("en-US", { month: "short", day: "numeric" })} ({days}d)</>
-                  )}
-                </p>
+                <PlanRow
+                  school={school}
+                  entry={entry}
+                  onChange={(plan) => updateListEntry(school.id, { plan })}
+                />
+                {/* Binding plans get their consequence spelled out on the
+                    card, not only in the menu the student already left. */}
+                {entry.plan && (entry.plan === "ED" || entry.plan === "ED2") && (
+                  <p className="text-[0.78rem] !text-reach mt-1 max-w-md">
+                    {planWhy[entry.plan]}
+                  </p>
+                )}
               </div>
               <select
                 value={entry.status}
@@ -192,21 +269,82 @@ function TrackerTab() {
               ))}
             </div>
 
-            {/* Requirements checklist */}
-            <div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[0.88rem]">
-              <p className={supplementDone ? "text-gray-mid" : ""}>
-                {supplementDone ? "✓" : "○"} {req.supplements > 0 ? `${req.supplements} supplement essay` : "No supplement required"}
-              </p>
-              <p className={recsAssigned >= req.teacherRecs ? "text-gray-mid" : ""}>
-                {recsAssigned >= req.teacherRecs ? "✓" : "○"} {req.teacherRecs} teacher rec{req.teacherRecs === 1 ? "" : "s"}
-                {req.counselorRec ? " + counselor letter" : ""}
-              </p>
-              {req.interview && <p>○ Interview offered — <Link href="/interviews" className="underline underline-offset-2">practice first</Link></p>}
-              <p>
-                ○ ${req.fee} fee{" "}
-                <span className="text-gray-mid">(waivers available — ask your school counselor)</span>
-              </p>
-            </div>
+            {/* What this school asks for. Sourced, or absent. */}
+            {(() => {
+              const lines = requirementLines(school, { essays, recommenders });
+              const fee = feeLabel(school);
+              const note = attribution(school);
+              const routes = applyRoutes(school);
+
+              return (
+                <>
+                  {lines.length > 0 ? (
+                    <ul className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 text-[0.88rem]">
+                      {lines.map((l) => (
+                        <li key={l.key} className={l.done ? "text-gray-mid" : ""}>
+                          {l.mandatory ? (l.done ? "✓ " : "○ ") : "· "}
+                          <span className="font-medium">{l.label}</span>{" "}
+                          <span className={l.mandatory ? "" : "text-gray-mid"}>
+                            — {l.status}
+                            {l.detail ? ` (${l.detail})` : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-[0.88rem] text-gray-mid">
+                      {emptyReason(school) === "open-admission"
+                        ? "Open admission — this school accepts applicants who meet its basic requirements."
+                        : "We don't have this school's requirements yet. Check their admissions page."}
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.88rem]">
+                    <span className={fee.known ? "" : "text-gray-mid"}>
+                      <span className="font-medium">Application fee</span>
+                      {fee.known ? ` — ${fee.text}` : " — not published here; check the school's page"}
+                      {fee.asOf && (
+                        <span className="text-gray-mid">
+                          {" "}
+                          · federal data, {fee.asOf}
+                          {fee.mayHaveDropped && " — many colleges have dropped their fee since; worth checking"}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+
+                  {routes.length > 0 && (
+                    <div className="mt-4 pt-3 border-t border-hairline flex flex-wrap items-center gap-3">
+                      {routes.map((r) =>
+                        r.shared ? (
+                          <a
+                            key={r.href + r.label}
+                            href={r.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center h-10 px-4 rounded-[3px] bg-ink text-white text-[0.9rem] hover:opacity-90 transition-quiet"
+                          >
+                            {r.label} →
+                          </a>
+                        ) : (
+                          <a
+                            key={r.href + r.label}
+                            href={r.href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center h-10 px-4 rounded-[3px] border border-hairline text-[0.9rem] hover:border-ink transition-quiet"
+                          >
+                            {r.label} →
+                          </a>
+                        ),
+                      )}
+                    </div>
+                  )}
+
+                  {note && <p className="mt-2 text-[0.78rem] text-gray-mid">{note}</p>}
+                </>
+              );
+            })()}
 
             {entry.status === "decision" && (
               <div className="mt-4 pt-4 border-t border-hairline flex items-center gap-3">
@@ -235,6 +373,211 @@ function TrackerTab() {
           </Card>
         );
       })}
+
+    </div>
+  );
+}
+
+/* ————— Packet tab ————— */
+
+/** A live count against a limit, coloured only when it is actually over. */
+function Counter({ field }: { field: Field }) {
+  if (!field.limit) return null;
+  const over = overLimit(field);
+  return (
+    <span
+      className={`text-[0.75rem] tabular-nums ${over ? "!text-reach font-medium" : "text-gray-mid"}`}
+    >
+      {field.limit.used}/{field.limit.max}
+      {over ? ` — ${field.limit.used - field.limit.max} over` : ""}
+    </span>
+  );
+}
+
+function PacketField({ field }: { field: Field }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1 border-b border-hairline last:border-0">
+      <span className="text-[0.8rem] text-gray-mid shrink-0">{field.label}</span>
+      <span className="flex items-baseline gap-2 text-right">
+        <span className={field.empty ? "text-gray-mid" : ""}>
+          {field.value || "not filled in yet"}
+        </span>
+        <Counter field={field} />
+      </span>
+    </div>
+  );
+}
+
+/*
+  The student's answers in the shape the form will ask for them.
+
+  The value here is the character counts. A student who has written a good
+  paragraph about Science Olympiad finds out it has to be 150 characters
+  while inside the real application, on deadline day, in a box that doesn't
+  autosave. Doing that cutting here, once, calmly, is the whole point.
+*/
+function PacketTab() {
+  const { list, schoolById, universal, activities, essays, recommenders } = useApp();
+  const applying = list.filter((e) => e.status !== "considering" || e.plan);
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const schoolId = selected ?? applying[0]?.schoolId ?? null;
+  const school = schoolId ? schoolById(schoolId) : null;
+
+  const packet = useMemo(
+    () =>
+      school
+        ? buildPacket({ universal, activities, essays, recommenders }, school)
+        : null,
+    [school, universal, activities, essays, recommenders],
+  );
+
+  if (!school || !packet) {
+    return (
+      <Card className="p-6">
+        <p className="body-copy">
+          Add a school to your list and choose an application plan — the packet is
+          built per school, because each one asks for things in its own shape.
+        </p>
+        <Link href="/explore" className="underline underline-offset-2 text-[0.9rem]">
+          Find schools →
+        </Link>
+      </Card>
+    );
+  }
+
+  const download = () => {
+    const blob = new Blob([packetToText(packet)], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${school.shortName.toLowerCase().replace(/\W+/g, "-")}-packet.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        {applying.map((e) => {
+          const s = schoolById(e.schoolId);
+          if (!s) return null;
+          const active = s.id === school.id;
+          return (
+            <button
+              key={s.id}
+              onClick={() => setSelected(s.id)}
+              aria-pressed={active}
+              className={`px-3 py-1 rounded-full border text-[0.8rem] transition-quiet ${
+                active
+                  ? "border-ink bg-ink text-white"
+                  : "border-hairline text-gray-strong hover:border-ink"
+              }`}
+            >
+              {s.shortName}
+            </button>
+          );
+        })}
+      </div>
+
+      <Card className="p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="label-caps">Prepared for</p>
+            <p className="font-semibold text-[1.05rem]">{packet.shapedFor}</p>
+          </div>
+          <Button variant="outline" onClick={download}>
+            Download as text
+          </Button>
+        </div>
+        {packet.approximate && (
+          <p className="text-[0.85rem] text-gray-mid mt-2">
+            This school files on its own form, so the limits below are Common App&apos;s
+            and may not bind here — the answers are what matter.
+          </p>
+        )}
+      </Card>
+
+      {packet.gaps.length > 0 && (
+        <Card className="p-5 border-accent">
+          <p className="label-caps mb-2">Still to do</p>
+          <ul className="space-y-1 text-[0.9rem]">
+            {packet.gaps.map((g) => (
+              <li key={g}>○ {g}</li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
+      {packet.sections.map((s) => (
+        <Card key={s.title} className="p-5">
+          <p className="label-caps mb-1">{s.title}</p>
+          {s.note && <p className="text-[0.8rem] text-gray-mid mb-2">{s.note}</p>}
+          <div className="text-[0.9rem]">
+            {s.fields.map((f) => (
+              <PacketField key={f.label} field={f} />
+            ))}
+          </div>
+        </Card>
+      ))}
+
+      <Card className="p-5">
+        <p className="label-caps mb-1">
+          Activities — {packet.activities.length} of {COMMON_APP.activitySlots} slots
+        </p>
+        <p className="text-[0.8rem] text-gray-mid mb-3">
+          Listed in the order you ranked them.{" "}
+          <Link href="/planner" className="underline underline-offset-2">
+            Edit in the planner →
+          </Link>
+        </p>
+        {packet.activities.length === 0 ? (
+          <p className="body-copy">Nothing logged yet.</p>
+        ) : (
+          <ol className="space-y-3">
+            {packet.activities.map((a, i) => (
+              <li key={i} className="border-t border-hairline pt-3 first:border-0 first:pt-0">
+                <p className="text-[0.75rem] text-gray-mid mb-1">
+                  {i + 1} · grades {a.years} · {a.hours}
+                </p>
+                <PacketField field={a.position} />
+                <PacketField field={a.organization} />
+                <PacketField field={a.description} />
+              </li>
+            ))}
+          </ol>
+        )}
+        {packet.overflow > 0 && (
+          <p className="text-[0.85rem] text-gray-mid mt-3">
+            {packet.overflow} more {packet.overflow === 1 ? "activity" : "activities"} won&apos;t
+            fit — rank the ones that matter most first.
+          </p>
+        )}
+      </Card>
+
+      <Card className="p-5">
+        <p className="label-caps mb-3">Essays</p>
+        {packet.essays.length === 0 ? (
+          <p className="body-copy">Nothing written yet — start one in the Essays tab.</p>
+        ) : (
+          <ul className="space-y-4">
+            {packet.essays.map((e, i) => (
+              <li key={i}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <p className="font-medium">{e.title}</p>
+                  <Counter field={e.body} />
+                </div>
+                {e.prompt && (
+                  <p className="text-[0.8rem] text-gray-mid mt-0.5">{e.prompt}</p>
+                )}
+                <p className="text-[0.88rem] text-gray-strong mt-1 line-clamp-3">
+                  {e.body.value || "Not started."}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
     </div>
   );
 }
@@ -399,14 +742,16 @@ function EssaysTab() {
       (e) => !essays.some((es) => es.schoolId === e.schoolId)
     );
     const target = candidates[0] ? schoolById(candidates[0].schoolId) : null;
+    // No source publishes prompt text or word limits, so both are left for
+    // the student to fill in from the school's own form. This used to invent
+    // "Tell us why {school} is a good fit for you" and a 250-word cap, which
+    // read as the school's actual prompt and was nobody's.
     const essay: Essay = {
       id: `e-${Date.now()}`,
-      title: target ? `Why ${target.shortName}?` : "New essay",
+      title: target ? `${target.shortName} supplement` : "New essay",
       schoolId: target?.id,
-      promptText: target
-        ? `Tell us why ${target.name} is a good fit for you.`
-        : "Add the prompt text here.",
-      wordLimit: 250,
+      promptText: "",
+      wordLimit: 0,
       text: "",
       versions: [],
     };
@@ -534,6 +879,7 @@ function RecommendersTab() {
   const { recommenders, addRecommender, updateRecommender, removeRecommender, list, schoolById } = useApp();
   const [name, setName] = useState("");
   const [roleTitle, setRoleTitle] = useState("");
+  const [email, setEmail] = useState("");
 
   const recStatusNext: Record<Recommender["status"], Recommender["status"]> = {
     invited: "in-progress",
@@ -549,6 +895,16 @@ function RecommendersTab() {
             <div>
               <p className="font-semibold">{r.name}</p>
               <p className="text-[0.85rem] text-gray-mid">{r.roleTitle} · {r.type}</p>
+              {/* The application asks for this to send the invite; without it
+                  the packet can't produce the recommender block. */}
+              <input
+                type="email"
+                value={r.email}
+                onChange={(e) => updateRecommender(r.id, { email: e.target.value })}
+                placeholder="School email address"
+                aria-label={`Email address for ${r.name}`}
+                className="mt-1.5 w-full min-w-[200px] border border-hairline rounded-[3px] bg-surface px-2 h-8 text-[0.85rem] outline-none focus:border-ink"
+              />
             </div>
             <div className="flex items-center gap-3">
               <span className={`label-caps ${r.status === "submitted" ? "!text-target" : ""}`}>
@@ -617,12 +973,14 @@ function RecommendersTab() {
             id: `r-${Date.now()}`,
             name: name.trim(),
             roleTitle: roleTitle.trim() || "Teacher",
+            email: email.trim(),
             type: roleTitle.toLowerCase().includes("counsel") ? "counselor" : "teacher",
             schoolIds: [],
             status: "invited",
           });
           setName("");
           setRoleTitle("");
+          setEmail("");
         }}
         className="flex flex-wrap gap-2"
       >
@@ -640,6 +998,14 @@ function RecommendersTab() {
           aria-label="Recommender role"
           className="flex-1 min-w-[180px] border border-hairline rounded-[3px] bg-surface px-3 h-10 text-[0.92rem] outline-none focus:border-ink"
         />
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email (optional for now)"
+          aria-label="Recommender email"
+          className="flex-1 min-w-[180px] border border-hairline rounded-[3px] bg-surface px-3 h-10 text-[0.92rem] outline-none focus:border-ink"
+        />
         <Button variant="outline" type="submit">Invite</Button>
       </form>
       <p className="text-[0.85rem] text-gray-mid">
@@ -654,8 +1020,15 @@ function RecommendersTab() {
 
 function DeadlinesTab() {
   const { list, schoolById } = useApp();
-  const items = useMemo(() => {
+  /*
+    Schools with no deadline row used to be dropped silently, and the empty
+    state told the student to pick application plans — which changes nothing,
+    because only the curated forty have dates. Someone with a full list and
+    every plan chosen saw a blank page blaming them for it. Name them instead.
+  */
+  const { items, unknown } = useMemo(() => {
     const out: { date: Date; label: string; schoolId: string; days: number }[] = [];
+    const missing: School[] = [];
     for (const e of list) {
       const s = schoolById(e.schoolId);
       if (!s) continue;
@@ -667,9 +1040,14 @@ function DeadlinesTab() {
           schoolId: s.id,
           days: daysUntil(dl.date),
         });
+      } else {
+        missing.push(s);
       }
     }
-    return out.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return {
+      items: out.sort((a, b) => a.date.getTime() - b.date.getTime()),
+      unknown: missing,
+    };
   }, [list, schoolById]);
 
   const soon = items.filter((i) => i.days >= 0 && i.days <= 14);
@@ -707,8 +1085,45 @@ function DeadlinesTab() {
           </li>
         ))}
       </ol>
-      {items.length === 0 && (
-        <p className="body-copy">No deadlines yet — pick application plans on your list.</p>
+      {items.length === 0 && unknown.length === 0 && (
+        <p className="body-copy">Add schools to your list and they&apos;ll show up here.</p>
+      )}
+      {unknown.length > 0 && (
+        <div className={items.length > 0 ? "mt-6 pt-5 border-t border-hairline" : ""}>
+          <p className="label-caps mb-2">Dates we don&apos;t have</p>
+          <p className="body-copy mb-3">
+            We don&apos;t publish a deadline for {unknown.length === 1 ? "this school" : "these schools"} yet.
+            Their admissions page will have it.
+          </p>
+          <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-[0.88rem]">
+            {unknown.map((s) => {
+              const link = applyRoutes(s)[0];
+              return (
+                <li key={s.id}>
+                  <Link
+                    href={`/explore/${s.id}`}
+                    className="font-medium hover:underline underline-offset-2"
+                  >
+                    {s.shortName}
+                  </Link>
+                  {link && (
+                    <>
+                      {" "}
+                      <a
+                        href={link.href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-gray-mid underline underline-offset-2"
+                      >
+                        their site →
+                      </a>
+                    </>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </div>
   );
@@ -847,6 +1262,7 @@ export default function ApplyPage() {
         ))}
       </div>
       {tab === "tracker" && <TrackerTab />}
+      {tab === "packet" && <PacketTab />}
       {tab === "profile" && <ProfileTab />}
       {tab === "essays" && <EssaysTab />}
       {tab === "recommenders" && <RecommendersTab />}

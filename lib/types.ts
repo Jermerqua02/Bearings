@@ -76,6 +76,12 @@ export interface Activity {
   description: string;
   yearsInvolved: GradeLevel[];
   leadership: boolean;
+  /**
+   * Where this sits when the student ranks their activities by significance,
+   * which is the order Common App asks for. Undefined means unranked — the
+   * packet keeps entry order rather than asserting one they never gave.
+   */
+  position?: number;
 }
 
 export interface StudentProfile {
@@ -207,6 +213,70 @@ export interface School {
   };
   /** Why the counselor might surface this school beyond the obvious. */
   underratedFor?: string;
+  /*
+    What this school asks for, and where to file it.
+
+    Absent when nobody has told us — which is most schools for fee and
+    deadline data, and almost none for the requirement questions. Every
+    field inside is separately optional for the same reason, and each group
+    carries the source it came from so the UI can attribute it.
+  */
+  application?: SchoolApplication;
+}
+
+/** IPEDS's answer to "does this school ask for X". Never a boolean. */
+export type Requirement = "required" | "recommended" | "considered" | "not-considered";
+
+export type ApplicationPlatform =
+  | "common-app"
+  | "coalition"
+  | "uc"
+  | "cal-state"
+  | "applytexas"
+  | "direct";
+
+export type FactSource = "ipeds" | "common-app" | "cds" | "curated";
+
+export interface SchoolApplication {
+  platform?: ApplicationPlatform;
+  url?: string;
+  netPriceCalculatorUrl?: string;
+  /**
+   * True when the school admits all applicants and therefore skips the
+   * admissions survey. The requirement fields being empty is then an
+   * answer — there is nothing to require — not a gap in our data.
+   */
+  openAdmissions?: boolean;
+  requires: {
+    essay?: Requirement;
+    recommendations?: Requirement;
+    transcript?: Requirement;
+    testScores?: Requirement;
+    gpa?: Requirement;
+    classRank?: Requirement;
+  };
+  /** Counts and forms, where a source publishes them. */
+  teacherRecs?: number;
+  otherRecs?: number;
+  counselorRec?: boolean;
+  midyearReport?: boolean;
+  writingSupplement?: boolean;
+  coursesAndGrades?: boolean;
+  /** "SR" SlideRoom, "COL" the school's own system. */
+  portfolio?: string;
+  fee?: number;
+  feeInternational?: number;
+  feeWaiver?: string;
+  /** The cycle or survey year the fee describes: "2026-27", or "2023". */
+  feeYear?: string;
+  /** The survey year the requirement answers describe — not the cycle. */
+  requirementsYear?: string;
+  sources: {
+    requirements?: FactSource;
+    supplements?: FactSource;
+    fee?: FactSource;
+    url?: FactSource;
+  };
 }
 
 /* ————————————— List & applications ————————————— */
@@ -252,6 +322,8 @@ export interface Recommender {
   id: string;
   name: string;
   roleTitle: string; // "AP Bio teacher"
+  /** The application asks for this to send the invite. Empty until given. */
+  email: string;
   type: "teacher" | "counselor" | "other";
   schoolIds: string[];
   status: "invited" | "in-progress" | "submitted";
@@ -302,6 +374,74 @@ export interface CoursePlanEntry {
   level: "regular" | "honors" | "ap" | "ib";
   status: "completed" | "in-progress" | "planned";
   grade?: string; // letter grade if completed
+  /**
+   * The grading period this row covers — "S1", "06/2022", "Quarter 3".
+   *
+   * Transcripts are organised by term, not by course: a year-long English
+   * class is two rows with two different grades. Without the term those
+   * rows render as the same course listed twice, which is what a real
+   * transcript upload looked like — "English 9" three times, apparently
+   * duplicated, actually three separate semester grades.
+   */
+  term?: string;
+  /** Credits earned, as the transcript states them. Used to weight GPA. */
+  credits?: number;
+}
+
+/**
+ * The GPA a transcript prints for itself.
+ *
+ * This is the number that matters — it is what the school reports, what the
+ * counselor quotes, and what goes on an application. Any GPA we compute from
+ * extracted rows is a reconstruction, and it will drift: schools exclude
+ * pass/fail courses, weight by credit, count or ignore middle-school credit,
+ * and apply their own scale. When the document states its own figure, that
+ * figure wins.
+ */
+export interface ReportedGpa {
+  unweighted: number | null;
+  weighted: number | null;
+  /** Total credits the GPA was computed over, if printed. */
+  credits: number | null;
+}
+
+/**
+ * A transcript the student uploaded, without its bytes.
+ *
+ * The file itself is never sent to the browser as part of the snapshot —
+ * it's several hundred KB and nothing on the page renders it. The download
+ * link fetches it on demand from /api/transcript/[id].
+ */
+export interface TranscriptFile {
+  id: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedAt: string;
+  /** Null until the file has been read; the count of courses found. */
+  courseCount: number | null;
+  /** The GPA printed on the document itself. Nulls until read. */
+  reportedGpa: ReportedGpa;
+}
+
+/**
+ * One course as the model read it off a transcript.
+ *
+ * Deliberately not a CoursePlanEntry: this is a *claim* about what a
+ * document says, not a row in the student's record. It becomes an entry
+ * only when the student confirms it, which is why it carries `term` and
+ * `credits` — context that helps them check the reading — and no id.
+ */
+export interface ExtractedCourse {
+  year: GradeLevel;
+  subject: CoursePlanEntry["subject"];
+  name: string;
+  level: CoursePlanEntry["level"];
+  /** Letter grade as printed, or undefined if the course has no grade yet. */
+  grade?: string;
+  /** "Fall 2024", "Semester 1" — whatever the document called it. */
+  term?: string;
+  credits?: number;
 }
 
 export interface Opportunity {

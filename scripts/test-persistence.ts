@@ -35,6 +35,7 @@ const EXTERNAL = new Set(["user", "session", "account", "verification"]);
 const REFERENCE = new Set([
   "school",
   "school_admissions",
+  "school_application",
   "school_cost",
   "school_outcome",
   "school_deadline",

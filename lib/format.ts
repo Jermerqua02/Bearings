@@ -86,3 +86,28 @@ export function hasCostData(cost: {
 }): boolean {
   return cost.avgNetPrice != null || cost.stickerPrice != null;
 }
+
+const MONTHS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/**
+ * "2026-11-01" → "Nov 1".
+ *
+ * Reads the string rather than going through `Date`, deliberately. A date-only
+ * ISO string is parsed as midnight UTC, so `new Date("2026-11-01")` rendered
+ * anywhere west of Greenwich shows the 31st of October — a deadline displayed
+ * one day early, which is the direction that makes a student miss it.
+ *
+ * There are four other places formatting deadlines inline with
+ * `toLocaleDateString`; they take a real Date built from parts and are fine.
+ * This is for the raw stored strings.
+ */
+export function formatDueDate(iso: string | undefined): string | null {
+  if (!iso) return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
+  if (!m) return null;
+  const month = MONTHS[Number(m[2]) - 1];
+  return month ? `${month} ${Number(m[3])}` : null;
+}

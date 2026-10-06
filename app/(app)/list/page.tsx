@@ -12,7 +12,7 @@ import TierBadge from "@/components/ui/TierBadge";
 import TwoTone from "@/components/ui/TwoTone";
 import { daysUntil, listBalance, nextDeadline } from "@/lib/match";
 import { formatDollars, formatRate, formatThousands } from "@/lib/format";
-import { plansFor } from "@/lib/schools";
+import { PLAN_PLACEHOLDER, planOption, planPrompt, plansFor } from "@/lib/schools";
 import { useApp } from "@/lib/profile-context";
 import type { ApplicationPlan, ChanceTier, ListEntry, School } from "@/lib/types";
 
@@ -88,21 +88,34 @@ function ListRow({
         )}
       </p>
       <div className="flex items-center gap-2">
-        <select
-          value={entry.plan ?? ""}
-          onChange={(e) =>
-            updateListEntry(school.id, {
-              plan: (e.target.value || undefined) as ApplicationPlan | undefined,
-            })
-          }
-          aria-label={`Application plan for ${school.shortName}`}
-          className="border border-hairline rounded-[3px] bg-surface px-1.5 h-8 text-[0.78rem] outline-none focus:border-ink"
-        >
-          <option value="">Plan…</option>
-          {plansFor(school).plans.map((p) => (
-            <option key={p} value={p}>{p}</option>
-          ))}
-        </select>
+        {/*
+          Only where the choice does something.
+
+          This row already shows the next deadline above it, so for a school
+          with one date or none the picker was asking a question whose answer
+          changed nothing on screen. Where two or more rounds have dates it
+          decides which one this row counts down to, which is worth asking.
+          Recording a round for any other school is done on Apply.
+        */}
+        {planPrompt(school).mode === "choose" && (
+          <select
+            value={entry.plan ?? ""}
+            onChange={(e) =>
+              updateListEntry(school.id, {
+                plan: (e.target.value || undefined) as ApplicationPlan | undefined,
+              })
+            }
+            aria-label={`Application plan for ${school.shortName}`}
+            className="border border-hairline rounded-[3px] bg-surface px-1.5 h-8 text-[0.78rem] outline-none focus:border-ink"
+          >
+            <option value="">{PLAN_PLACEHOLDER}</option>
+            {plansFor(school).plans.map((p) => (
+              <option key={p} value={p}>
+                {planOption(p, school.admissions.deadlines)}
+              </option>
+            ))}
+          </select>
+        )}
         <select
           value={entry.tier}
           onChange={(e) =>

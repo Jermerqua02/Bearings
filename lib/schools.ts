@@ -10,6 +10,7 @@
    else, which worked only for as long as one script wrote these tables.
    ———————————————————————————————————————— */
 
+import { formatDueDate } from "@/lib/format";
 import type {
   ApplicationPlan,
   CampusSetting,
@@ -60,6 +61,114 @@ export function plansFor(school: {
 }): { plans: ApplicationPlan[]; known: boolean } {
   const known = school.admissions.plansOffered.length > 0;
   return { plans: known ? school.admissions.plansOffered : ALL_APPLICATION_PLANS, known };
+}
+
+/**
+ * The plans in words, because the abbreviations are jargon.
+ *
+ * A student meeting this for the first time has no reason to know that REA
+ * is Restrictive Early Action, that ED2 exists, or — the one that actually
+ * matters — that Early Decision is a binding commitment to attend. Showing
+ * six two-letter codes and expecting the reader to supply the meaning is
+ * how a sixteen-year-old signs up for something they didn't understand.
+ */
+export const planLabel: Record<ApplicationPlan, string> = {
+  ED: "Early Decision (binding)",
+  ED2: "Early Decision II (binding)",
+  EA: "Early Action",
+  REA: "Restrictive Early Action",
+  RD: "Regular Decision",
+  rolling: "Rolling admission",
+};
+
+/** The prompt on an unset plan selector. "Plan…" says nothing. */
+export const PLAN_PLACEHOLDER = "How you'll apply…";
+
+/**
+ * Why a student would pick each one, which is the part that actually
+ * decides anything.
+ *
+ * Naming the plans is not the same as explaining them. "Early Decision
+ * (binding)" tells a student what the word means and still leaves them with
+ * no way to choose — the real question is what each plan costs and buys.
+ * Applying early generally helps your odds; ED helps most and takes away
+ * both your right to walk away and your ability to compare aid offers,
+ * which for a family that needs aid is the whole decision.
+ */
+export const planWhy: Record<ApplicationPlan, string> = {
+  ED: "Best odds, but you must attend if admitted and can't compare aid offers. Only for a clear first choice you know you can afford.",
+  ED2: "Same commitment as ED, later deadline — a second binding shot, often after an ED elsewhere didn't land.",
+  EA: "An early answer with no obligation. Little downside; you can still apply elsewhere and compare offers.",
+  REA: "Early and non-binding, but limits applying early anywhere else. You keep the choice, you give up other early rounds.",
+  RD: "The normal route. Latest deadline, most time to write, and every offer on the table before you decide.",
+  rolling: "Decided as they arrive — apply early, since seats and aid go as the year fills.",
+};
+
+/** One line under a plan selector, for students meeting this for the first time. */
+export const PLAN_HELP =
+  "Applying early usually helps your odds. Early Decision helps most and is binding — you commit to attend and give up comparing aid.";
+
+/**
+ * A plan as it should read in a selector, with this school's date attached.
+ *
+ * The deadline is the fact that actually decides between these options — it
+ * is what tells a student whether Early Decision means writing the essay in
+ * three weeks or three months. We hold per-plan dates for 407 schools and
+ * the picker was showing none of them, so the choice was being made against
+ * six abstractions.
+ *
+ * A plan with no known date still appears, unchanged. Absence of a date is
+ * not evidence a school doesn't offer the plan — most of these came from
+ * Common App's grid, which leaves the cell blank as often as it means no.
+ */
+export function planOption(
+  plan: ApplicationPlan,
+  deadlines: Partial<Record<ApplicationPlan, string>>,
+): string {
+  const due = formatDueDate(deadlines[plan]);
+  return due ? `${planLabel[plan]} — due ${due}` : planLabel[plan];
+}
+
+/**
+ * Whether asking the student which plan they're applying under is a real
+ * question for this school, or just a toll gate.
+ *
+ * Selecting a plan does exactly one thing in this product: it decides which
+ * deadline we count down to. It does not enter the student into anything —
+ * a binding agreement is made on the college's form, not here. So the
+ * control is only worth showing when there is more than one date to choose
+ * between, which is true for 317 of 1,944 schools.
+ *
+ * For the other 1,627 it was pure friction: 90 schools offered a menu with a
+ * single item, and 1,537 offered six abstractions that produce no date
+ * whichever one you pick. A student reasonably asked what it was for.
+ *
+ *   choose  — two or more known dates. A genuine question.
+ *   single  — one known date. State it; don't make them pick it.
+ *   unknown — no dates. Point at the school's page instead.
+ */
+export type PlanPrompt =
+  | { mode: "choose"; dated: ApplicationPlan[]; others: ApplicationPlan[] }
+  | { mode: "single"; plan: ApplicationPlan; due: string }
+  | { mode: "unknown" };
+
+export function planPrompt(school: {
+  admissions: { plansOffered: ApplicationPlan[]; deadlines: Partial<Record<ApplicationPlan, string>> };
+}): PlanPrompt {
+  const { deadlines } = school.admissions;
+  const dated = ALL_APPLICATION_PLANS.filter((p) => formatDueDate(deadlines[p]));
+
+  if (dated.length >= 2) {
+    // Plans the school may still offer without a published date stay
+    // available, grouped apart — the grid leaves a cell blank as often as it
+    // means "no such round".
+    const offered = plansFor(school).plans;
+    return { mode: "choose", dated, others: offered.filter((p) => !dated.includes(p)) };
+  }
+  if (dated.length === 1) {
+    return { mode: "single", plan: dated[0], due: formatDueDate(deadlines[dated[0]])! };
+  }
+  return { mode: "unknown" };
 }
 
 /* ————————————— Filter vocabulary ————————————— */

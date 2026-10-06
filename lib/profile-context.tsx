@@ -35,12 +35,16 @@ import type {
   Profile,
   Recommender,
   School,
+  ExtractedCourse,
+  TranscriptFile,
   UniversalProfile,
   WeeklyCheckIn,
 } from "./types";
 import { gradeModeFor } from "./types";
 import type { AppSnapshot } from "./db/queries/snapshot";
 import * as actions from "./actions/data";
+import * as transcriptActions from "./actions/transcript";
+import type { AddCoursesResult } from "./actions/transcript";
 
 interface AppState {
   profile: Profile | null;
@@ -78,10 +82,27 @@ interface AppState {
   updateCourse: (id: string, patch: Partial<CoursePlanEntry>) => void;
   removeCourse: (id: string) => void;
 
+  /** Uploaded transcripts, metadata only. Bytes live server-side. */
+  transcripts: TranscriptFile[];
+  /** Record a file the upload route has already persisted. */
+  addTranscript: (t: TranscriptFile) => void;
+  updateTranscript: (id: string, patch: Partial<TranscriptFile>) => void;
+  removeTranscript: (id: string) => void;
+  /**
+   * Add courses the student confirmed off a transcript.
+   *
+   * Async, unlike every other mutator here, because the caller shows the
+   * outcome — how many landed, how many were already there. Optimism is
+   * wrong for a bulk write into the academic record.
+   */
+  addCoursesFromTranscript: (courses: ExtractedCourse[]) => Promise<AddCoursesResult>;
+
   activities: Activity[];
   addActivity: (a: Activity) => void;
   updateActivity: (id: string, patch: Partial<Activity>) => void;
   removeActivity: (id: string) => void;
+  /** Ids in the order the student ranks them. */
+  reorderActivities: (ids: string[]) => void;
 
   checkIns: WeeklyCheckIn[];
   dismissCheckIn: (id: string) => void;
@@ -142,6 +163,7 @@ export function AppProvider({
   const [aidStatus, setAidStatusState] = useState<AidStatus>(snapshot.aidStatus);
   const [aidOffers, setAidOffers] = useState<AidOffer[]>(snapshot.aidOffers);
   const [coursePlan, setCoursePlan] = useState<CoursePlanEntry[]>(snapshot.coursePlan);
+  const [transcriptFiles, setTranscriptFiles] = useState<TranscriptFile[]>(snapshot.transcripts);
   const [activities, setActivities] = useState<Activity[]>(snapshot.activities);
   const [checkIns, setCheckIns] = useState<WeeklyCheckIn[]>(snapshot.checkIns);
   const [recentlyViewed, setRecentlyViewed] = useState<string[]>(snapshot.recentlyViewed);
@@ -337,6 +359,29 @@ export function AppProvider({
     fire(actions.removeCourseAction(id));
   }, []);
 
+  const addTranscript = useCallback((t: TranscriptFile) => {
+    setTranscriptFiles((prev) => [t, ...prev]);
+  }, []);
+
+  const updateTranscript = useCallback((id: string, patch: Partial<TranscriptFile>) => {
+    setTranscriptFiles((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }, []);
+
+  const removeTranscript = useCallback((id: string) => {
+    setTranscriptFiles((prev) => prev.filter((t) => t.id !== id));
+    fire(transcriptActions.removeTranscriptAction(id));
+  }, []);
+
+  const addCoursesFromTranscript = useCallback(async (courses: ExtractedCourse[]) => {
+    const result = await transcriptActions.addExtractedCoursesAction(courses);
+    // The rows come back with their real ids, so the grid below can edit and
+    // delete them straight away without a refresh.
+    if (result.ok && result.added.length) {
+      setCoursePlan((prev) => [...prev, ...result.added]);
+    }
+    return result;
+  }, []);
+
   const addActivity = useCallback((a: Activity) => {
     setActivities((prev) => [...prev, a]);
     fire(
@@ -355,6 +400,27 @@ export function AppProvider({
   const removeActivity = useCallback((id: string) => {
     setActivities((prev) => prev.filter((a) => a.id !== id));
     fire(actions.removeActivityAction(id));
+  }, []);
+
+  /**
+   * Reorder by significance — the order Common App asks for.
+   *
+   * Stamps every activity's position from the list it is given, so an
+   * unranked log becomes fully ranked the first time a student moves
+   * anything, rather than leaving a mix of ranked and unranked rows whose
+   * relative order is undefined.
+   */
+  const reorderActivities = useCallback((ids: string[]) => {
+    setActivities((prev) => {
+      const byId = new Map(prev.map((a) => [a.id, a]));
+      return ids
+        .map((id, i) => {
+          const a = byId.get(id);
+          return a ? { ...a, position: i + 1 } : null;
+        })
+        .filter((a) => a !== null) as Activity[];
+    });
+    fire(actions.reorderActivitiesAction(ids));
   }, []);
 
   /* ————————————— Check-ins & misc ————————————— */
@@ -392,6 +458,7 @@ export function AppProvider({
     setRecommenders([]);
     setAidOffers([]);
     setCoursePlan([]);
+    setTranscriptFiles([]);
     setActivities([]);
     setCheckIns([]);
     setRecentlyViewed([]);
@@ -406,7 +473,9 @@ export function AppProvider({
       universal, updateUniversal,
       aidStatus, setAidStatus, aidOffers, upsertAidOffer,
       coursePlan, addCourse, updateCourse, removeCourse,
-      activities, addActivity, updateActivity, removeActivity,
+      transcripts: transcriptFiles, addTranscript, updateTranscript, removeTranscript,
+      addCoursesFromTranscript,
+      activities, addActivity, updateActivity, removeActivity, reorderActivities,
       checkIns, dismissCheckIn, toggleCheckInAction,
       recentlyViewed, markViewed,
       schoolById,
@@ -423,7 +492,9 @@ export function AppProvider({
       universal, updateUniversal,
       aidStatus, setAidStatus, aidOffers, upsertAidOffer,
       coursePlan, addCourse, updateCourse, removeCourse,
-      activities, addActivity, updateActivity, removeActivity,
+      transcriptFiles, addTranscript, updateTranscript, removeTranscript,
+      addCoursesFromTranscript,
+      activities, addActivity, updateActivity, removeActivity, reorderActivities,
       checkIns, dismissCheckIn, toggleCheckInAction,
       recentlyViewed, markViewed, schoolById, parentLinked,
       decisionNotes, setDecisionNote, preferences, updatePreferences, resetAll,

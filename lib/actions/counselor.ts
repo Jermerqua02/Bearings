@@ -12,23 +12,28 @@
 
 "use server";
 
-import { and, asc, count, eq, isNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+import { and, asc, count, desc, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   counselorMessages,
   counselorThreads,
+  coursePlanEntries,
   interviewSessions,
   interviewTurns,
   listEntries,
   schoolExplanations,
   schools,
+  transcripts,
 } from "@/lib/db/schema";
-import { requireStudent, requireViewer } from "@/lib/auth/policy";
+import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
+import { localTitle } from "@/lib/counselor";
 import type { CounselorCard, CounselorMessage, EssayFeedback, InterviewFeedback } from "@/lib/counselor";
-import type { School, StudentProfile } from "@/lib/types";
+import { courseworkSummary } from "@/lib/coursework";
+import type { GradeLevel, School, StudentProfile } from "@/lib/types";
 import { getSchoolById, getSchoolMap } from "@/lib/db/queries/schools";
 
 /**
@@ -185,6 +190,50 @@ async function listSummaryFor(studentId: string): Promise<string> {
   return `The student's current list (${rows.length} schools):\n${lines.join("\n")}`;
 }
 
+/**
+ * The student's coursework, rendered for the model.
+ *
+ * The counselor knew a self-reported GPA and three rigor counts from
+ * onboarding, and nothing else about what the student had actually studied.
+ * That is thin ground for "is this school a reach" and useless for "what
+ * should I take next year" — both of which are answerable off the course
+ * plan the transcript now fills in.
+ */
+async function courseworkSummaryFor(studentId: string): Promise<string> {
+  const rows = await db
+    .select()
+    .from(coursePlanEntries)
+    .where(eq(coursePlanEntries.studentId, studentId))
+    .orderBy(asc(coursePlanEntries.year));
+
+  // The most recent transcript that actually printed a GPA. That figure is
+  // authoritative over anything computed from the rows.
+  const [reported] = await db
+    .select({
+      unweighted: transcripts.reportedGpa,
+      weighted: transcripts.reportedGpaWeighted,
+    })
+    .from(transcripts)
+    .where(and(eq(transcripts.studentId, studentId), isNotNull(transcripts.reportedGpa)))
+    .orderBy(desc(transcripts.createdAt))
+    .limit(1);
+
+  return courseworkSummary(
+    rows.map((c) => ({
+      id: c.id,
+      year: c.year as GradeLevel,
+      subject: c.subject,
+      name: c.name,
+      level: c.level,
+      status: c.status,
+      grade: c.grade ?? undefined,
+      term: c.term ?? undefined,
+      credits: c.credits ?? undefined,
+    })),
+    reported ?? null,
+  );
+}
+
 /* ————————————— Chat ————————————— */
 
 export async function greetAction(threadId: string): Promise<CounselorMessage> {
@@ -198,7 +247,14 @@ export async function chatAction(input: {
   threadId: string;
   message: string;
   context?: { schoolId?: string; screen?: string };
-}): Promise<CounselorMessage> {
+  /*
+    Returns the thread's new title alongside the reply when this was the
+    first message. The client titles the thread optimistically so the
+    sidebar updates the instant you press send; without handing the real
+    one back, that placeholder is what stays on screen and the generated
+    title is only ever seen after a reload.
+  */
+}): Promise<{ message: CounselorMessage; title?: string }> {
   const s = await requireStudent();
   const { profile } = await sessionProfile();
 
@@ -228,21 +284,74 @@ export async function chatAction(input: {
     profile,
     threadId: input.threadId,
     message: input.message,
-    context: { ...input.context, listSummary: await listSummaryFor(s.userId) },
+    context: {
+      ...input.context,
+      listSummary: await listSummaryFor(s.userId),
+      courseworkSummary: await courseworkSummaryFor(s.userId),
+    },
     history: history.map(toMessage),
   });
 
   await persist(input.threadId, res.message);
 
-  // Title the thread from the first real exchange.
-  if (history.length === 0) {
+  /*
+    Name the thread from the first real exchange.
+
+    The condition used to be `history.length === 0`, which never held: a new
+    thread is greeted immediately, so by the student's first message the
+    history already had one row. Every conversation stayed "New conversation"
+    and a student's sidebar was seven identical lines.
+
+    Counting the student's own messages is the thing actually meant — the
+    greeting is ours, and says nothing about what the conversation is for.
+  */
+  const isFirstFromStudent = history.every((m) => m.author !== "user");
+  if (isFirstFromStudent) {
+    const title = await (async () => {
+      try {
+        return await (await serviceFor(s.userId)).titleFor(input.message, res.message.text);
+      } catch {
+        // A failed title must never fail the reply the student is waiting for.
+        return localTitle(input.message);
+      }
+    })();
     await db
       .update(counselorThreads)
-      .set({ title: input.message.slice(0, 40) })
+      .set({ title, updatedAt: new Date() })
       .where(eq(counselorThreads.id, input.threadId));
+    return { message: res.message, title };
   }
 
-  return res.message;
+  return { message: res.message };
+}
+
+/**
+ * Delete a conversation and everything in it.
+ *
+ * Scoped by `studentId` in the same statement, not checked separately: the
+ * thread id comes from the client, so a delete that only matched on id would
+ * let anyone remove anyone's conversation.
+ */
+export async function deleteThreadAction(threadId: string) {
+  const s = await requireStudent();
+  const [row] = await db
+    .delete(counselorThreads)
+    .where(and(eq(counselorThreads.id, threadId), eq(counselorThreads.studentId, s.userId)))
+    .returning({ id: counselorThreads.id });
+  if (!row) throw new AuthzError("That conversation doesn't exist.");
+  revalidatePath("/counselor");
+}
+
+/** Let a student fix a title we got wrong. */
+export async function renameThreadAction(threadId: string, title: string) {
+  const s = await requireStudent();
+  const clean = title.replace(/\s+/g, " ").trim().slice(0, 60);
+  if (!clean) return;
+  await db
+    .update(counselorThreads)
+    .set({ title: clean, updatedAt: new Date() })
+    .where(and(eq(counselorThreads.id, threadId), eq(counselorThreads.studentId, s.userId)));
+  revalidatePath("/counselor");
 }
 
 /* ————————————— Per-school explanation, cached ————————————— */

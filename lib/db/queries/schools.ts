@@ -23,6 +23,7 @@ import { and, asc, count, desc, eq, gt, inArray, isNotNull, lte, or, sql, type S
 import { db } from "@/lib/db";
 import {
   schoolAdmissions,
+  schoolApplications,
   schoolCosts,
   schoolDeadlines,
   schoolOutcomes,
@@ -31,10 +32,14 @@ import {
 import { CURRENT_CYCLE } from "@/lib/schools";
 import type {
   ApplicationPlan,
+  ApplicationPlatform,
   CampusSetting,
   ChanceTier,
+  FactSource,
   Region,
+  Requirement,
   School,
+  SchoolApplication,
   SchoolSize,
   SchoolType,
   StudentProfile,
@@ -45,12 +50,14 @@ type AdmissionsRow = typeof schoolAdmissions.$inferSelect;
 type CostRow = typeof schoolCosts.$inferSelect;
 type OutcomeRow = typeof schoolOutcomes.$inferSelect;
 type DeadlineRow = typeof schoolDeadlines.$inferSelect;
+type ApplicationRow = typeof schoolApplications.$inferSelect;
 
 /** Which cycle-scoped slices came from a real row. */
 export interface Coverage {
   admissions: boolean;
   cost: boolean;
   outcomes: boolean;
+  application: boolean;
 }
 
 export interface SchoolRecord extends School {
@@ -62,12 +69,54 @@ function pair(low: number | null, high: number | null): [number, number] | undef
   return low != null && high != null ? [low, high] : undefined;
 }
 
+/** null → undefined, so the domain shape carries one absence, not two. */
+function opt<T>(v: T | null | undefined): T | undefined {
+  return v ?? undefined;
+}
+
+function toApplication(row: ApplicationRow | undefined): SchoolApplication | undefined {
+  if (!row) return undefined;
+  return {
+    platform: opt(row.platform) as ApplicationPlatform | undefined,
+    url: opt(row.applicationUrl),
+    netPriceCalculatorUrl: opt(row.netPriceCalculatorUrl),
+    openAdmissions: opt(row.openAdmissions),
+    requires: {
+      essay: opt(row.reqEssay) as Requirement | undefined,
+      recommendations: opt(row.reqRecommendations) as Requirement | undefined,
+      transcript: opt(row.reqTranscript) as Requirement | undefined,
+      testScores: opt(row.reqTestScores) as Requirement | undefined,
+      gpa: opt(row.reqGpa) as Requirement | undefined,
+      classRank: opt(row.reqClassRank) as Requirement | undefined,
+    },
+    teacherRecs: opt(row.teacherRecs),
+    otherRecs: opt(row.otherRecs),
+    counselorRec: opt(row.counselorRec),
+    midyearReport: opt(row.midyearReport),
+    writingSupplement: opt(row.writingSupplement),
+    coursesAndGrades: opt(row.coursesAndGrades),
+    portfolio: opt(row.portfolio),
+    fee: opt(row.feeUsd),
+    feeInternational: opt(row.feeInternationalUsd),
+    feeWaiver: opt(row.feeWaiver),
+    feeYear: opt(row.feeYear),
+    requirementsYear: opt(row.requirementsYear),
+    sources: {
+      requirements: opt(row.requirementsSource) as FactSource | undefined,
+      supplements: opt(row.supplementsSource) as FactSource | undefined,
+      fee: opt(row.feeSource) as FactSource | undefined,
+      url: opt(row.urlSource) as FactSource | undefined,
+    },
+  };
+}
+
 function assemble(
   row: SchoolRow,
   adm: AdmissionsRow | undefined,
   cost: CostRow | undefined,
   out: OutcomeRow | undefined,
   deadlines: DeadlineRow[],
+  app?: ApplicationRow,
 ): SchoolRecord {
   const byPlan: Partial<Record<ApplicationPlan, string>> = {};
   for (const d of deadlines) {
@@ -138,7 +187,8 @@ function assemble(
       alumniNetwork: (out?.alumniNetwork ?? undefined) as School["outcomes"]["alumniNetwork"],
     },
     underratedFor: row.underratedFor ?? undefined,
-    coverage: { admissions: !!adm, cost: !!cost, outcomes: !!out },
+    application: toApplication(app),
+    coverage: { admissions: !!adm, cost: !!cost, outcomes: !!out, application: !!app },
   };
 }
 
@@ -152,7 +202,7 @@ export async function getSchoolsByIds(ids: string[]): Promise<SchoolRecord[]> {
   // inArray with an empty array builds invalid SQL.
   if (ids.length === 0) return [];
 
-  const [rows, adm, cost, out, dl] = await Promise.all([
+  const [rows, adm, cost, out, dl, app] = await Promise.all([
     db.select().from(schools).where(inArray(schools.id, ids)),
     db
       .select()
@@ -172,11 +222,18 @@ export async function getSchoolsByIds(ids: string[]): Promise<SchoolRecord[]> {
       .select()
       .from(schoolDeadlines)
       .where(and(inArray(schoolDeadlines.schoolId, ids), eq(schoolDeadlines.cycle, CURRENT_CYCLE))),
+    db
+      .select()
+      .from(schoolApplications)
+      .where(
+        and(inArray(schoolApplications.schoolId, ids), eq(schoolApplications.cycle, CURRENT_CYCLE)),
+      ),
   ]);
 
   const admBy = new Map(adm.map((r) => [r.schoolId, r]));
   const costBy = new Map(cost.map((r) => [r.schoolId, r]));
   const outBy = new Map(out.map((r) => [r.schoolId, r]));
+  const appBy = new Map(app.map((r) => [r.schoolId, r]));
   const dlBy = new Map<string, DeadlineRow[]>();
   for (const d of dl) {
     const list = dlBy.get(d.schoolId) ?? [];
@@ -185,7 +242,14 @@ export async function getSchoolsByIds(ids: string[]): Promise<SchoolRecord[]> {
   }
 
   return rows.map((r) =>
-    assemble(r, admBy.get(r.id), costBy.get(r.id), outBy.get(r.id), dlBy.get(r.id) ?? []),
+    assemble(
+      r,
+      admBy.get(r.id),
+      costBy.get(r.id),
+      outBy.get(r.id),
+      dlBy.get(r.id) ?? [],
+      appBy.get(r.id),
+    ),
   );
 }
 

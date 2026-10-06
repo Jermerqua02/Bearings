@@ -1,0 +1,1 @@
+ALTER TABLE "school_application" ADD COLUMN "fee_year" text;

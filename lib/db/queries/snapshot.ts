@@ -27,6 +27,7 @@ import {
   getListEntries,
   getRecommenders,
   getStudentProfile,
+  getTranscripts,
   getUniversalProfile,
 } from "@/lib/db/queries/student";
 import { linkedStudentIdFor, type Viewer } from "@/lib/auth/policy";
@@ -45,6 +46,7 @@ import type {
   Profile,
   Recommender,
   School,
+  TranscriptFile,
   UniversalProfile,
   WeeklyCheckIn,
 } from "@/lib/types";
@@ -58,6 +60,8 @@ export interface AppSnapshot {
   aidStatus: AidStatus;
   aidOffers: AidOffer[];
   coursePlan: CoursePlanEntry[];
+  /** Uploaded transcripts, metadata only — the bytes stay on the server. */
+  transcripts: TranscriptFile[];
   activities: Activity[];
   checkIns: WeeklyCheckIn[];
   recentlyViewed: string[];
@@ -119,6 +123,7 @@ function emptySnapshot(role: Role): AppSnapshot {
     aidStatus: { fafsa: "not-started", cssProfile: "not-started" },
     aidOffers: [],
     coursePlan: [],
+    transcripts: [],
     activities: [],
     checkIns: [],
     recentlyViewed: [],
@@ -174,6 +179,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     aidStatusRow,
     aidOfferRows,
     courseRows,
+    transcriptRows,
     activityRows,
     checkInRows,
     viewedRows,
@@ -186,6 +192,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     safe(() => getAidStatus(viewer, studentId), null),
     safe(() => getAidOffers(viewer, studentId), []),
     safe(() => getCoursePlan(viewer, studentId), []),
+    safe(() => getTranscripts(viewer, studentId), []),
     safe(() => getActivities(viewer, studentId), []),
     safe(() => getCheckIns(viewer, studentId), []),
     safe(
@@ -243,6 +250,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     id: r.id,
     name: r.name,
     roleTitle: r.roleTitle,
+    email: r.email,
     type: r.type,
     schoolIds: recLinks.filter((l) => l.recommenderId === r.id).map((l) => l.schoolId),
     status: r.status,
@@ -287,6 +295,22 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     level: c.level,
     status: c.status,
     grade: c.grade ?? undefined,
+    term: c.term ?? undefined,
+    credits: c.credits ?? undefined,
+  }));
+
+  snap.transcripts = transcriptRows.map((t) => ({
+    id: t.id,
+    filename: t.filename,
+    contentType: t.contentType,
+    sizeBytes: t.sizeBytes,
+    uploadedAt: t.createdAt.toISOString(),
+    courseCount: Array.isArray(t.extraction) ? t.extraction.length : null,
+    reportedGpa: {
+      unweighted: t.reportedGpa,
+      weighted: t.reportedGpaWeighted,
+      credits: t.reportedCredits,
+    },
   }));
 
   snap.activities = activityRows.map((a) => ({
@@ -298,6 +322,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     description: a.description,
     yearsInvolved: a.yearsInvolved as GradeLevel[],
     leadership: a.leadership,
+    position: a.position ?? undefined,
   }));
 
   snap.checkIns = checkInRows.map((c) => ({

@@ -27,7 +27,9 @@ export type AiFeature =
   | "why_school"
   | "throughline"
   | "summarize"
-  | "speech";
+  | "speech"
+  | "thread_title"
+  | "transcript";
 
 export interface UsageCounts {
   input_tokens?: number;

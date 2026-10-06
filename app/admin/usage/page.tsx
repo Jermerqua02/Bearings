@@ -38,6 +38,7 @@ const FEATURE_LABEL: Record<string, string> = {
   throughline: "Throughline",
   summarize: "Summarize",
   speech: "Read aloud (Gemini)",
+  transcript: "Transcript reading",
 };
 
 export default async function AdminCostsPage({

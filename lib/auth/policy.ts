@@ -131,6 +131,10 @@ export async function subjectStudentId(viewer: Viewer): Promise<string | null> {
  * universalProfile (DOB, address, parentEducation), activities, and
  * coursePlan — default to private here, which is the safe direction. Aid data
  * is shared because families decide cost together.
+ *
+ * Uploaded transcripts sit with coursePlan, and would be private even if the
+ * plan were shared: the file is a school record with far more on it than
+ * course names.
  */
 export type Resource =
   // shared with a linked parent
@@ -150,6 +154,7 @@ export type Resource =
   | "universalProfile"
   | "activities"
   | "coursePlan"
+  | "transcripts"
   | "checkIns"
   | "preferences";
 

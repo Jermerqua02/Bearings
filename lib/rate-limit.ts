@@ -41,6 +41,9 @@ export const LIMITS: Record<string, Limit> = {
   chat: { max: 120, windowMinutes: 60 },
   essay_feedback: { max: 60, windowMinutes: 60 },
   interview: { max: 60, windowMinutes: 60 },
+  // A transcript is a few hundred KB of input tokens per read, and nobody
+  // has twelve transcripts. Ten an hour covers a re-upload and a retry.
+  transcript: { max: 10, windowMinutes: 60 },
   default: { max: 200, windowMinutes: 60 },
 };
 

@@ -22,6 +22,23 @@ import "server-only";
 import { AuthzError } from "@/lib/auth/policy";
 
 /**
+ * An error whose message was written for the person reading it.
+ *
+ * The default is that a thrown message never crosses the boundary, which is
+ * right for anything a database or an HTTP client produced. But some
+ * failures are ordinary facts about the user's own input — a transcript too
+ * long to read in one pass — and replacing those with "something went
+ * wrong" leaves them with no idea what to do next. Throwing this type is
+ * how a deeper layer says: this sentence is for them.
+ */
+export class UserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UserFacingError";
+  }
+}
+
+/**
  * Log `err` server-side and return the message the user should see.
  *
  * @param tag    Log prefix identifying the call site, e.g. "onboarding".
@@ -34,6 +51,7 @@ export function safeError(tag: string, err: unknown, userMessage: string): strin
 
   // Authored for display, and already free of internals.
   if (err instanceof AuthzError) return err.message;
+  if (err instanceof UserFacingError) return err.message;
 
   return userMessage;
 }

@@ -153,6 +153,7 @@ export async function addRecommenderAction(r: Recommender) {
       studentId: s.userId,
       name: r.name,
       roleTitle: r.roleTitle,
+      email: r.email,
       type: r.type,
       status: r.status,
     })
@@ -168,6 +169,7 @@ export async function updateRecommenderAction(id: string, patch: Partial<Recomme
     .set({
       ...(patch.name !== undefined ? { name: patch.name } : {}),
       ...(patch.roleTitle !== undefined ? { roleTitle: patch.roleTitle } : {}),
+      ...(patch.email !== undefined ? { email: patch.email } : {}),
       ...(patch.type !== undefined ? { type: patch.type } : {}),
       ...(patch.status !== undefined ? { status: patch.status } : {}),
       ...touch,
@@ -301,6 +303,32 @@ export async function updateActivityAction(id: string, patch: Partial<Activity>)
     })
     .where(and(eq(activities.id, id), eq(activities.studentId, s.userId)));
   revalidatePath("/planner");
+}
+
+/**
+ * The student's ranking of their own activities.
+ *
+ * Common App asks for activities in order of significance, and the only
+ * ordering this table had was the order they happened to be typed in. A
+ * packet built from that asserts a ranking the student never made — so the
+ * position is written only when they actually say, and stays null until then.
+ *
+ * Takes the whole ordered list rather than a move: one round trip, and the
+ * result can't drift out of sequence the way per-item swaps can.
+ */
+export async function reorderActivitiesAction(ids: string[]) {
+  const s = await requireStudent();
+  if (ids.length === 0) return;
+  await Promise.all(
+    ids.map((id, i) =>
+      db
+        .update(activities)
+        .set({ position: i + 1, ...touch })
+        .where(and(eq(activities.id, id), eq(activities.studentId, s.userId))),
+    ),
+  );
+  revalidatePath("/planner");
+  revalidatePath("/apply");
 }
 
 export async function removeActivityAction(id: string) {

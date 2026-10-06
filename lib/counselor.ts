@@ -9,6 +9,8 @@
 
 import type {
   ChanceTier,
+  ExtractedCourse,
+  ReportedGpa,
   Profile,
   School,
   StudentProfile,
@@ -54,6 +56,12 @@ export interface CounselorRequest {
     screen?: string;
     /** The student's current list, rendered for the model. Server-supplied. */
     listSummary?: string;
+    /**
+     * Their course plan — transcript-read or hand-entered — with computed
+     * GPA and rigor. Server-supplied, and the reason a recommendation can
+     * name the actual courses they've taken.
+     */
+    courseworkSummary?: string;
   };
   history: CounselorMessage[];
 }
@@ -74,6 +82,31 @@ export interface InterviewFeedback {
   strengths: string[];
   toWorkOn: string[];
   followUp: string;
+}
+
+/**
+ * What the model read off an uploaded transcript.
+ *
+ * `notes` is where it says what it couldn't read — a smudged column, a
+ * grading scale it didn't recognise, a page that was clearly a second
+ * school. That belongs in front of the student rather than in a log,
+ * because they are the only one who can tell whether it matters.
+ */
+export interface TranscriptReading {
+  courses: ExtractedCourse[];
+  /** Caveats about the reading, in the student's language. */
+  notes: string[];
+  /** False when the file doesn't look like a transcript at all. */
+  looksLikeTranscript: boolean;
+  /**
+   * The cumulative GPA printed on the document, if it prints one.
+   *
+   * Read rather than recomputed, and shown in preference to anything we
+   * calculate. A school's own GPA follows rules we cannot reconstruct from
+   * a course list, and disagreeing with the counselor's number is worse
+   * than showing no number at all.
+   */
+  reportedGpa: ReportedGpa;
 }
 
 export interface CounselorService {
@@ -97,6 +130,45 @@ export interface CounselorService {
     question: string,
     answer: string
   ): Promise<InterviewFeedback>;
+  /**
+   * A short name for a conversation, from how it opened.
+   *
+   * Every thread was called "New conversation", so a student's history was
+   * seven identical rows and the only way to find anything was to open each
+   * one. Deliberately not part of `chat` — a title is worth a small separate
+   * call rather than complicating the reply the student is waiting for.
+   */
+  titleFor(firstMessage: string, reply: string): Promise<string>;
+  /**
+   * Read an uploaded transcript into course rows.
+   *
+   * Takes raw bytes rather than text: a transcript is a PDF or a photo, and
+   * extracting text from it first would throw away the table structure that
+   * makes the columns legible in the first place.
+   */
+  readTranscript(file: {
+    bytes: Buffer;
+    contentType: string;
+    filename: string;
+  }): Promise<TranscriptReading>;
+}
+
+/**
+ * A usable title without a model call.
+ *
+ * Used when the AI title fails or comes back unusable, on the principle
+ * already established for onboarding summaries: the feature has a floor that
+ * does not depend on an API being up. The student's own first sentence is a
+ * decent name for a conversation — it is what they came to ask.
+ */
+export function localTitle(firstMessage: string): string {
+  const cleaned = firstMessage.replace(/\s+/g, " ").trim();
+  if (!cleaned) return "New conversation";
+  // First sentence if it's a reasonable length, otherwise a clean word break.
+  const sentence = cleaned.split(/(?<=[.?!])\s/)[0];
+  const base = sentence.length <= 48 ? sentence : cleaned;
+  if (base.length <= 48) return base.replace(/[.?!]+$/, "");
+  return `${base.slice(0, 45).replace(/\s+\S*$/, "")}…`;
 }
 
 /* ————————————— Mock implementation ————————————— */
@@ -265,6 +337,29 @@ const mockCounselor: CounselorService = {
     } and your preference for a ${profile.campus.settings[0] ?? "college-town"} setting, ${
       school.shortName
     } hits an unusual combination: ${school.academics.notablePrograms[0]}, and a culture that students describe as "${school.life.vibe.toLowerCase()}"`;
+  },
+
+  async titleFor(firstMessage) {
+    await delay(200);
+    return localTitle(firstMessage);
+  },
+
+  /*
+    The mock cannot read a file, and pretending otherwise would be worse
+    than admitting it — a plausible invented course list is exactly the
+    kind of thing a student would accept without checking. So it returns
+    nothing found, with a note saying why.
+  */
+  async readTranscript(file) {
+    await delay(600);
+    return {
+      courses: [],
+      notes: [
+        `Transcript reading isn't available in this environment, so ${file.filename} was stored but not read. You can still add courses by hand below.`,
+      ],
+      looksLikeTranscript: true,
+      reportedGpa: { unweighted: null, weighted: null, credits: null },
+    };
   },
 };
 

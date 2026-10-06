@@ -17,14 +17,17 @@ import SectionLabel from "@/components/ui/SectionLabel";
 import TierBadge from "@/components/ui/TierBadge";
 import {
   counselor,
+  localTitle,
   type CounselorCard,
   type CounselorMessage,
 } from "@/lib/counselor";
 import {
   chatAction,
   createThreadAction,
+  deleteThreadAction,
   greetAction,
   listThreadsAction,
+  renameThreadAction,
 } from "@/lib/actions/counselor";
 import { formatDollars, formatRate, formatThousands } from "@/lib/format";
 import { useApp } from "@/lib/profile-context";
@@ -288,6 +291,11 @@ function CounselorInner() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const startedRef = useRef(false);
   const startingRef = useRef(false);
+  const [menuFor, setMenuFor] = useState<string | null>(null);
+  /* Delete/rename roll back on failure, so they need the list as it was —
+     read from a ref rather than closing over a stale render's copy. */
+  const threadsRef = useRef<Thread[]>([]);
+  threadsRef.current = threads;
 
   const active = threads.find((t) => t.id === activeId) ?? null;
 
@@ -335,6 +343,41 @@ function CounselorInner() {
     }
   }, [profile, contextSchool]);
 
+  /*
+    Delete and rename.
+
+    Optimistic, because both are instant on the server and waiting turns a
+    one-click action into a pause the student reads as a hang — the same
+    problem that made "New conversation" get clicked four times.
+  */
+  const removeThread = useCallback(async (id: string, title: string) => {
+    if (!window.confirm(`Delete "${title}"? This can't be undone.`)) return;
+    const snapshot = threadsRef.current;
+    setThreads((prev) => prev.filter((t) => t.id !== id));
+    setActiveId((cur) => {
+      if (cur !== id) return cur;
+      const rest = snapshot.filter((t) => t.id !== id);
+      return rest.length ? rest[rest.length - 1].id : null;
+    });
+    try {
+      await deleteThreadAction(id);
+    } catch (err) {
+      console.error("[counselor] could not delete:", err);
+      setThreads(snapshot);
+    }
+  }, []);
+
+  const rename = useCallback(async (id: string, title: string) => {
+    const snapshot = threadsRef.current;
+    setThreads((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+    try {
+      await renameThreadAction(id, title);
+    } catch (err) {
+      console.error("[counselor] could not rename:", err);
+      setThreads(snapshot);
+    }
+  }, []);
+
   useEffect(() => {
     if (!startedRef.current && profile) {
       startedRef.current = true;
@@ -373,10 +416,9 @@ function CounselorInner() {
         t.id === active.id
           ? {
               ...t,
-              title:
-                t.messages.length <= 1
-                  ? text.trim().slice(0, 40)
-                  : t.title,
+              // A readable placeholder the instant they press send; the
+              // generated title replaces it when the reply lands.
+              title: t.messages.length <= 1 ? localTitle(text) : t.title,
               messages: [...t.messages, userMsg],
             }
           : t
@@ -386,7 +428,7 @@ function CounselorInner() {
     setBusy(true);
     // No profile and no history on the wire — the server reads both from
     // the session and the database.
-    const reply = await chatAction({
+    const { message: reply, title } = await chatAction({
       threadId: active.id,
       message: text.trim(),
       context: contextSchool ? { schoolId: contextSchool.id } : undefined,
@@ -394,7 +436,7 @@ function CounselorInner() {
     setThreads((prev) =>
       prev.map((t) =>
         t.id === active.id
-          ? { ...t, messages: [...t.messages, reply] }
+          ? { ...t, title: title ?? t.title, messages: [...t.messages, reply] }
           : t
       )
     );
@@ -424,17 +466,58 @@ function CounselorInner() {
         </button>
         <SectionLabel className="px-3 mb-1">Past conversations</SectionLabel>
         {threads.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveId(t.id)}
-            className={`text-left px-3 py-2 rounded-[3px] text-[0.88rem] truncate transition-quiet ${
-              t.id === activeId
-                ? "bg-fill text-ink"
-                : "text-gray-strong hover:bg-fill"
-            }`}
-          >
-            {t.title}
-          </button>
+          <div key={t.id} className="group relative flex items-center">
+            <button
+              onClick={() => setActiveId(t.id)}
+              className={`flex-1 min-w-0 text-left pl-3 pr-8 py-2 rounded-[3px] text-[0.88rem] truncate transition-quiet ${
+                t.id === activeId ? "bg-fill text-ink" : "text-gray-strong hover:bg-fill"
+              }`}
+            >
+              {t.title}
+            </button>
+            {/*
+              Shown on hover on a pointer device, but always present for
+              keyboard and touch — `opacity-0` alone would leave it reachable
+              by tab and invisible, and unreachable entirely by touch.
+            */}
+            <button
+              onClick={() => setMenuFor(menuFor === t.id ? null : t.id)}
+              aria-label={`Actions for ${t.title}`}
+              aria-expanded={menuFor === t.id}
+              className={`absolute right-1 px-1.5 h-7 rounded-[3px] text-gray-mid hover:text-ink hover:bg-surface transition-quiet
+                ${menuFor === t.id ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 lg:opacity-0"}`}
+            >
+              ···
+            </button>
+            {menuFor === t.id && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full mt-1 z-20 w-40 bg-surface border border-hairline rounded-[3px] shadow-sm py-1"
+              >
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    const next = window.prompt("Rename this conversation", t.title);
+                    setMenuFor(null);
+                    if (next && next.trim() && next !== t.title) void rename(t.id, next.trim());
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[0.85rem] hover:bg-fill"
+                >
+                  Rename
+                </button>
+                <button
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuFor(null);
+                    void removeThread(t.id, t.title);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-[0.85rem] !text-reach hover:bg-fill"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         ))}
         <div className="mt-auto pt-3">
           <button

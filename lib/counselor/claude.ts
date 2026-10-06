@@ -20,10 +20,20 @@ import type {
   CounselorService,
   EssayFeedback,
   InterviewFeedback,
+  TranscriptReading,
 } from "@/lib/counselor";
-import type { Profile, School, StudentProfile, Throughline } from "@/lib/types";
+import { localTitle } from "@/lib/counselor";
+import type {
+  CoursePlanEntry,
+  ExtractedCourse,
+  Profile,
+  School,
+  StudentProfile,
+  Throughline,
+} from "@/lib/types";
 import { chatSystemPrompt, RENDER_CARDS_TOOL, schoolContextNote } from "./prompt";
 import { enforceNeverWrites } from "./guardrails";
+import { UserFacingError } from "@/lib/actions/_error";
 import { recordUsage, type AiFeature, type UsageCounts } from "./usage";
 
 const MODEL = "claude-opus-5";
@@ -138,14 +148,26 @@ function parseJson<T>(text: string): T {
  */
 async function askJson<T>(
   system: string,
-  userText: string,
+  /**
+   * The user turn. A plain string for text-only asks; an array of content
+   * blocks when the ask carries a document or an image.
+   */
+  userContent: string | Anthropic.ContentBlockParam[],
   schema: Record<string, unknown>,
   maxTokens = 1024,
 ): Promise<{ data: T; usage: UsageCounts }> {
+  // The SDK path checks this in anthropic(); the raw-HTTP path used to send
+  // `x-api-key: undefined` and surface a 401 instead of the missing key.
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is not set. Add it to .env.local — see .env.example.",
+    );
+  }
+
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
@@ -155,7 +177,7 @@ async function askJson<T>(
       system,
       thinking: { type: "adaptive" },
       output_config: { effort: "medium", format: { type: "json_schema", schema } },
-      messages: [{ role: "user", content: userText }],
+      messages: [{ role: "user", content: userContent }],
     }),
   });
 
@@ -177,6 +199,219 @@ async function askJson<T>(
   return { data: parseJson<T>(text), usage: json.usage };
 }
 
+/**
+ * The same ask, streamed.
+ *
+ * Needed once an answer can get long. A real four-year transcript is fifty
+ * courses, and the first version of this asked for all of them inside an
+ * 8,000-token budget that thinking also draws on. The JSON came back cut off
+ * mid-array — which surfaced as a JSON parse error, the least informative
+ * possible symptom of "the budget was too small".
+ *
+ * Streaming is what makes a large budget usable: a non-streaming request
+ * holding one HTTP connection open for a 32,000-token answer runs into
+ * client and proxy timeouts long before the model is done.
+ */
+async function askJsonStreamed<T>(
+  system: string,
+  userContent: string | Anthropic.ContentBlockParam[],
+  schema: Record<string, unknown>,
+  maxTokens: number,
+): Promise<{ data: T; usage: UsageCounts; truncated: boolean }> {
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error(
+      "ANTHROPIC_API_KEY is not set. Add it to .env.local — see .env.example.",
+    );
+  }
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": process.env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system,
+      thinking: { type: "adaptive" },
+      output_config: { effort: "medium", format: { type: "json_schema", schema } },
+      stream: true,
+      messages: [{ role: "user", content: userContent }],
+    }),
+  });
+
+  if (!res.ok || !res.body) {
+    throw new Error(`Anthropic API ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
+
+  let text = "";
+  let stopReason = "";
+  const usage: UsageCounts = {};
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by a blank line, and a chunk boundary can
+    // land mid-frame — so only complete frames are consumed each pass.
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop() ?? "";
+
+    for (const frame of frames) {
+      const line = frame.split("\n").find((l) => l.startsWith("data:"));
+      if (!line) continue;
+
+      let event: {
+        type: string;
+        delta?: { type?: string; text?: string; stop_reason?: string };
+        message?: { usage?: UsageCounts };
+        usage?: UsageCounts;
+      };
+      try {
+        event = JSON.parse(line.slice(5).trim());
+      } catch {
+        continue;
+      }
+
+      if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+        text += event.delta.text ?? "";
+      } else if (event.type === "message_start") {
+        Object.assign(usage, event.message?.usage ?? {});
+      } else if (event.type === "message_delta") {
+        // Carries the final output_tokens and the stop reason.
+        Object.assign(usage, event.usage ?? {});
+        stopReason = event.delta?.stop_reason ?? stopReason;
+      } else if (event.type === "error") {
+        throw new Error(`Anthropic stream error: ${line.slice(5, 205)}`);
+      }
+    }
+  }
+
+  /*
+    Truncation is reported rather than parsed. Half a JSON array is not a
+    smaller answer, it is a broken one, and the caller needs to be able to
+    tell the student "your transcript was longer than one pass" instead of
+    showing them a parse error.
+  */
+  if (stopReason === "max_tokens") {
+    return { data: undefined as T, usage, truncated: true };
+  }
+  if (!text.trim()) {
+    throw new Error(`Empty response (stop_reason: ${stopReason || "unknown"}).`);
+  }
+
+  return { data: parseJson<T>(text), usage, truncated: false };
+}
+
+/* ————————————— Transcript reading ————————————— */
+
+/** Must match CoursePlanEntry["subject"] — the DB enum rejects anything else. */
+const SUBJECTS: CoursePlanEntry["subject"][] = [
+  "English",
+  "Math",
+  "Science",
+  "Social Studies",
+  "Language",
+  "Arts",
+  "Elective",
+];
+
+/** Formats Claude can read directly. Anything else is refused at upload. */
+export const TRANSCRIPT_MEDIA_TYPES = [
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+] as const;
+
+/**
+ * A PDF goes in a `document` block and a photo in an `image` block. Sending
+ * one as the other is a 400, and a student photographing their transcript
+ * with a phone is at least as likely as exporting a PDF.
+ */
+function documentBlockFor(file: {
+  bytes: Buffer;
+  contentType: string;
+}): Anthropic.ContentBlockParam {
+  const data = file.bytes.toString("base64");
+  if (file.contentType === "application/pdf") {
+    return {
+      type: "document",
+      source: { type: "base64", media_type: "application/pdf", data },
+    };
+  }
+  return {
+    type: "image",
+    source: {
+      type: "base64",
+      media_type: file.contentType as "image/png" | "image/jpeg" | "image/webp",
+      data,
+    },
+  };
+}
+
+/*
+  The one instruction that matters here is the last one: transcribe, don't
+  infer. Everything else on this page is data the student typed themselves;
+  this is the one place where a model writes into their academic record, and
+  a plausible invented course is far worse than a missing one — they will
+  scan the list, see nothing obviously wrong, and accept it.
+*/
+const TRANSCRIPT_SYSTEM = `You read high school transcripts and transcribe the coursework they list.
+
+For every course on the document, report:
+- year: the grade level the course was taken in (9, 10, 11 or 12). Transcripts
+  label this in different ways — "Grade 10", "Sophomore", "2023-2024" next to a
+  class year, a section header. Work it out from the document. If a course
+  cannot be tied to a grade level, leave it out and say so in notes.
+- subject: exactly one of English, Math, Science, Social Studies, Language,
+  Arts, Elective. "Language" means world/foreign language. Anything that fits
+  none of the others is Elective.
+- name: the course title as printed, cleaned of catalog codes.
+- level: "ap" for Advanced Placement, "ib" for International Baccalaureate,
+  "honors" for honors/advanced/accelerated, otherwise "regular".
+- grade: the letter grade as printed (A, B+, C-). If the transcript shows a
+  number, convert on the standard scale and say in notes that you did. Null
+  for a course in progress or with no grade shown.
+- term and credits: as printed, or null. Term matters — transcripts are
+  organised by grading period, so a year-long course appears once per
+  semester or quarter with a different grade each time. Those are separate
+  rows, not duplicates: report each one, and put the period in "term"
+  ("S1", "06/2022", "Quarter 3") so the student can tell them apart.
+- credits: the credit value earned for that row, as printed (0.5, 1.0,
+  0.875). GPA is credit-weighted, so this is not decoration.
+
+Report the cumulative GPA the transcript prints for itself in reportedGpa —
+unweighted, weighted, and the total credits it was computed over. Read these
+figures off the document; never compute them yourself, and never estimate.
+Transcripts label them variously: "Cum:", "Cumulative G.P.A.", "Weighted
+GPA", or an unlabelled figure at the foot of a totals row. If the document
+prints no GPA, all three are null.
+
+Courses taken before grade 9 — high school credit earned in middle school,
+which transcripts do list — must NOT be assigned a grade level of 9. Leave
+them out of courses and say in notes which ones they were and what grade
+level they were taken in.
+
+Set looksLikeTranscript to false if the document is not an academic transcript,
+and return no courses.
+
+Use notes for anything the student should check: an illegible section, a
+grading scale you converted, a page that appears to be from another school, a
+course you skipped and why. Write them as short plain sentences to the student.
+
+Transcribe only what the document shows. Never infer, complete, or tidy a
+course list — if you cannot read something, say so in notes rather than
+supplying a likely value. A missing course is a small problem; an invented one
+is a serious one, because it ends up in their record looking confirmed.`;
+
 export function createClaudeCounselor(deps: {
   /** Valid school ids, for pruning hallucinated references. */
   knownSchoolIds: () => Promise<Set<string>>;
@@ -191,6 +426,7 @@ export function createClaudeCounselor(deps: {
     async chat(req: CounselorRequest): Promise<CounselorResponse> {
       const contextNote = [
         req.context?.listSummary ?? "",
+        req.context?.courseworkSummary ?? "",
         req.context?.screen
           ? `The student opened this chat from the ${req.context.screen} screen.`
           : "",
@@ -311,6 +547,53 @@ This is self-understanding, not positioning. Never compare them to other applica
       return textOf(res.content);
     },
 
+    async titleFor(firstMessage: string, reply: string): Promise<string> {
+      /*
+        Haiku, not the counselor's model, and deliberately.
+
+        A title is a labelling job, not counsel, and it sits between the
+        student pressing send and seeing their history update — so it should
+        be fast and cheap. It also sidesteps a trap that has already cost
+        time here: Opus with adaptive thinking and a small token budget
+        spends the budget thinking and returns empty text rather than an
+        error, which would silently leave every thread untitled again.
+      */
+      try {
+        const res = await anthropic().messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 32,
+          system: [
+            {
+              type: "text",
+              text:
+                "You name conversations between a high school student and their college counsellor. " +
+                "Reply with a title of at most six words that says what the student is trying to work out. " +
+                "No quotation marks, no trailing punctuation, no preamble. " +
+                'Write it as a topic, not a sentence: "Balancing my list" not "The student wants to balance their list".',
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: `Student asked:\n${firstMessage.slice(0, 600)}\n\nCounsellor replied:\n${reply.slice(0, 600)}`,
+            },
+          ],
+        });
+        const raw = textOf(res.content).trim();
+        meter("thread_title", res.usage as UsageCounts);
+
+        // A model that ignores the brief must not produce a worse title than
+        // the student's own words would have.
+        const cleaned = raw.replace(/^["'\s]+|["'.\s]+$/g, "").replace(/\s+/g, " ");
+        if (!cleaned || cleaned.length > 60 || cleaned.split(" ").length > 8) {
+          return localTitle(firstMessage);
+        }
+        return cleaned;
+      } catch {
+        return localTitle(firstMessage);
+      }
+    },
+
     async essayFeedback(
       profile: StudentProfile,
       promptText: string,
@@ -405,6 +688,108 @@ followUp.`,
       );
       meter("interview", usage);
       return turn;
+    },
+
+    async readTranscript(file): Promise<TranscriptReading> {
+      const schema = {
+        type: "object",
+        additionalProperties: false,
+        required: ["looksLikeTranscript", "courses", "notes", "reportedGpa"],
+        properties: {
+          looksLikeTranscript: { type: "boolean" },
+          // Read off the document, never computed. See TRANSCRIPT_SYSTEM.
+          reportedGpa: {
+            type: "object",
+            additionalProperties: false,
+            required: ["unweighted", "weighted", "credits"],
+            properties: {
+              unweighted: { anyOf: [{ type: "number" }, { type: "null" }] },
+              weighted: { anyOf: [{ type: "number" }, { type: "null" }] },
+              credits: { anyOf: [{ type: "number" }, { type: "null" }] },
+            },
+          },
+          courses: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["year", "subject", "name", "level", "grade", "term", "credits"],
+              properties: {
+                year: { type: "integer", enum: [9, 10, 11, 12] },
+                subject: { type: "string", enum: SUBJECTS },
+                name: { type: "string" },
+                level: { type: "string", enum: ["regular", "honors", "ap", "ib"] },
+                // Nullable rather than absent: structured output enforces
+                // `required`, and a course in progress genuinely has no grade.
+                grade: { anyOf: [{ type: "string" }, { type: "null" }] },
+                term: { anyOf: [{ type: "string" }, { type: "null" }] },
+                credits: { anyOf: [{ type: "number" }, { type: "null" }] },
+              },
+            },
+          },
+          notes: { type: "array", items: { type: "string" } },
+        },
+      };
+
+      const { data, usage, truncated } = await askJsonStreamed<{
+        looksLikeTranscript: boolean;
+        reportedGpa: {
+          unweighted: number | null;
+          weighted: number | null;
+          credits: number | null;
+        } | null;
+        courses: (Omit<ExtractedCourse, "grade" | "term" | "credits"> & {
+          grade: string | null;
+          term: string | null;
+          credits: number | null;
+        })[];
+        notes: string[];
+      }>(
+        TRANSCRIPT_SYSTEM,
+        [
+          documentBlockFor(file),
+          {
+            type: "text",
+            text: `This is a high school transcript uploaded by the student (filename: ${file.filename}). Read every course it lists.`,
+          },
+        ],
+        schema,
+        /*
+          Sized for the worst realistic case, not the average one: a
+          four-year transcript with fifty courses is ~7,000 tokens of JSON,
+          and thinking draws on the same budget. The first version allowed
+          8,000 and cut a real transcript off mid-array.
+        */
+        32000,
+      );
+      meter("transcript", usage);
+
+      if (truncated) {
+        throw new UserFacingError(
+          "That transcript was longer than we could read in one pass. Try uploading it a page or a year at a time.",
+        );
+      }
+
+      return {
+        looksLikeTranscript: data.looksLikeTranscript,
+        reportedGpa: {
+          unweighted: data.reportedGpa?.unweighted ?? null,
+          weighted: data.reportedGpa?.weighted ?? null,
+          credits: data.reportedGpa?.credits ?? null,
+        },
+        notes: (data.notes ?? []).filter((n) => n.trim().length > 0),
+        courses: (data.courses ?? [])
+          .filter((c) => c.name?.trim())
+          .map((c) => ({
+            year: c.year,
+            subject: c.subject,
+            name: c.name.trim(),
+            level: c.level,
+            ...(c.grade ? { grade: c.grade.trim() } : {}),
+            ...(c.term ? { term: c.term.trim() } : {}),
+            ...(c.credits != null ? { credits: c.credits } : {}),
+          })),
+      };
     },
   };
 }
