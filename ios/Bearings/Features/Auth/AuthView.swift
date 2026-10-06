@@ -39,6 +39,15 @@ struct AuthView: View {
                     Text(error).font(.system(size: 15)).foregroundStyle(Color.ink)
                 }
 
+                if !creating {
+                    // The reset flow lives on the web: the emailed link opens
+                    // there, and the new password works here straight away.
+                    Link("Forgot password?",
+                         destination: Config.apiBaseURL.appending(path: "forgot-password"))
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.accent)
+                }
+
                 Button(action: submit) {
                     if busy { ProgressView().tint(.white) } else { Text(creating ? "Create account" : "Sign in") }
                 }
