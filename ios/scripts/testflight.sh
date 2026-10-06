@@ -19,16 +19,19 @@ KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$(mktemp -d)"
-# Every upload needs a build number App Store Connect hasn't seen; a
-# timestamp is always larger than the last one without tracking state.
-BUILD="$(date +%Y%m%d%H%M)"
+# Version comes from the project (MARKETING_VERSION); the build number is
+# the next one App Store Connect hasn't seen for that version — 1, 2, 3…
+# Pass a number as the first argument to override.
+VERSION="$(xcodebuild -project "$HERE/Bearings.xcodeproj" -scheme Bearings -configuration Release \
+  -showBuildSettings 2>/dev/null | awk -F' = ' '/ MARKETING_VERSION /{print $2; exit}' | tr -d ' ')"
+BUILD="${1:-$(node "$HERE/scripts/asc.mjs" next-build "$VERSION")}"
 
 AUTH="-allowProvisioningUpdates \
   -authenticationKeyPath $KEY_PATH \
   -authenticationKeyID $KEY_ID \
   -authenticationKeyIssuerID $ISSUER_ID"
 
-echo "→ Archiving build $BUILD"
+echo "→ Archiving version $VERSION, build $BUILD"
 # shellcheck disable=SC2086
 xcodebuild -project "$HERE/Bearings.xcodeproj" -scheme Bearings -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$OUT/Bearings.xcarchive" \
@@ -39,4 +42,5 @@ echo "→ Uploading to App Store Connect"
 xcodebuild -exportArchive -archivePath "$OUT/Bearings.xcarchive" \
   -exportOptionsPlist "$HERE/scripts/ExportOptions.plist" -exportPath "$OUT/export" $AUTH
 
-echo "✓ Uploaded build $BUILD. It appears in TestFlight after processing (usually 5–15 min)."
+echo "✓ Uploaded $VERSION ($BUILD). Processing usually takes 5–15 min; check with:"
+echo "    node $HERE/scripts/asc.mjs status $VERSION $BUILD"

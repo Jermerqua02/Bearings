@@ -38,8 +38,9 @@ check, which a native request can't pass.
 
     ios/scripts/testflight.sh
 
-Archives Release (which talks to production), stamps a timestamp build
-number, signs for Prompt LLC (team 3AM9B6VP52) and uploads, using the App
+Archives Release (which talks to production), numbers the build 1, 2, 3…
+within MARKETING_VERSION by asking App Store Connect for the last one
+(`scripts/asc.mjs`; bump MARKETING_VERSION to start a new version at 1), signs for Prompt LLC (team 3AM9B6VP52) and uploads, using the App
 Store Connect API key in `~/.appstoreconnect/private_keys/`. Deploy the
 server first if the build needs new API routes.
 
