@@ -36,7 +36,7 @@ check, which a native request can't pass.
 
 ## TestFlight
 
-    ASC_ISSUER_ID=<issuer id> ios/scripts/testflight.sh
+    ios/scripts/testflight.sh
 
 Archives Release (which talks to production), stamps a timestamp build
 number, signs for Prompt LLC (team 3AM9B6VP52) and uploads, using the App

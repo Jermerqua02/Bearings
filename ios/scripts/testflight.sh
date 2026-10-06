@@ -1,7 +1,7 @@
 #!/bin/sh
 # Archive a Release build and upload it to TestFlight.
 #
-#   ASC_ISSUER_ID=<issuer id> ios/scripts/testflight.sh
+#   ios/scripts/testflight.sh
 #
 # Release builds talk to production, so deploy the server first if this
 # build depends on API changes (see the railway-* notes: `railway up`, then
@@ -12,7 +12,9 @@
 set -eu
 
 KEY_ID="${ASC_KEY_ID:-HU8FQ57PS3}"
-ISSUER_ID="${ASC_ISSUER_ID:?Set ASC_ISSUER_ID — App Store Connect → Users and Access → Integrations}"
+# Prompt LLC's team key. The issuer id identifies the team, not a secret;
+# the .p8 is the secret, and it stays in ~/.appstoreconnect.
+ISSUER_ID="${ASC_ISSUER_ID:-69a6de70-07e3-47e3-e053-5b8c7c11a4d1}"
 KEY_PATH="${ASC_KEY_PATH:-$HOME/.appstoreconnect/private_keys/AuthKey_$KEY_ID.p8}"
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
