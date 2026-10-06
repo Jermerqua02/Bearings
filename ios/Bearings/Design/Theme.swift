@@ -1,0 +1,60 @@
+import SwiftUI
+
+/*
+  The tokens from app/globals.css. Swiss / editorial: near-white paper,
+  near-black ink, grays doing the work, one accent (deep ink blue).
+  Type is the system face rather than Inter — on iOS, SF is what reads as
+  native, and the editorial feel comes from weight and tracking, not the
+  font file.
+*/
+
+extension Color {
+    init(hex: UInt32) {
+        self.init(.sRGB,
+                  red: Double((hex >> 16) & 0xFF) / 255,
+                  green: Double((hex >> 8) & 0xFF) / 255,
+                  blue: Double(hex & 0xFF) / 255)
+    }
+
+    static let paper = Color(hex: 0xFAFAFA)
+    static let surface = Color.white
+    static let ink = Color(hex: 0x111111)
+    static let grayStrong = Color(hex: 0x6B6B6B)
+    static let grayMid = Color(hex: 0x9A9A9A)
+    static let hairline = Color(hex: 0xE5E5E5)
+    static let fill = Color(hex: 0xF1F1F0)
+
+    // `.accent` (#1B3A6B) is generated from AccentColor in the asset catalog.
+    static let accentSoft = Color(hex: 0xEEF2F8)
+
+    // Chance tiers — muted, non-alarming. Never traffic lights.
+    static let reach = Color(hex: 0x6E7B8C)
+    static let reachSoft = Color(hex: 0xEEF1F4)
+    static let target = Color(hex: 0x5F7D64)
+    static let targetSoft = Color(hex: 0xEEF3EF)
+    static let likely = Color(hex: 0xA08653)
+    static let likelySoft = Color(hex: 0xF6F1E7)
+}
+
+extension ChanceTier {
+    var color: Color {
+        switch self {
+        case .reach: .reach
+        case .target: .target
+        case .likely: .likely
+        }
+    }
+
+    var softColor: Color {
+        switch self {
+        case .reach: .reachSoft
+        case .target: .targetSoft
+        case .likely: .likelySoft
+        }
+    }
+}
+
+extension Font {
+    static let headline1 = Font.system(size: 30, weight: .semibold).leading(.tight)
+    static let body17 = Font.system(size: 17)
+}

@@ -9,6 +9,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { nextCookies } from "better-auth/next-js";
+import { bearer } from "better-auth/plugins";
 import { db } from "@/lib/db";
 import { accounts, sessions, users, verifications } from "@/lib/db/schema";
 import { passwordResetEmail, sendEmail } from "@/lib/email";
@@ -87,8 +88,16 @@ export const auth = betterAuth({
     },
   },
 
-  // Must be last: lets server actions set auth cookies.
-  plugins: [nextCookies()],
+  plugins: [
+    // The iOS app has no cookie jar it can trust across launches; it holds
+    // the session token in the Keychain and sends it as a bearer header.
+    // Sign-in answers with `set-auth-token`, and every auth.api.getSession
+    // call — so requireViewer() and the whole policy layer — accepts the
+    // header exactly as it accepts the cookie. Same session, same expiry.
+    bearer(),
+    // Must be last: lets server actions set auth cookies.
+    nextCookies(),
+  ],
 });
 
 export type Auth = typeof auth;

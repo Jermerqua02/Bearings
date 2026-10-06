@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Where the API lives. Set per configuration in the project:
+	     Debug talks to `npm run dev` on localhost, Release to production. -->
+	<key>BearingsAPIBaseURL</key>
+	<string>$(BEARINGS_API_BASE_URL)</string>
+	<!-- Plain HTTP only to localhost, for the dev server. Everything else
+	     stays on App Transport Security's defaults. -->
+	<!-- HTTPS only, no custom crypto: exempt from export documentation, so
+	     TestFlight doesn't ask the compliance question on every build. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>
