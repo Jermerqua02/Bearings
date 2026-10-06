@@ -33,3 +33,15 @@ Better Auth's bearer plugin. Sign-in returns `set-auth-token`; the app
 stores it in the Keychain and sends `Authorization: Bearer`. Cookies are off
 in the URLSession on purpose — a cookie would trigger Better Auth's origin
 check, which a native request can't pass.
+
+## TestFlight
+
+    ASC_ISSUER_ID=<issuer id> ios/scripts/testflight.sh
+
+Archives Release (which talks to production), stamps a timestamp build
+number, signs for Prompt LLC (team 3AM9B6VP52) and uploads, using the App
+Store Connect API key in `~/.appstoreconnect/private_keys/`. Deploy the
+server first if the build needs new API routes.
+
+The app icon is a placeholder (a compass needle on the accent blue),
+generated rather than designed. Replace `AppIcon.png` before launch.

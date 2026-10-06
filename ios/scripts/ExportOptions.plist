@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>app-store-connect</string>
+	<!-- Export straight to App Store Connect; it lands in TestFlight. -->
+	<key>destination</key>
+	<string>upload</string>
+	<key>teamID</key>
+	<string>3AM9B6VP52</string>
+	<key>signingStyle</key>
+	<string>automatic</string>
+	<!-- The script stamps the build number itself. -->
+	<key>manageAppVersionAndBuildNumber</key>
+	<false/>
+</dict>
+</plist>
