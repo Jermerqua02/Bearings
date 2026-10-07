@@ -16,7 +16,7 @@ extension Color {
                   blue: Double(hex & 0xFF) / 255)
     }
 
-    static let paper = Color(hex: 0xFAFAFA)
+    static let paper = Color(hex: 0xF5F6F4)
     static let surface = Color.white
     static let ink = Color(hex: 0x111111)
     static let grayStrong = Color(hex: 0x6B6B6B)
@@ -25,6 +25,23 @@ extension Color {
     static let fill = Color(hex: 0xF1F1F0)
 
     // `.accent` (#1B3A6B) is generated from AccentColor in the asset catalog.
+
+    /*
+      Surfaces that say what kind of content sits on them — the idea taken
+      from the RentEase reference. Sections are told apart by tint, not by
+      hairlines:
+        lavender   — the counselor speaking (why it fits, nudges, picks)
+        mist       — facts and figures about a school or the student
+        surface    — something to act on (an application, a course)
+        highlight  — the one thing that matters most on a screen; used
+                     sparingly or it stops meaning anything
+    */
+    static let mist = Color(hex: 0xE3EBE8)
+    static let mistStrong = Color(hex: 0xC6D6D2)
+    static let lavender = Color(hex: 0xE9E6F5)
+    static let lavenderStrong = Color(hex: 0xCFC9EA)
+    static let highlight = Color(hex: 0xEEF27A)
+    static let highlightSoft = Color(hex: 0xF6F8C8)
     static let accentSoft = Color(hex: 0xEEF2F8)
 
     // Chance tiers — muted, non-alarming. Never traffic lights.

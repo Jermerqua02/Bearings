@@ -86,75 +86,75 @@ private struct StudentHome: View {
 
         CheckInCard(checkIns: snapshot.checkIns)
 
-        CardView {
-            SectionLabel("Next deadlines")
-            let deadlines = Match.deadlines(for: snapshot.list, schools: model.school, limit: 3)
-            if deadlines.isEmpty {
-                let early = profile.gradeLevel <= 11 // build or explore mode
-                Text("None on the clock. \(early ? "Exactly right for where you are." : "Check your list's plans.")")
-                    .foregroundStyle(Color.grayStrong)
-            } else {
-                ForEach(deadlines) { DeadlineRow(deadline: $0) }
-            }
+        let deadlines = Match.deadlines(for: snapshot.list, schools: model.school, limit: 3)
+        let next = deadlines.first
+        TileRow {
+            StatTile(label: next.map { "Days until \($0.label)" } ?? "Nothing due yet",
+                     value: next.map { "\($0.days)" } ?? "—",
+                     tint: (next?.days ?? 99) <= 14 ? .highlight : .surface, icon: "calendar")
+            StatTile(label: "Schools on your list", value: "\(snapshot.list.count)", tint: .surface, icon: "building.columns")
         }
 
-        CardView {
-            SectionLabel("List balance")
-            BalanceBar(reach: counts.reach, target: counts.target, likely: counts.likely)
-            HStack(spacing: 12) {
-                ForEach(ChanceTier.allCases, id: \.self) { tier in
-                    HStack(spacing: 6) {
-                        TierBadge(tier: tier)
-                        Text("\(tier == .reach ? counts.reach : tier == .target ? counts.target : counts.likely)")
-                            .font(.system(size: 14))
+        if deadlines.count > 1 {
+            Panel(icon: "clock", title: "Coming up") {
+                VStack(spacing: 0) {
+                    ForEach(Array(deadlines.enumerated()), id: \.element.id) { i, d in
+                        if i > 0 { Rectangle().fill(Color.black.opacity(0.06)).frame(height: 1) }
+                        DeadlineRow(deadline: d).padding(.vertical, 10)
                     }
                 }
             }
-            Button("Open your applications →") { model.tab = .apply }.buttonStyle(LinkButtonStyle())
+        } else if deadlines.isEmpty {
+            let early = profile.gradeLevel <= 11 // build or explore mode
+            Muted("None on the clock. \(early ? "Exactly right for where you are." : "Check your list's plans.")", size: 14)
         }
 
-        CardView {
-            SectionLabel("Application progress")
+        Panel(icon: "chart.pie", title: "List balance", subtitle: "\(counts.reach) reach · \(counts.target) target · \(counts.likely) likely", tint: .mist) {
+            BalanceBar(reach: counts.reach, target: counts.target, likely: counts.likely)
+            HStack(spacing: 12) {
+                ForEach(ChanceTier.allCases, id: \.self) { tier in TierBadge(tier: tier) }
+            }
+            Button { model.tab = .apply } label: { Label("Open your applications", systemImage: "arrow.up.right") }
+                .buttonStyle(OutlineButtonStyle(compact: true))
+        }
+
+        Panel(icon: "checklist", title: "Application progress") {
             HStack(spacing: 16) {
-                ZStack {
-                    Circle().stroke(Color.fill, lineWidth: 6)
-                    Circle().trim(from: 0, to: progress)
-                        .stroke(Color.accent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-                }
-                .frame(width: 56, height: 56)
+                ProgressRing(progress: progress, size: 72, line: 10)
                 let inFlight = snapshot.recommenders.filter { $0.status != "submitted" }.count
-                Text("\(Int((progress * 100).rounded()))% of the mechanical work done."
+                Text("Of the mechanical work done."
                      + (inFlight > 0 ? " \(inFlight) rec letter\(inFlight == 1 ? "" : "s") still in flight." : ""))
                     .font(.system(size: 15))
                     .foregroundStyle(Color.grayStrong)
             }
         }
 
-        CardView {
-            SectionLabel("From your counselor")
+        Panel(icon: "sparkles", title: "From your counselor", tint: .lavender) {
             Text(Match.balanceMessage(reach: counts.reach, target: counts.target, likely: counts.likely))
-            Button("Talk it through") { model.tab = .counselor }.buttonStyle(InkButtonStyle(compact: true))
+                .font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
+            Button { model.tab = .counselor } label: { Label("Talk it through", systemImage: "arrow.up.right") }
+                .buttonStyle(InkButtonStyle(compact: true))
         }
 
         if !snapshot.recentlyViewed.isEmpty {
-            CardView {
-                SectionLabel("Recently viewed")
-                ForEach(snapshot.recentlyViewed.prefix(4), id: \.self) { id in
-                    if let s = model.school(id) {
-                        NavigationLink(value: SchoolRoute(id: id)) {
-                            HStack(alignment: .center, spacing: 10) {
-                                SchoolLogo(school: s, size: 32)
-                                Text(s.name).foregroundStyle(Color.ink).lineLimit(1)
-                                Spacer()
-                                if let net = s.cost.avgNetPrice {
-                                    Text("~\(Format.thousands(net)) net")
-                                        .font(.system(size: 13)).foregroundStyle(Color.grayMid)
+            Panel(icon: "eye", title: "Recently viewed") {
+                VStack(spacing: 10) {
+                    ForEach(snapshot.recentlyViewed.prefix(4), id: \.self) { id in
+                        if let s = model.school(id) {
+                            NavigationLink(value: SchoolRoute(id: id)) {
+                                HStack(alignment: .center, spacing: 12) {
+                                    SchoolLogo(school: s, size: 36)
+                                    Text(s.name).foregroundStyle(Color.ink).lineLimit(1)
+                                    Spacer()
+                                    if let net = s.cost.avgNetPrice {
+                                        Text("~\(Format.thousands(net))").font(.system(size: 13)).foregroundStyle(Color.grayMid)
+                                    }
+                                    Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.grayMid)
                                 }
+                                .contentShape(Rectangle())
                             }
-                            .contentShape(Rectangle())
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -168,21 +168,13 @@ private struct CheckInCard: View {
 
     var body: some View {
         if let current = checkIns.first(where: { !$0.dismissed }) {
-            CardView(tint: .accentSoft, border: .accent.opacity(0.3)) {
-                HStack(alignment: .firstTextBaseline) {
-                    SectionLabel("This week — three things, that's all", color: .accent)
-                    Spacer()
-                    Button("Dismiss") { model.dismissCheckIn(current.id) }
-                        .font(.system(size: 13)).foregroundStyle(Color.grayMid)
-                }
+            Panel(icon: "list.bullet.clipboard", title: "This week", subtitle: "Three things, that's all", tint: .highlightSoft) {
                 ForEach(Array(current.actions.enumerated()), id: \.offset) { i, action in
                     Button { model.toggleCheckIn(current.id, action: i) } label: {
                         HStack(alignment: .top, spacing: 12) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .stroke(action.done ? Color.accent : Color.grayMid, lineWidth: 1)
-                                .background(action.done ? Color.accent : .clear, in: RoundedRectangle(cornerRadius: 2))
-                                .frame(width: 16, height: 16)
-                                .padding(.top, 3)
+                            Image(systemName: action.done ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 20))
+                                .foregroundStyle(action.done ? Color.ink : Color.grayMid)
                             Text(action.text)
                                 .strikethrough(action.done)
                                 .foregroundStyle(action.done ? Color.grayMid : Color.ink)
@@ -192,6 +184,8 @@ private struct CheckInCard: View {
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(action.done ? .isSelected : [])
                 }
+                Button("Dismiss for this week") { model.dismissCheckIn(current.id) }
+                    .buttonStyle(LinkButtonStyle(color: .grayStrong))
             }
         }
     }
@@ -218,21 +212,21 @@ private struct ParentHome: View {
         Greeting(name: profile.firstName, rest: "Here's the honest picture.",
                  label: "\(mode.label) mode · parent view")
 
-        CardView(tint: .accentSoft, border: .accent.opacity(0.3)) {
-            SectionLabel("What's normally happening right now", color: .accent)
-            Text(Self.seasonContext[mode] ?? "")
+        Panel(icon: "sparkles", title: "What's normally happening now", tint: .lavender) {
+            Text(Self.seasonContext[mode] ?? "").font(.system(size: 16)).fixedSize(horizontal: false, vertical: true)
         }
 
-        CardView {
-            SectionLabel("Progress at a glance")
-            Text("\(snapshot.list.count) schools on the list · \(submitted) application\(submitted == 1 ? "" : "s") submitted.")
-            Divider().overlay(Color.hairline)
+        TileRow {
+            StatTile(label: "Schools on the list", value: "\(snapshot.list.count)", icon: "building.columns")
+            StatTile(label: "Applications submitted", value: "\(submitted)", tint: submitted > 0 ? .highlight : .surface, icon: "paperplane")
+        }
+
+        Panel(icon: "lock", title: "What you can see", tint: .mist) {
             Text("You're seeing the shared view: the list, statuses, and deadlines. Your student's counselor conversations and essay drafts stay private unless they choose to share — that boundary is deliberate, and it's part of why this works.")
                 .font(.system(size: 14)).foregroundStyle(Color.grayMid)
         }
 
-        CardView {
-            SectionLabel("Deadlines & money milestones")
+        Panel(icon: "calendar", title: "Deadlines & money milestones") {
             let deadlines = Match.deadlines(for: snapshot.list, schools: model.school, limit: 4)
             if deadlines.isEmpty {
                 Text("No application deadlines on the clock.").foregroundStyle(Color.grayStrong)

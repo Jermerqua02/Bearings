@@ -45,9 +45,10 @@ struct SchoolDetailView: View {
     @ViewBuilder
     private func content(_ d: SchoolDetailResponse) -> some View {
         let s = d.school
-        Page(spacing: 32) {
+        Page(spacing: 18) {
             header(d)
-            if let fit = d.fit { whyCard(fit) }
+            glance(d)
+            if let fit = d.fit { whyPanel(fit) }
             admissions(d)
             cost(d)
             academics(s)
@@ -64,39 +65,59 @@ struct SchoolDetailView: View {
     private func header(_ d: SchoolDetailResponse) -> some View {
         let s = d.school
         let onList = model.isOnList(s.id)
-        return VStack(alignment: .leading, spacing: 14) {
-            HStack(alignment: .top, spacing: 14) {
-                SchoolLogo(school: s, size: 64)
-                VStack(alignment: .leading, spacing: 6) {
-                    SectionLabel([
+        return VStack(alignment: .leading, spacing: 16) {
+            HStack(alignment: .center, spacing: 14) {
+                SchoolLogo(school: s, size: 60)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text([
                         "\(s.city), \(s.state)",
                         s.undergradEnrollment.map { "\(Int($0).formatted()) undergrads" },
                     ].compactMap { $0 }.joined(separator: " · "))
-                    Text(s.name).font(.system(size: 28, weight: .semibold)).tracking(-0.4)
-                        .fixedSize(horizontal: false, vertical: true)
+                    .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
+                    HStack(spacing: 8) {
+                        if let tier = d.chance?.tier { TierBadge(tier: tier) }
+                        if let label = d.fit?.label {
+                            Text(label).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accent)
+                        }
+                    }
                 }
             }
-            HStack(spacing: 10) {
-                if let tier = d.chance?.tier { TierBadge(tier: tier) }
-                if let label = d.fit?.label {
-                    Text(label).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accent)
-                }
-                Spacer()
-                if !model.isParent {
-                    if onList {
-                        Button("Saved ✓") { model.removeFromList(s.id) }.buttonStyle(OutlineButtonStyle(compact: true))
-                            .accessibilityLabel("Remove \(s.name) from your list")
-                    } else {
-                        Button("Save to list") { model.addToList(s, tier: d.chance?.tier) }.buttonStyle(InkButtonStyle(compact: true))
-                    }
+            Text(s.name).font(.system(size: 30, weight: .semibold)).tracking(-0.5)
+                .fixedSize(horizontal: false, vertical: true)
+            if !model.isParent {
+                if onList {
+                    Button { model.removeFromList(s.id) } label: { Label("On your list", systemImage: "checkmark") }
+                        .buttonStyle(OutlineButtonStyle(compact: true))
+                        .accessibilityLabel("Remove \(s.name) from your list")
+                } else {
+                    Button { model.addToList(s, tier: d.chance?.tier) } label: { Label("Save to list", systemImage: "plus") }
+                        .buttonStyle(HighlightButtonStyle(compact: true))
                 }
             }
         }
     }
 
-    private func whyCard(_ fit: SchoolDetailResponse.Fit) -> some View {
-        CardView(tint: .accentSoft, border: .accent.opacity(0.3)) {
-            SectionLabel("Why this might be right for you", color: .accent)
+    /// The four numbers a student asks first, before any section.
+    private func glance(_ d: SchoolDetailResponse) -> some View {
+        let a = d.school.admissions
+        return VStack(spacing: 10) {
+            TileRow {
+                StatTile(label: "What you'd likely pay / yr", value: d.estimate.map { Format.thousands($0) } ?? "—",
+                         tint: .highlight, icon: "dollarsign")
+                StatTile(label: "Acceptance rate", value: a.acceptanceRate == nil ? "—" : Format.rate(a.acceptanceRate),
+                         tint: .surface, icon: "checkmark.seal")
+            }
+            TileRow {
+                StatTile(label: d.deadline.map { "Next deadline · \($0.plan)" } ?? "Next deadline",
+                         value: d.deadline.flatMap { Match.date($0.date)?.formatted(.dateTime.month(.abbreviated).day()) } ?? "—",
+                         tint: .surface, icon: "calendar")
+                StatTile(label: "Testing", value: testPolicy(a.testPolicy), tint: .surface, icon: "pencil.and.list.clipboard")
+            }
+        }
+    }
+
+    private func whyPanel(_ fit: SchoolDetailResponse.Fit) -> some View {
+        Panel(icon: "sparkles", title: "Why this might fit you", subtitle: "From your counselor", tint: .lavender) {
             if let why, !why.isEmpty {
                 Text(why).font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
             } else if why == nil {
@@ -110,13 +131,8 @@ struct SchoolDetailView: View {
 
     private func admissions(_ d: SchoolDetailResponse) -> some View {
         let a = d.school.admissions
-        return VStack(alignment: .leading, spacing: 16) {
-            SectionLabel("Admissions")
-            HStack(alignment: .top, spacing: 16) {
-                StatView(label: "Acceptance", value: a.acceptanceRate == nil ? "Not reported" : Format.rate(a.acceptanceRate))
-                StatView(label: "Testing", value: testPolicy(a.testPolicy))
-            }
-            StatView(label: "Next deadline", value: d.deadline.map { "\($0.plan) · \(Match.date($0.date)?.formatted(.dateTime.month(.wide).day()) ?? $0.date)" } ?? "See school site")
+        let hasRanges = (a.gpaMid50?.count == 2) || (a.satMid50?.count == 2)
+        return Panel(icon: "chart.bar.xaxis", title: "Admissions", subtitle: hasRanges ? "You against the middle 50%" : nil, tint: .mist) {
             // A range plots only where the school published one — a missing
             // range drawn against the student's real number would be invented.
             if let g = a.gpaMid50, g.count == 2 {
@@ -127,52 +143,41 @@ struct SchoolDetailView: View {
             }
             if let caveat = d.chance?.caveat { Muted(caveat, size: 14) }
             if d.chance?.tier == .reach {
-                Muted("For students with your profile, this is a reach — and that's fine. Reaches belong on a list that's built on a solid foundation of targets and likelies.")
+                Muted("For students with your profile, this is a reach — and that's fine. Reaches belong on a list that's built on a solid foundation of targets and likelies.", size: 14)
+            }
+            if !hasRanges && d.chance?.caveat == nil && d.chance?.tier != .reach {
+                Muted("This school hasn't published grade or test ranges.", size: 14)
             }
         }
     }
 
     private func cost(_ d: SchoolDetailResponse) -> some View {
         let c = d.school.cost
-        let bands: [(String, Double)] = [
+        let bands: [(String, String)] = [
             ("Under $48k", c.netPriceByIncome?.under48k), ("$48k – $75k", c.netPriceByIncome?.k48to75),
             ("$75k – $110k", c.netPriceByIncome?.k75to110), ("Over $110k", c.netPriceByIncome?.over110k),
-        ].compactMap { label, v in v.map { (label, $0) } }
+        ].compactMap { label, v in v.map { (label, "\(Format.dollars($0)) / yr") } }
         let hasCost = c.avgNetPrice != nil || c.stickerPrice != nil || !bands.isEmpty
 
-        return VStack(alignment: .leading, spacing: 16) {
-            SectionLabel("Cost — honestly")
+        return Panel(icon: "dollarsign.circle", title: "Cost — honestly", subtitle: "Net price, not sticker, is the real number") {
             if hasCost {
-                StatView(label: "What you'd likely pay", value: d.estimate.map { "~\(Format.dollars($0)) / yr" } ?? "Not reported")
-                HStack(alignment: .top, spacing: 16) {
-                    StatView(label: "Average net price", value: c.avgNetPrice.map { "\(Format.dollars($0)) / yr" } ?? "Not reported")
-                    StatView(label: "Sticker price", value: c.stickerPrice.map { "\(Format.dollars($0)) / yr" } ?? "Not reported")
+                TileRow {
+                    StatTile(label: "Average net price", value: c.avgNetPrice.map { Format.thousands($0) } ?? "—", tint: .mist)
+                    StatTile(label: "Sticker price", value: c.stickerPrice.map { Format.thousands($0) } ?? "—", tint: .mist)
                 }
                 if !bands.isEmpty {
-                    CardView {
-                        SectionLabel("Average net price by family income")
-                        VStack(spacing: 0) {
-                            ForEach(Array(bands.enumerated()), id: \.offset) { i, band in
-                                if i > 0 { Divider().overlay(Color.hairline) }
-                                HStack {
-                                    Text(band.0).foregroundStyle(Color.grayStrong)
-                                    Spacer()
-                                    Text("\(Format.dollars(band.1)) / yr").fontWeight(.medium)
-                                }
-                                .font(.system(size: 15))
-                                .padding(.vertical, 9)
-                            }
-                        }
-                        if let met = c.percentNeedMet {
-                            Muted("Meets \(Format.rate(met)) of demonstrated need on average\(c.meritAid.map { " · merit aid: \($0)" } ?? ""). \"Need\" is what the aid formulas say your family can't pay — we'll help you check their math.", size: 13)
-                        }
-                    }
+                    Text("By family income").font(.system(size: 14, weight: .semibold)).padding(.top, 4)
+                    FactRows(rows: bands)
+                }
+                if let met = c.percentNeedMet {
+                    Muted("Meets \(Format.rate(met)) of demonstrated need on average\(c.meritAid.map { " · merit aid: \($0)" } ?? ""). \"Need\" is what the aid formulas say your family can't pay — we'll help you check their math.", size: 13)
                 }
             } else {
                 Muted("This school hasn't reported cost figures to the federal data set we use. Its net price calculator — every college is required to publish one — will give you a real number for your family.")
-                if let calc = d.school.application?.netPriceCalculatorUrl, let url = URL(string: calc) {
-                    Link("Open the net price calculator →", destination: url).font(.system(size: 15)).foregroundStyle(Color.accent)
-                }
+            }
+            if let calc = d.school.application?.netPriceCalculatorUrl, let url = URL(string: calc) {
+                Link(destination: url) { Label("Net price calculator", systemImage: "arrow.up.right") }
+                    .buttonStyle(OutlineButtonStyle(compact: true))
             }
         }
     }
@@ -180,24 +185,28 @@ struct SchoolDetailView: View {
     @ViewBuilder
     private func academics(_ s: School) -> some View {
         if let a = s.academics {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionLabel("Academics")
-                // researchOpportunities and coOp show only where known — a
-                // schema default printed as a finding would be a lie.
-                HStack(alignment: .top, spacing: 16) {
-                    if let ratio = a.studentFacultyRatio, !ratio.isEmpty { StatView(label: "Student : faculty", value: ratio) }
-                    if let r = a.researchOpportunities { StatView(label: "Research", value: r ? "Real opportunities" : "Limited") }
-                    if let co = a.coOp { StatView(label: "Co-op", value: co ? "Structured program" : "Standard") }
-                }
-                if let majors = a.topMajors, !majors.isEmpty {
-                    (Text("Popular majors: ").fontWeight(.medium).foregroundStyle(Color.ink)
-                        + Text(majors.joined(separator: " · ")).foregroundStyle(Color.grayStrong))
-                        .font(.system(size: 15))
-                }
-                if let notable = a.notablePrograms, !notable.isEmpty {
-                    (Text("Worth knowing: ").fontWeight(.medium).foregroundStyle(Color.ink)
-                        + Text(notable.joined(separator: " · ")).foregroundStyle(Color.grayStrong))
-                        .font(.system(size: 15))
+            let tiles: [(String, String)] = [
+                a.studentFacultyRatio.flatMap { $0.isEmpty ? nil : ("Student : faculty", $0) },
+                // Shown only where known — a schema default printed as a
+                // finding would be a lie.
+                a.researchOpportunities.map { ("Research access", $0 ? "Yes" : "Limited") },
+                a.coOp.map { ("Co-op program", $0 ? "Yes" : "No") },
+            ].compactMap { $0 }
+            let majors = a.topMajors ?? []
+            let notable = a.notablePrograms ?? []
+            if !tiles.isEmpty || !majors.isEmpty || !notable.isEmpty {
+                Panel(icon: "books.vertical", title: "Academics", tint: .mist) {
+                    if !tiles.isEmpty {
+                        TileRow { ForEach(tiles, id: \.0) { StatTile(label: $0.0, value: $0.1) } }
+                    }
+                    if !majors.isEmpty {
+                        Text("Popular majors").font(.system(size: 14, weight: .semibold))
+                        FlowLayout { ForEach(majors, id: \.self) { Pill(text: $0) } }
+                    }
+                    if !notable.isEmpty {
+                        Text("Worth knowing").font(.system(size: 14, weight: .semibold))
+                        Muted(notable.joined(separator: " · "), size: 14)
+                    }
                 }
             }
         }
@@ -207,7 +216,7 @@ struct SchoolDetailView: View {
     private func life(_ s: School) -> some View {
         if let l = s.life {
             let facts: [(String, String)] = [
-                l.greekLifePresence.map { ("Greek life", $0) },
+                l.greekLifePresence.map { ("Greek life", $0.capitalized) },
                 l.d1Athletics.map { ("D1 athletics", $0 ? "Yes" : "No") },
                 l.housingGuaranteed.map { ("Housing guaranteed", "\(Int($0)) year\(Int($0) == 1 ? "" : "s")") },
                 l.weather.flatMap { $0.isEmpty ? nil : ("Weather", $0) },
@@ -216,16 +225,17 @@ struct SchoolDetailView: View {
             let vibe = l.vibe.flatMap { $0.isEmpty ? nil : $0 }
             let complaints = l.commonComplaints.flatMap { $0.isEmpty ? nil : $0 }
             if vibe != nil || complaints != nil || !facts.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel("Life & culture")
-                    if let vibe { Text(vibe + ".").font(.system(size: 17)) }
-                    ForEach(facts, id: \.0) { k, v in
-                        (Text("\(k): ").foregroundStyle(Color.grayMid) + Text(v).foregroundStyle(Color.ink)).font(.system(size: 15))
-                    }
+                Panel(icon: "person.3", title: "Life & culture") {
+                    if let vibe { Text(vibe + ".").font(.system(size: 17)).fixedSize(horizontal: false, vertical: true) }
+                    if !facts.isEmpty { FactRows(rows: facts) }
                     if let complaints {
-                        (Text("What students complain about: ").fontWeight(.medium).foregroundStyle(Color.ink)
-                            + Text("\(complaints). Every school has this list — knowing it beforehand is the difference between a dealbreaker and a shrug.").foregroundStyle(Color.grayStrong))
-                            .font(.system(size: 15))
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("What students complain about").font(.system(size: 14, weight: .semibold))
+                            Muted("\(complaints). Every school has this list — knowing it beforehand is the difference between a dealbreaker and a shrug.", size: 14)
+                        }
+                        .padding(14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.highlightSoft, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                     }
                 }
             }
@@ -235,22 +245,31 @@ struct SchoolDetailView: View {
     @ViewBuilder
     private func city(_ s: School) -> some View {
         if let c = s.cityInfo {
-            let facts: [(String, String)] = [
-                c.costOfLiving.map { ("Cost of living", $0.replacingOccurrences(of: "-", with: " ")) },
-                c.transit.map { ("Getting around", $0) },
-                c.airportAccess.map { ("Airport access", $0) },
-                c.internshipMarket.map { ("Jobs & internships", $0) },
-            ].compactMap { $0 }.filter { !$0.1.isEmpty }
+            let facts: [(String, String, String)] = [
+                c.costOfLiving.map { ("dollarsign", "Cost of living", $0.replacingOccurrences(of: "-", with: " ").capitalized) },
+                c.transit.map { ("tram", "Getting around", $0) },
+                c.airportAccess.map { ("airplane", "Airport access", $0) },
+                c.internshipMarket.map { ("briefcase", "Jobs & internships", $0) },
+            ].compactMap { $0 }.filter { !$0.2.isEmpty }
             if !facts.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel("The city — you're choosing a place to live, not just a school")
-                    ForEach(facts, id: \.0) { k, v in
-                        CardView {
-                            SectionLabel(k)
-                            Text(v).font(.system(size: 15)).fixedSize(horizontal: false, vertical: true)
+                Panel(icon: "building.2", title: "The city", subtitle: "You're choosing a place to live, not just a school", tint: .mist) {
+                    VStack(spacing: 10) {
+                        ForEach(facts, id: \.1) { icon, label, value in
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: icon).font(.system(size: 13, weight: .medium))
+                                    .frame(width: 30, height: 30).background(Color.mist, in: Circle())
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(label).font(.system(size: 13)).foregroundStyle(Color.grayStrong)
+                                    Text(value).font(.system(size: 15)).fixedSize(horizontal: false, vertical: true)
+                                }
+                                Spacer(minLength: 0)
+                            }
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                         }
                     }
-                    if let todo = c.thingsToDo, !todo.isEmpty { Muted(todo + ".") }
+                    if let todo = c.thingsToDo, !todo.isEmpty { Muted(todo + ".", size: 14) }
                 }
             }
         }
@@ -259,13 +278,12 @@ struct SchoolDetailView: View {
     @ViewBuilder
     private func outcomes(_ s: School) -> some View {
         if let o = s.outcomes, o.gradRate != nil || o.medianEarnings10yr != nil {
-            VStack(alignment: .leading, spacing: 14) {
-                SectionLabel("Outcomes")
-                HStack(alignment: .top, spacing: 16) {
-                    if let g = o.gradRate { StatView(label: "Six-year grad rate", value: Format.rate(g)) }
-                    if let e = o.medianEarnings10yr { StatView(label: "Earnings, 10 yrs out", value: Format.dollars(e)) }
+            Panel(icon: "graduationcap", title: "Outcomes") {
+                TileRow {
+                    if let g = o.gradRate { StatTile(label: "Graduate in six years", value: Format.rate(g), tint: .mist) }
+                    if let e = o.medianEarnings10yr { StatTile(label: "Median earnings, 10 yrs out", value: Format.thousands(e), tint: .mist) }
                 }
-                if let n = o.alumniNetwork { StatView(label: "Alumni network", value: n.capitalized) }
+                if let n = o.alumniNetwork { FactRows(rows: [("Alumni network", n.capitalized)]) }
             }
         }
     }
@@ -273,24 +291,23 @@ struct SchoolDetailView: View {
     @ViewBuilder
     private func askCounselor(_ s: School) -> some View {
         if !model.isParent {
-            CardView {
-                Text("Questions about \(s.shortName)? I know your profile — ask me anything about fit, chances, or cost.")
-                    .font(.system(size: 16))
-                Button("Ask the counselor") {
+            Panel(icon: "bubble.left.and.text.bubble.right", title: "Questions about \(s.shortName)?", tint: .lavender) {
+                Muted("I know your profile — ask me anything about fit, chances, or cost.")
+                Button {
                     model.askAbout = s
                     model.tab = .counselor
-                }
-                    .buttonStyle(InkButtonStyle())
+                } label: { Label("Ask the counselor", systemImage: "arrow.up.right") }
+                    .buttonStyle(InkButtonStyle(compact: true))
             }
         }
     }
 
     private func testPolicy(_ p: String?) -> String {
         switch p {
-        case "blind": "Test-blind"
-        case "optional": "Test-optional"
-        case "required": "Tests required"
-        default: "Not reported"
+        case "blind": "Blind"
+        case "optional": "Optional"
+        case "required": "Required"
+        default: "—"
         }
     }
 }
@@ -318,12 +335,12 @@ struct RangePlot: View {
             GeometryReader { geo in
                 let w = geo.size.width
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.fill).frame(height: 8)
-                    Capsule().fill(Color.hairline)
+                    Capsule().fill(Color.surface).frame(height: 8)
+                    Capsule().fill(Color.mistStrong)
                         .frame(width: max(4, (pct(high) - pct(low)) * w), height: 8)
                         .offset(x: pct(low) * w)
                     if let value {
-                        Circle().fill(Color.accent).overlay(Circle().stroke(Color.paper, lineWidth: 2))
+                        Circle().fill(Color.highlight).overlay(Circle().stroke(Color.ink, lineWidth: 2))
                             .frame(width: 16, height: 16)
                             .offset(x: pct(value) * w - 8)
                     }

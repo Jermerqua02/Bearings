@@ -67,11 +67,9 @@ private struct CoursesSection: View {
                 let rows = courses.filter { $0.year == year }
                     .sorted { ($0.subject.order, $0.name, $0.term ?? "") < ($1.subject.order, $1.name, $1.term ?? "") }
                 VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        SectionLabel("\(year)th grade")
-                        Spacer()
-                        Button { addingYear = year } label: { Label("Add course", systemImage: "plus") }
-                            .buttonStyle(LinkButtonStyle(color: .accent))
+                    SectionHeader(icon: "\(year - 8).circle", title: "\(year)th grade",
+                                  subtitle: rows.isEmpty ? nil : "\(rows.count) course\(rows.count == 1 ? "" : "s")") {
+                        RoundIconButton(icon: "plus", fill: .highlight, label: "Add a \(year)th-grade course") { addingYear = year }
                     }
                     if rows.isEmpty {
                         Muted("Nothing yet.", size: 14)
@@ -83,8 +81,7 @@ private struct CoursesSection: View {
                             }
                         }
                         .padding(.horizontal, 14)
-                        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+                        .surfaceCard()
                     }
                 }
             }
@@ -103,33 +100,25 @@ private struct CoursesSection: View {
         if let summary {
             let reported = summary.reported
             let computed = summary.computed
-            VStack(spacing: 12) {
-                HStack(alignment: .top, spacing: 12) {
-                    CardView {
-                        SectionLabel("Unweighted GPA")
-                        Text(Format.gpa(reported?.unweighted ?? computed.unweighted)).font(.system(size: 26, weight: .semibold))
-                        Text(reported?.unweighted != nil
-                             ? "As printed on your transcript\(reported?.credits.map { " (over \(Format.gpa($0)) credits)" } ?? ""). The figure your school reports."
-                             : "From the courses below.")
-                            .font(.system(size: 12)).foregroundStyle(Color.grayMid)
-                    }
-                    CardView {
-                        SectionLabel("Weighted GPA")
-                        Text(Format.gpa(reported?.weighted ?? computed.weighted)).font(.system(size: 26, weight: .semibold))
-                        Text(reported?.weighted != nil ? "As printed on your transcript." : "AP and IB add a point, honors half.")
-                            .font(.system(size: 12)).foregroundStyle(Color.grayMid)
-                    }
+            VStack(spacing: 10) {
+                TileRow {
+                    StatTile(label: "Unweighted GPA", value: Format.gpa(reported?.unweighted ?? computed.unweighted),
+                             note: reported?.unweighted != nil
+                                ? "As printed on your transcript\(reported?.credits.map { " (over \(Format.gpa($0)) credits)" } ?? ""). The figure your school reports."
+                                : "From the courses below.",
+                             tint: .highlight, icon: "graduationcap")
+                    StatTile(label: "Weighted GPA", value: Format.gpa(reported?.weighted ?? computed.weighted),
+                             note: reported?.weighted != nil ? "As printed on your transcript." : "AP and IB add a point, honors half.",
+                             tint: .surface, icon: "scalemass")
                 }
                 if let r = reported?.unweighted, let c = computed.unweighted, abs(r - c) >= 0.05 {
                     Muted("Averaging the courses below gives \(Format.gpa(c)) — schools count credits and exclude pass/fail work, so the two rarely match exactly.", size: 13)
                 }
-                CardView {
-                    SectionLabel("Rigor read")
+                Panel(icon: "chart.line.uptrend.xyaxis", title: "Rigor read", subtitle: "\(summary.rigor.advanced) AP/IB · \(summary.rigor.ahead) still ahead", tint: .mist) {
                     let n = summary.rigor.advanced
-                    Text("\(n) AP/IB total (\(summary.rigor.ahead) still ahead). "
-                         + (n >= 6 ? "That's competitive for most selective schools."
-                            : n >= 3 ? "A solid arc — depth in your strong subjects matters more than count."
-                            : "Room to add rigor where you're strongest — one subject at a time."))
+                    Text(n >= 6 ? "That's competitive for most selective schools."
+                         : n >= 3 ? "A solid arc — depth in your strong subjects matters more than count."
+                         : "Room to add rigor where you're strongest — one subject at a time.")
                         .font(.system(size: 15))
                 }
             }
@@ -249,7 +238,7 @@ private struct ActivitiesSection: View {
         let ordered = model.orderedActivities
         let slots = limits?.activitySlots ?? 10
         VStack(alignment: .leading, spacing: 14) {
-            CardView(tint: .accentSoft, border: .accent.opacity(0.3)) {
+            CardView(tint: .lavender) {
                 Text("Depth beats breadth — I'll say it every time. Three activities with growth and responsibility read better than nine memberships. This log feeds your applications automatically senior year.")
                     .font(.system(size: 15))
             }
@@ -346,8 +335,8 @@ private struct ActivityCard: View {
                 .focused($editing)
                 .font(.system(size: 15))
                 .padding(10)
-                .background(Color.paper, in: RoundedRectangle(cornerRadius: 4))
-                .overlay(RoundedRectangle(cornerRadius: 4).stroke(editing ? Color.ink : Color.hairline))
+                .background(Color.paper, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).stroke(editing ? Color.ink : Color.clear))
                 .accessibilityLabel("Description for \(activity.name)")
             // The cut to 150 characters has to happen somewhere; better here,
             // with time, than inside the real form on deadline day.
@@ -358,8 +347,7 @@ private struct ActivityCard: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
         .padding(16)
-        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+        .surfaceCard()
         .onAppear { draft = activity.description }
         // Saved when the student leaves the field, not on every keystroke.
         .onChange(of: editing) { _, now in

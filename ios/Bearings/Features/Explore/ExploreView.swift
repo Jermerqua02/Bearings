@@ -172,8 +172,8 @@ struct ExploreView: View {
             .font(.system(size: 16))
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.hairline))
+            .background(Color.surface, in: Capsule())
+            .shadow(color: .black.opacity(0.04), radius: 8, y: 2)
 
             HStack(spacing: 8) {
                 Button {
@@ -197,8 +197,8 @@ struct ExploreView: View {
     }
 
     private var picks: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionLabel("Counselor picks — underrated for you")
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(icon: "sparkles", title: "Counselor picks", subtitle: "Underrated for you", iconBackground: .lavender)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(Array(store.picks.enumerated()), id: \.element.id) { i, pick in
@@ -212,9 +212,8 @@ struct ExploreView: View {
                                 Spacer(minLength: 0)
                             }
                             .padding(16)
-                            .frame(width: 250, height: 170, alignment: .topLeading)
-                            .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+                            .frame(width: 250, height: 140, alignment: .topLeading)
+                            .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
                         }
                         .buttonStyle(.plain)
                     }
@@ -305,8 +304,7 @@ private struct ResultCard: View {
             }
         }
         .padding(14)
-        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+        .surfaceCard()
     }
 }
 

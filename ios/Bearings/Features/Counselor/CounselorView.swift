@@ -80,18 +80,17 @@ struct CounselorView: View {
 
             NavigationLink(value: InterviewRoute()) {
                 HStack(spacing: 14) {
-                    Image(systemName: "person.2.wave.2").font(.system(size: 20)).foregroundStyle(Color.accent)
-                        .frame(width: 40, height: 40).background(Color.accentSoft, in: Circle())
+                    Image(systemName: "person.2.wave.2").font(.system(size: 18)).foregroundStyle(Color.ink)
+                        .frame(width: 44, height: 44).background(Color.surface, in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Practice an interview").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
                         Text("Answer real questions, get honest feedback — saved per school.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
                     }
                     Spacer()
-                    Image(systemName: "chevron.right").foregroundStyle(Color.grayMid)
+                    RoundIcon(icon: "arrow.up.right", fill: .surface)
                 }
                 .padding(16)
-                .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+                .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
             }
             .buttonStyle(.plain)
 
@@ -140,8 +139,7 @@ private struct ThreadCard: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+        .surfaceCard()
     }
 }
 
@@ -261,8 +259,7 @@ private struct MessageView: View {
                                 Spacer(minLength: 0)
                             }
                             .padding(14)
-                            .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+                            .surfaceCard()
                         }
                         .buttonStyle(.plain)
                     }

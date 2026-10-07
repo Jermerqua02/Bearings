@@ -24,6 +24,18 @@ struct Page<Content: View>: View {
         }
         .background(Color.paper)
         .scrollDismissesKeyboard(.interactively)
+        .defaultScrollAnchor(Self.devAnchor)
+    }
+
+    /// DEBUG: BEARINGS_DEV_SCROLL=0.5 opens every page scrolled halfway, so
+    /// a screenshot script can see below the fold. Always .top in Release.
+    private static var devAnchor: UnitPoint {
+        #if DEBUG
+        if let raw = ProcessInfo.processInfo.environment["BEARINGS_DEV_SCROLL"], let y = Double(raw) {
+            return UnitPoint(x: 0, y: y)
+        }
+        #endif
+        return .top
     }
 }
 
@@ -84,12 +96,12 @@ struct OutlineButtonStyle: ButtonStyle {
             .foregroundStyle(Color.ink.opacity(isEnabled ? 1 : 0.4))
             .padding(.horizontal, compact ? 14 : 18)
             .padding(.vertical, compact ? 8 : 12)
-            .background(Color.surface.opacity(configuration.isPressed ? 0.6 : 1), in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(configuration.isPressed ? Color.ink : Color.hairline))
+            .background(Color.surface.opacity(configuration.isPressed ? 0.6 : 1), in: Capsule())
+            .overlay(Capsule().stroke(configuration.isPressed ? Color.ink : Color.hairline))
     }
 }
 
-/// Ink-filled, square-cornered — the web's apply buttons.
+/// Ink-filled pill — the apply buttons.
 struct InkButtonStyle: ButtonStyle {
     var compact = false
     @Environment(\.isEnabled) private var isEnabled
@@ -101,7 +113,7 @@ struct InkButtonStyle: ButtonStyle {
             .padding(.horizontal, compact ? 14 : 18)
             .padding(.vertical, compact ? 8 : 12)
             .background(Color.ink.opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.35),
-                        in: RoundedRectangle(cornerRadius: 4))
+                        in: Capsule())
     }
 }
 
@@ -133,7 +145,7 @@ struct Chip: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(active ? Color.ink : Color.surface, in: Capsule())
-                .overlay(Capsule().stroke(active ? Color.ink : Color.hairline))
+                .shadow(color: active ? .clear : .black.opacity(0.04), radius: 6, y: 2)
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(active ? .isSelected : [])
@@ -149,8 +161,7 @@ struct Pill: View {
             .foregroundStyle(Color.grayStrong)
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(Color.surface, in: Capsule())
-            .overlay(Capsule().stroke(Color.hairline))
+            .background(Color.surface.opacity(0.8), in: Capsule())
     }
 }
 
@@ -211,10 +222,10 @@ struct SelectBox<Value: Hashable>: View {
                 Image(systemName: "chevron.down").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.grayMid)
             }
             .font(.system(size: compact ? 14 : 15))
-            .padding(.horizontal, 12)
-            .padding(.vertical, compact ? 7 : 10)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(Color.hairline))
+            .padding(.horizontal, 14)
+            .padding(.vertical, compact ? 8 : 11)
+            .background(Color.surface, in: Capsule())
+            .overlay(Capsule().stroke(Color.hairline))
         }
         .buttonStyle(.plain)
     }
@@ -262,8 +273,8 @@ struct TextArea: View {
             .focused($focused)
             .font(.system(size: 16))
             .padding(12)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(focused ? Color.ink : Color.hairline))
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).stroke(focused ? Color.ink : Color.hairline))
     }
 }
 
@@ -282,8 +293,8 @@ struct BoxField: View {
             .onSubmit(onSubmit)
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: 4))
-            .overlay(RoundedRectangle(cornerRadius: 4).stroke(focused ? Color.ink : Color.hairline))
+            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.control, style: .continuous).stroke(focused ? Color.ink : Color.hairline))
     }
 }
 
@@ -311,7 +322,8 @@ struct PipelineBar: View {
     var body: some View {
         HStack(spacing: 4) {
             ForEach(0..<count, id: \.self) { i in
-                Capsule().fill(i <= stage ? Color.accent : Color.fill).frame(height: 4)
+                // Sits on a mist strip, so the unfilled stages are white.
+                Capsule().fill(i <= stage ? Color.ink : Color.surface).frame(height: 6)
             }
         }
         .accessibilityHidden(true)
@@ -337,8 +349,7 @@ struct SchoolLogo: View {
             }
         }
         .frame(width: size, height: size)
-        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+        .surfaceCard()
         .accessibilityHidden(true)
     }
 

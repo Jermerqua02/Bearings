@@ -74,8 +74,7 @@ private struct DueSoon: View {
     var body: some View {
         let soon = Match.deadlines(for: list, schools: model.school, limit: 10).filter { $0.days <= 14 }
         if !soon.isEmpty {
-            CardView(tint: .accentSoft, border: .accent.opacity(0.3)) {
-                SectionLabel("Due in the next 14 days", color: .accent)
+            Panel(icon: "clock.badge.exclamationmark", title: "Due in the next 14 days", tint: .highlightSoft) {
                 ForEach(soon) { DeadlineRow(deadline: $0) }
             }
         }
@@ -95,31 +94,41 @@ private struct ApplicationCardView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             header
             planRow
             if let plan = entry.plan, plan == .ED || plan == .ED2,
                let why = card?.plans.first(where: { $0.id == plan })?.why {
                 // Binding plans get their consequence spelled out on the card.
-                Text(why).font(.system(size: 13)).foregroundStyle(Color.reach)
+                Label(why, systemImage: "exclamationmark.triangle")
+                    .font(.system(size: 13)).foregroundStyle(Color.ink)
+                    .padding(12)
+                    .background(Color.highlightSoft, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             }
 
-            HStack(spacing: 10) {
-                SelectBox(options: ApplyView.pipeline.map { ($0.0, $0.1) },
-                          selection: Binding(get: { entry.status == .applying ? .considering : entry.status },
-                                             set: { s in model.updateEntry(entry.schoolId) { $0.status = s } }),
-                          compact: true)
-                    .frame(maxWidth: 200)
-                    .disabled(model.isParent)
-                Spacer()
+            // Where it stands — its own strip, so status never blends into requirements.
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Status").font(.system(size: 14, weight: .semibold))
+                    Spacer()
+                    SelectBox(options: ApplyView.pipeline.map { ($0.0, $0.1) },
+                              selection: Binding(get: { entry.status == .applying ? .considering : entry.status },
+                                                 set: { s in model.updateEntry(entry.schoolId) { $0.status = s } }),
+                              compact: true)
+                        .fixedSize()
+                        .disabled(model.isParent)
+                }
+                PipelineBar(stage: stage, count: ApplyView.pipeline.count)
+                if entry.status == .decision { outcomeRow }
             }
-            PipelineBar(stage: stage, count: ApplyView.pipeline.count)
-
-            if entry.status == .decision { outcomeRow }
+            .padding(14)
+            .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
 
             if let card {
-                Divider().overlay(Color.hairline)
-                requirements(card)
+                VStack(alignment: .leading, spacing: 12) {
+                    SectionHeader(icon: "doc.text", title: "What they ask for", iconBackground: .mist)
+                    requirements(card)
+                }
                 fee(card.fee)
                 if !card.routes.isEmpty { routes(card.routes) }
                 if let note = card.attribution { Text(note).font(.system(size: 12)).foregroundStyle(Color.grayMid) }
@@ -128,8 +137,7 @@ private struct ApplicationCardView: View {
             }
         }
         .padding(18)
-        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
-        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+        .surfaceCard(radius: Radius.panel)
     }
 
     private var header: some View {
@@ -228,14 +236,15 @@ private struct ApplicationCardView: View {
 
     private var outcomeRow: some View {
         HStack(spacing: 10) {
-            SectionLabel("Outcome")
+            Text("Outcome").font(.system(size: 14, weight: .semibold))
+            Spacer()
             let options: [(ListEntry.Outcome?, String)] = (entry.outcome == nil ? [(nil, "—")] : [])
                 + ListEntry.Outcome.allCases.map { ($0, $0.label) }
             SelectBox(options: options.map { ($0.0, $0.1) },
                       selection: Binding(get: { entry.outcome },
                                          set: { o in if let o { model.updateEntry(entry.schoolId) { $0.outcome = o } } }),
                       compact: true)
-                .frame(maxWidth: 180)
+                .fixedSize()
                 .disabled(model.isParent)
         }
     }
@@ -265,12 +274,21 @@ private struct ApplicationCardView: View {
     }
 
     private func fee(_ fee: ApplicationCard.Fee) -> some View {
-        (Text("Application fee").fontWeight(.medium).foregroundStyle(Color.ink)
-            + Text(fee.known ? " — \(fee.text)" : " — not published here; check the school's page")
-                .foregroundStyle(fee.known ? Color.ink : Color.grayMid)
-            + Text(fee.asOf.map { " · federal data, \($0)\(fee.mayHaveDropped == true ? " — many colleges have dropped their fee since; worth checking" : "")" } ?? "")
-                .foregroundStyle(Color.grayMid))
-            .font(.system(size: 14))
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "creditcard").font(.system(size: 13, weight: .medium))
+                .frame(width: 30, height: 30).background(Color.mist, in: Circle())
+            VStack(alignment: .leading, spacing: 3) {
+                Text(fee.known ? fee.text : "Fee not published here")
+                    .font(.system(size: 16, weight: .semibold))
+                Text(fee.known ? "Application fee" : "Check the school's page")
+                    .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
+                if let asOf = fee.asOf {
+                    Text("Federal data, \(asOf)\(fee.mayHaveDropped == true ? " — many colleges have dropped their fee since; worth checking" : "")")
+                        .font(.system(size: 12)).foregroundStyle(Color.grayMid)
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func routes(_ routes: [ApplicationCard.ApplyRoute]) -> some View {
@@ -278,7 +296,7 @@ private struct ApplicationCardView: View {
             ForEach(routes) { r in
                 if let url = URL(string: r.href) {
                     Link(destination: url) { Text("\(r.label) →") }
-                        .buttonStyle(r.shared ? AnyButtonStyle(InkButtonStyle(compact: true)) : AnyButtonStyle(OutlineButtonStyle(compact: true)))
+                        .buttonStyle(r.shared ? AnyButtonStyle(HighlightButtonStyle(compact: true)) : AnyButtonStyle(OutlineButtonStyle(compact: true)))
                 }
             }
         }

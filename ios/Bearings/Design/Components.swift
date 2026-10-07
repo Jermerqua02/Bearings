@@ -18,19 +18,29 @@ struct SectionLabel: View {
     }
 }
 
-/// White surface, hairline border, small radius — Card.tsx.
+/// A section surface. White by default, with a soft shadow rather than a
+/// border; pass a tint (mist, lavender, highlightSoft) to say what kind of
+/// content it holds. Tinted panels need no shadow — the tint separates them.
 struct CardView<Content: View>: View {
     var tint: Color = .surface
-    var border: Color = .hairline
+    var border: Color = .clear
+    var radius: CGFloat = Radius.panel
     @ViewBuilder let content: Content
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) { content }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(tint, in: RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(border, lineWidth: 1))
+            .background(tint, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(border))
+            .shadow(color: tint == .surface ? .black.opacity(0.045) : .clear, radius: 14, y: 4)
     }
+}
+
+enum Radius {
+    static let panel: CGFloat = 24
+    static let tile: CGFloat = 18
+    static let control: CGFloat = 14
 }
 
 struct TierBadge: View {
@@ -55,7 +65,7 @@ struct PrimaryButtonStyle: ButtonStyle {
             .font(.system(size: 16, weight: .medium))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 14)
+            .padding(.vertical, 15)
             .background(Color.ink.opacity(isEnabled ? (configuration.isPressed ? 0.8 : 1) : 0.4),
                         in: Capsule())
     }
