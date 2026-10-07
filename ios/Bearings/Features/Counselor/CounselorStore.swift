@@ -12,6 +12,9 @@ final class CounselorStore {
     private(set) var pending: Set<String> = []
     /// Schools named in cards that the snapshot didn't carry.
     private(set) var schools: [String: School] = [:]
+    /// The school a conversation is about, when it was opened from one —
+    /// sent as context with every message, as the web does.
+    private(set) var contextSchool: [String: String] = [:]
     var error: String?
 
     private let api = APIClient.shared
@@ -27,10 +30,13 @@ final class CounselorStore {
     }
 
     /// Start a thread and let the counselor open it. Returns the new id.
-    func start() async -> String? {
+    func start(about school: School? = nil) async -> String? {
+        struct Body: Encodable { let title: String? }
+        let title = school.map { "About \($0.shortName)" }
         do {
-            let created: CreatedID = try await api.post("/api/v1/counselor/threads")
-            threads.append(CounselorThread(id: created.id, title: "New conversation", messages: []))
+            let created: CreatedID = try await api.post("/api/v1/counselor/threads", Body(title: title))
+            threads.append(CounselorThread(id: created.id, title: title ?? "New conversation", messages: []))
+            if let school { contextSchool[created.id] = school.id; schools[school.id] = school }
             pending.insert(created.id)
             defer { pending.remove(created.id) }
             let greeting: CounselorMessage = try await api.post("/api/v1/counselor/threads/\(created.id)/greet")
@@ -46,14 +52,16 @@ final class CounselorStore {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        struct Body: Encodable { let message: String }
+        struct Context: Encodable { let schoolId: String }
+        struct Body: Encodable { let message: String; let context: Context? }
         append(.local(trimmed), to: threadId)
         pending.insert(threadId)
         defer { pending.remove(threadId) }
 
         do {
             let reply: ChatReply = try await api.post("/api/v1/counselor/threads/\(threadId)/messages",
-                                                      Body(message: trimmed))
+                                                      Body(message: trimmed,
+                                                           context: contextSchool[threadId].map(Context.init)))
             append(reply.message, to: threadId)
             if let title = reply.title, let i = index(threadId) { threads[i].title = title }
             await resolveSchools()

@@ -13,11 +13,22 @@ final class AppModel {
 
     private(set) var phase: Phase = .launching
     private(set) var viewer: Viewer?
-    private(set) var snapshot: Snapshot?
+    var snapshot: Snapshot?
     /// The last failure worth telling the user about; views show it as an alert.
     var error: String?
+    /// Bumped whenever the course plan or transcripts change, so the
+    /// planner refetches the GPA the server computes from them.
+    var plannerRevision = 0
+    /// Set by "Ask the counselor" on a school; the counselor tab opens a
+    /// conversation about it and clears this.
+    var askAbout: School?
+    /// Which tab is showing, so a screen can send the student elsewhere.
+    var tab: AppTab = .home
+    #if DEBUG
+    var devSchool: String?
+    #endif
 
-    private let api = APIClient.shared
+    let api = APIClient.shared
 
     init() {
         api.onUnauthorized = { [weak self] in self?.dropSession() }
@@ -30,8 +41,22 @@ final class AppModel {
         // Lets a script open the simulator already signed in:
         //   SIMCTL_CHILD_BEARINGS_DEV_TOKEN=<token> xcrun simctl launch booted com.promptllc.bearings
         // Compiled out of Release builds entirely.
-        if let token = ProcessInfo.processInfo.environment["BEARINGS_DEV_TOKEN"], !token.isEmpty {
+        let env = ProcessInfo.processInfo.environment
+        if let token = env["BEARINGS_DEV_TOKEN"], !token.isEmpty {
             Keychain.saveToken(token)
+        }
+        // BEARINGS_DEV_TAB=explore|counselor|apply|planner opens on that tab;
+        // BEARINGS_DEV_SCHOOL=<id> opens that school over Explore.
+        switch env["BEARINGS_DEV_TAB"] {
+        case "explore": tab = .explore
+        case "counselor": tab = .counselor
+        case "apply": tab = .apply
+        case "planner": tab = .planner
+        default: break
+        }
+        if let school = env["BEARINGS_DEV_SCHOOL"], !school.isEmpty {
+            tab = .explore
+            devSchool = school
         }
         #endif
         guard api.token != nil else { phase = .signedOut; return }
@@ -112,6 +137,30 @@ final class AppModel {
         }
     }
 
+    func isOnList(_ schoolId: String) -> Bool {
+        snapshot?.list.contains { $0.schoolId == schoolId } ?? false
+    }
+
+    /// Save a school, at the tier the server computed for it — recomputing
+    /// here risks saving a tier that disagrees with the badge beside it.
+    func addToList(_ school: School, tier: ChanceTier?) {
+        guard snapshot != nil, !isOnList(school.id) else { return }
+        let entry = ListEntry(schoolId: school.id, tier: tier ?? .target, plan: nil,
+                              status: .considering, outcome: nil, notes: nil)
+        snapshot!.list.append(entry)
+        if !snapshot!.schools.contains(where: { $0.id == school.id }) { snapshot!.schools.append(school) }
+
+        struct Body: Encodable { let schoolId: String; let tier: ChanceTier; let status: ListEntry.Status }
+        mutate(rollback: { $0.list.removeAll { $0.schoolId == school.id } }) {
+            try await self.api.perform("POST", "/api/v1/list",
+                                       Body(schoolId: school.id, tier: entry.tier, status: entry.status))
+        }
+    }
+
+    func toggleList(_ school: School, tier: ChanceTier?) {
+        if isOnList(school.id) { removeFromList(school.id) } else { addToList(school, tier: tier) }
+    }
+
     func removeFromList(_ schoolId: String) {
         guard let i = snapshot?.list.firstIndex(where: { $0.schoolId == schoolId }) else { return }
         let removed = snapshot!.list.remove(at: i)
@@ -140,7 +189,7 @@ final class AppModel {
 
     // MARK: Plumbing
 
-    private func mutate(rollback: @escaping (inout Snapshot) -> Void,
+    func mutate(rollback: @escaping (inout Snapshot) -> Void,
                         _ request: @escaping () async throws -> Void) {
         Task {
             do {
@@ -152,10 +201,12 @@ final class AppModel {
         }
     }
 
-    private static func escape(_ id: String) -> String {
+    static func escape(_ id: String) -> String {
         id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed.subtracting(["/"])) ?? id
     }
 }
+
+enum AppTab: Hashable { case home, explore, counselor, apply, planner }
 
 struct SignUpForm: Encodable {
     var name = ""

@@ -88,26 +88,96 @@ enum ApplicationPlan: String, Codable, CaseIterable {
     var label: String { self == .rolling ? "Rolling" : rawValue }
 }
 
-struct School: Decodable, Identifiable {
+/// Mirrors School in lib/types.ts — the whole thing, because the detail
+/// screen shows nearly all of it. Numbers are Double throughout: Postgres
+/// numerics arrive as JSON numbers that may or may not be integral.
+struct School: Codable, Identifiable, Hashable {
     let id: String
     let name: String
     let shortName: String
     let city: String
     let state: String
+    let region: String?
+    let type: String?
+    let setting: String?
+    let size: String?
+    let undergradEnrollment: Double?
     let admissions: Admissions
     let cost: Cost
+    let academics: Academics?
+    let life: Life?
+    let cityInfo: CityInfo?
+    let outcomes: Outcomes?
+    let underratedFor: String?
+    let application: Application?
 
-    struct Admissions: Decodable {
+    static func == (a: School, b: School) -> Bool { a.id == b.id }
+    func hash(into h: inout Hasher) { h.combine(id) }
+
+    struct Admissions: Codable {
         let acceptanceRate: Double?
+        let gpaMid50: [Double]?
+        let satMid50: [Double]?
+        let actMid50: [Double]?
+        let testPolicy: String?
         let plansOffered: [ApplicationPlan]
-        /// Plan → ISO date. Keys the app doesn't know are dropped.
+        /// Plan → ISO date.
         let deadlines: [String: String]
     }
 
-    struct Cost: Decodable {
-        let stickerPrice: Int?
-        let avgNetPrice: Int?
+    struct Cost: Codable {
+        let stickerPrice: Double?
+        let avgNetPrice: Double?
+        let netPriceByIncome: IncomeBands?
+        let percentNeedMet: Double?
+        let meritAid: String?
     }
+
+    struct IncomeBands: Codable {
+        let under48k: Double?
+        let k48to75: Double?
+        let k75to110: Double?
+        let over110k: Double?
+    }
+
+    struct Academics: Codable {
+        let topMajors: [String]?
+        let studentFacultyRatio: String?
+        let notablePrograms: [String]?
+        let researchOpportunities: Bool?
+        let coOp: Bool?
+    }
+
+    struct Life: Codable {
+        let vibe: String?
+        let greekLifePresence: String?
+        let d1Athletics: Bool?
+        let housingGuaranteed: Double?
+        let weather: String?
+        let commonComplaints: String?
+        let religiousAffiliation: String?
+    }
+
+    struct CityInfo: Codable {
+        let costOfLiving: String?
+        let transit: String?
+        let airportAccess: String?
+        let internshipMarket: String?
+        let thingsToDo: String?
+    }
+
+    struct Outcomes: Codable {
+        let gradRate: Double?
+        let medianEarnings10yr: Double?
+        let alumniNetwork: String?
+    }
+
+    struct Application: Codable {
+        let url: String?
+        let netPriceCalculatorUrl: String?
+    }
+
+    var logoURL: URL { Config.apiBaseURL.appending(path: "api/school-logo/\(id)") }
 }
 
 // MARK: List
@@ -178,6 +248,9 @@ struct Recommender: Decodable, Identifiable {
 struct Snapshot: Decodable {
     let profile: Profile?
     var list: [ListEntry]
+    var coursePlan: [Course]
+    var activities: [Activity]
+    var transcripts: [TranscriptFile]
     let essays: [Essay]
     let recommenders: [Recommender]
     var checkIns: [WeeklyCheckIn]

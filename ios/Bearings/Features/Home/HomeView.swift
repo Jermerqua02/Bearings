@@ -27,6 +27,15 @@ struct HomeView: View {
             .background(Color.paper)
             .navigationTitle("Bearings")
             .navigationBarTitleDisplayMode(.inline)
+            .paperChrome()
+            .schoolDestination()
+            .navigationDestination(for: SettingsRoute.self) { _ in SettingsView() }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink(value: SettingsRoute()) { Image(systemName: "person.crop.circle") }
+                        .accessibilityLabel("Account and settings")
+                }
+            }
         }
     }
 }
@@ -101,6 +110,7 @@ private struct StudentHome: View {
                     }
                 }
             }
+            Button("Open your applications →") { model.tab = .apply }.buttonStyle(LinkButtonStyle())
         }
 
         CardView {
@@ -124,6 +134,7 @@ private struct StudentHome: View {
         CardView {
             SectionLabel("From your counselor")
             Text(Match.balanceMessage(reach: counts.reach, target: counts.target, likely: counts.likely))
+            Button("Talk it through") { model.tab = .counselor }.buttonStyle(InkButtonStyle(compact: true))
         }
 
         if !snapshot.recentlyViewed.isEmpty {
@@ -131,14 +142,19 @@ private struct StudentHome: View {
                 SectionLabel("Recently viewed")
                 ForEach(snapshot.recentlyViewed.prefix(4), id: \.self) { id in
                     if let s = model.school(id) {
-                        HStack(alignment: .firstTextBaseline) {
-                            Text(s.name)
-                            Spacer()
-                            if let net = s.cost.avgNetPrice {
-                                Text("~\(Format.thousands(net)) net")
-                                    .font(.system(size: 13)).foregroundStyle(Color.grayMid)
+                        NavigationLink(value: SchoolRoute(id: id)) {
+                            HStack(alignment: .center, spacing: 10) {
+                                SchoolLogo(school: s, size: 32)
+                                Text(s.name).foregroundStyle(Color.ink).lineLimit(1)
+                                Spacer()
+                                if let net = s.cost.avgNetPrice {
+                                    Text("~\(Format.thousands(net)) net")
+                                        .font(.system(size: 13)).foregroundStyle(Color.grayMid)
+                                }
                             }
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -230,6 +246,8 @@ private struct ParentHome: View {
     }
 }
 
+struct SettingsRoute: Hashable {}
+
 // MARK: Shared
 
 private struct OnboardingPrompt: View {
@@ -249,14 +267,18 @@ struct DeadlineRow: View {
     let deadline: Deadline
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(deadline.label).lineLimit(1)
-            Spacer()
-            Text("\(deadline.days)d")
-                .fontWeight(deadline.days <= 14 ? .semibold : .regular)
-                .foregroundStyle(deadline.days <= 14 ? Color.ink : Color.grayMid)
+        NavigationLink(value: SchoolRoute(id: deadline.schoolId)) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(deadline.label).lineLimit(1).foregroundStyle(Color.ink)
+                Spacer()
+                Text("\(deadline.days)d")
+                    .fontWeight(deadline.days <= 14 ? .semibold : .regular)
+                    .foregroundStyle(deadline.days <= 14 ? Color.ink : Color.grayMid)
+            }
+            .font(.system(size: 15))
+            .contentShape(Rectangle())
         }
-        .font(.system(size: 15))
+        .buttonStyle(.plain)
     }
 }
 

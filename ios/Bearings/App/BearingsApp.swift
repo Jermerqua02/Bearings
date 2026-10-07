@@ -39,19 +39,23 @@ struct RootView: View {
     }
 }
 
-/// The tabs from AppNav.tsx that exist natively so far. A parent never
-/// gets the counselor tab — the same rule as STUDENT_ONLY_ROUTES.
+/// The app's five places. Settings lives behind Home's toolbar rather
+/// than taking a tab; interview practice lives inside the counselor; and
+/// Apply is the list, with everything needed to act on each school.
 struct MainTabView: View {
     @Environment(AppModel.self) private var model
 
     var body: some View {
-        TabView {
-            Tab("Home", systemImage: "house") { HomeView() }
+        @Bindable var model = model
+        TabView(selection: $model.tab) {
+            Tab("Home", systemImage: "house", value: AppTab.home) { HomeView() }
+            Tab("Explore", systemImage: "magnifyingglass", value: AppTab.explore) { ExploreView() }
+            // A parent never reaches the counselor — STUDENT_ONLY_ROUTES.
             if !model.isParent {
-                Tab("Counselor", systemImage: "bubble.left.and.text.bubble.right") { CounselorView() }
+                Tab("Counselor", systemImage: "bubble.left.and.text.bubble.right", value: AppTab.counselor) { CounselorView() }
             }
-            Tab("List", systemImage: "list.bullet") { SchoolListView() }
-            Tab("Settings", systemImage: "gearshape") { SettingsView() }
+            Tab("Apply", systemImage: "checklist", value: AppTab.apply) { ApplyView() }
+            Tab("Planner", systemImage: "square.grid.2x2", value: AppTab.planner) { PlannerView() }
         }
     }
 }

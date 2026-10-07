@@ -29,6 +29,7 @@ import {
 import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { UserFacingError } from "@/lib/actions/_error";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
 import { localTitle } from "@/lib/counselor";
 import type { CounselorCard, CounselorMessage, EssayFeedback, InterviewFeedback } from "@/lib/counselor";
@@ -81,7 +82,9 @@ async function guardedServiceFor(userId: string, feature: string) {
   const rate = await checkRateLimit(userId, feature);
   if (!rate.allowed) {
     const minutes = Math.ceil(rate.retryAfterSeconds / 60);
-    throw new Error(
+    // UserFacingError: this sentence is for the student, and safeError()
+    // would otherwise replace it with "something went wrong".
+    throw new UserFacingError(
       `You've reached the limit for this feature (${rate.limit} an hour). Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`,
     );
   }
@@ -92,7 +95,7 @@ async function guardedServiceFor(userId: string, feature: string) {
 async function sessionProfile() {
   const viewer = await requireViewer();
   const snap = await loadSnapshot(viewer);
-  if (!snap.profile) throw new Error("Finish onboarding first.");
+  if (!snap.profile) throw new UserFacingError("Finish onboarding first.");
   return { viewer, profile: snap.profile };
 }
 

@@ -57,6 +57,35 @@ final class APIClient {
         _ = try await send(method, path, body: method == "DELETE" ? nil : body)
     }
 
+    /// A file, as multipart/form-data with field "file" — the shape
+    /// /api/transcript has always taken from the web.
+    func upload<T: Decodable>(_ path: String, data: Data, filename: String, mimeType: String) async throws -> T {
+        let boundary = "bearings-\(UUID().uuidString)"
+        var body = Data()
+        body.append(Data("--\(boundary)\r\n".utf8))
+        let safeName = filename.replacingOccurrences(of: "\"", with: "")
+        body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"\(safeName)\"\r\n".utf8))
+        body.append(Data("Content-Type: \(mimeType)\r\n\r\n".utf8))
+        body.append(data)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+
+        var request = URLRequest(url: Config.apiBaseURL.appending(path: path))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        request.httpBody = body
+
+        let (respData, response): (Data, URLResponse)
+        do {
+            (respData, response) = try await session.data(for: request)
+        } catch {
+            throw APIError.offline
+        }
+        try check(respData, response as! HTTPURLResponse)
+        return try decode(respData)
+    }
+
     // MARK: Auth
 
     /// Better Auth answers sign-in with the signed session token in

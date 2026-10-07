@@ -1,12 +1,21 @@
 import SwiftUI
 
-/// The counselor — app/(app)/counselor/page.tsx. Conversations first,
-/// newest at the top; tap one to keep talking, or start another.
+/// The counselor — conversations, plus interview practice, which is the
+/// counselor too: same voice, same knowledge of the student.
 struct CounselorView: View {
     @Environment(AppModel.self) private var model
     @State private var store = CounselorStore()
-    @State private var path: [String] = []
+    @State private var path = NavigationPath()
     @State private var starting = false
+
+    /// The web's starters. Generic on purpose — no invented grades.
+    static let starters = [
+        "Am I being realistic?",
+        "What schools am I missing?",
+        "How do I stand out with my grades?",
+        "Explain early decision vs. early action",
+        "Is this school worth the money?",
+    ]
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -14,56 +23,38 @@ struct CounselorView: View {
                 // The counselor answers from the profile; without one the
                 // server refuses ("Finish onboarding first").
                 if model.snapshot != nil && model.snapshot?.profile == nil {
-                    ContentUnavailableView {
-                        Label("Finish onboarding first", systemImage: "person.text.rectangle")
-                    } description: {
-                        Text("Your counselor reads your profile before it says anything. That takes about fifteen minutes.")
-                    } actions: {
-                        Link("Start onboarding on the web", destination: Config.apiBaseURL.appending(path: "onboarding"))
-                    }
-                } else if !store.loaded {
-                    ProgressView()
-                } else if store.threads.isEmpty {
-                    ContentUnavailableView {
-                        Label("Ask anything", systemImage: "bubble.left.and.text.bubble.right")
-                    } description: {
-                        Text("Your counselor has read your profile. Start wherever you are.")
-                    } actions: {
-                        Button("Start a conversation", action: start).disabled(starting)
+                    Page {
+                        SectionLabel("Counselor")
+                        TwoTone(lead: "Finish onboarding first.", rest: "Your counselor reads your profile before it says anything.")
+                        Link("Start onboarding on the web →", destination: Config.apiBaseURL.appending(path: "onboarding"))
+                            .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
                     }
                 } else {
-                    List {
-                        ForEach(store.threads.reversed()) { thread in
-                            NavigationLink(value: thread.id) {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(thread.title).font(.system(size: 16, weight: .medium)).lineLimit(1)
-                                    if let last = thread.messages.last {
-                                        Text(last.text).font(.system(size: 14))
-                                            .foregroundStyle(Color.grayStrong).lineLimit(2)
-                                    }
-                                }
-                                .padding(.vertical, 2)
-                            }
-                        }
-                        .onDelete { offsets in
-                            let ids = offsets.map { store.threads.reversed()[$0].id }
-                            Task { for id in ids { await store.delete(id) } }
-                        }
-                    }
-                    .refreshable { await store.load() }
+                    home
                 }
             }
             .navigationTitle("Counselor")
+            .navigationBarTitleDisplayMode(.inline)
+            .paperChrome()
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: start) { Image(systemName: "square.and.pencil") }
+                    Button { start() } label: { Image(systemName: "square.and.pencil") }
                         .disabled(starting)
                         .accessibilityLabel("New conversation")
                 }
             }
-            .navigationDestination(for: String.self) { ChatView(store: store, threadId: $0) }
+            .navigationDestination(for: ThreadRoute.self) { ChatView(store: store, threadId: $0.id) }
+            .navigationDestination(for: InterviewRoute.self) { _ in InterviewView() }
+            .schoolDestination()
         }
         .task { if !store.loaded && model.snapshot?.profile != nil { await store.load() } }
+        // "Ask the counselor" on a school page lands here.
+        .task(id: model.askAbout?.id) {
+            guard let school = model.askAbout else { return }
+            model.askAbout = nil
+            path = NavigationPath()
+            start(about: school)
+        }
         .alert("Something went wrong",
                isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("OK", role: .cancel) {}
@@ -72,12 +63,85 @@ struct CounselorView: View {
         }
     }
 
-    private func start() {
+    private var home: some View {
+        Page(spacing: 24) {
+            SectionLabel("Counselor")
+            TwoTone(lead: "Ask me anything.", rest: "I've read your profile.")
+
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel("Start with")
+                FlowLayout {
+                    ForEach(Self.starters, id: \.self) { q in
+                        Chip(label: q, active: false) { start(asking: q) }
+                    }
+                }
+            }
+            .disabled(starting)
+
+            NavigationLink(value: InterviewRoute()) {
+                HStack(spacing: 14) {
+                    Image(systemName: "person.2.wave.2").font(.system(size: 20)).foregroundStyle(Color.accent)
+                        .frame(width: 40, height: 40).background(Color.accentSoft, in: Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Practice an interview").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                        Text("Answer real questions, get honest feedback — saved per school.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right").foregroundStyle(Color.grayMid)
+                }
+                .padding(16)
+                .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
+            }
+            .buttonStyle(.plain)
+
+            if !store.loaded {
+                ProgressView().frame(maxWidth: .infinity)
+            } else if !store.threads.isEmpty {
+                VStack(alignment: .leading, spacing: 10) {
+                    SectionLabel("Conversations")
+                    ForEach(store.threads.reversed()) { thread in
+                        NavigationLink(value: ThreadRoute(id: thread.id)) { ThreadCard(thread: thread) }
+                            .buttonStyle(.plain)
+                            .contextMenu {
+                                Button("Delete conversation", role: .destructive) { Task { await store.delete(thread.id) } }
+                            }
+                    }
+                }
+            }
+        }
+        .refreshable { await store.load() }
+    }
+
+    private func start(about school: School? = nil, asking question: String? = nil) {
         starting = true
         Task {
             defer { starting = false }
-            if let id = await store.start() { path.append(id) }
+            guard let id = await store.start(about: school) else { return }
+            path.append(ThreadRoute(id: id))
+            if let question { await store.send(question, in: id) }
         }
+    }
+}
+
+struct ThreadRoute: Hashable { let id: String }
+struct InterviewRoute: Hashable {}
+
+private struct ThreadCard: View {
+    let thread: CounselorThread
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(thread.title).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink).lineLimit(1)
+            if let last = thread.messages.last {
+                Text(last.text).font(.system(size: 14)).foregroundStyle(Color.grayStrong).lineLimit(2)
+                    .multilineTextAlignment(.leading)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
     }
 }
 
@@ -91,6 +155,7 @@ struct ChatView: View {
     var body: some View {
         let thread = store.thread(threadId)
         let thinking = store.pending.contains(threadId)
+        let studentHasSpoken = thread?.messages.contains { $0.author == .user } ?? false
 
         ScrollViewReader { proxy in
             ScrollView {
@@ -102,6 +167,13 @@ struct ChatView: View {
                             Text("Thinking…").foregroundStyle(Color.grayMid)
                         }
                         .id("thinking")
+                    }
+                    if !studentHasSpoken && !thinking {
+                        FlowLayout {
+                            ForEach(CounselorView.starters, id: \.self) { q in
+                                Chip(label: q, active: false) { Task { await store.send(q, in: threadId) } }
+                            }
+                        }
                     }
                 }
                 .padding(20)
@@ -133,10 +205,12 @@ struct ChatView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
-            .background(.bar)
+            .background(Color.paper)
+            .overlay(alignment: .top) { Rectangle().fill(Color.hairline).frame(height: 1) }
         }
         .navigationTitle(thread?.title ?? "Conversation")
         .navigationBarTitleDisplayMode(.inline)
+        .paperChrome()
     }
 
     private var canSend: Bool {
@@ -172,14 +246,25 @@ private struct MessageView: View {
                 ForEach(Array((message.cards ?? []).enumerated()), id: \.offset) { _, card in
                     if case .school(let id, let reason) = card {
                         let school = model.school(id) ?? store.school(id)
-                        CardView {
-                            if let school {
-                                Text(school.name).font(.system(size: 16, weight: .medium))
-                                Text("\(school.city), \(school.state) · \(Format.rate(school.admissions.acceptanceRate)) admit · \(Format.thousands(school.cost.avgNetPrice)) net")
-                                    .font(.system(size: 13)).foregroundStyle(Color.grayMid)
+                        NavigationLink(value: SchoolRoute(id: id)) {
+                            HStack(alignment: .top, spacing: 12) {
+                                if let school { SchoolLogo(school: school, size: 40) }
+                                VStack(alignment: .leading, spacing: 4) {
+                                    if let school {
+                                        Text(school.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                                        Text("\(school.city), \(school.state) · \(Format.rate(school.admissions.acceptanceRate)) admit · \(Format.thousands(school.cost.avgNetPrice)) net")
+                                            .font(.system(size: 13)).foregroundStyle(Color.grayMid)
+                                    }
+                                    Text(reason).font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                                        .multilineTextAlignment(.leading)
+                                }
+                                Spacer(minLength: 0)
                             }
-                            Text(reason).font(.system(size: 15)).foregroundStyle(Color.grayStrong)
+                            .padding(14)
+                            .background(Color.surface, in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.hairline))
                         }
+                        .buttonStyle(.plain)
                     }
                 }
             }
