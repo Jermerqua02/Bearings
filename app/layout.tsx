@@ -36,7 +36,18 @@ export default async function RootLayout({
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        <AppProvider snapshot={snapshot}>{children}</AppProvider>
+        {/*
+          Keyed on the account. AppProvider copies the snapshot into state
+          once, on mount, so a new snapshot from the server is otherwise
+          ignored — and sign-in navigates client-side (router.push +
+          refresh), keeping the provider mounted. The signed-in user landed
+          on "Welcome. Let's get acquainted." with a finished profile in the
+          database, because the store still held the signed-out snapshot.
+          A change of account now remounts it with the right one.
+        */}
+        <AppProvider key={viewer?.userId ?? "signed-out"} snapshot={snapshot}>
+          {children}
+        </AppProvider>
       </body>
     </html>
   );
