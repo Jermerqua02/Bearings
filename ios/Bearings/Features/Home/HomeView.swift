@@ -44,10 +44,18 @@ private struct Greeting: View {
     let label: String
 
     var body: some View {
-        SectionLabel(label)
-        (Text("Hi \(name). ").foregroundStyle(Color.ink) + Text(rest).foregroundStyle(Color.grayMid))
-            .font(.headline1)
-            .padding(.bottom, 4)
+        HStack(alignment: .bottom, spacing: 4) {
+            VStack(alignment: .leading, spacing: 10) {
+                SectionLabel(label)
+                (Text("Hi \(name). ").foregroundStyle(Color.ink) + Text(rest).foregroundStyle(Color.grayMid))
+                    .font(.headline1)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            GraduateView()
+                .frame(width: 132, height: 150)
+        }
+        .padding(.bottom, 4)
     }
 }
 
