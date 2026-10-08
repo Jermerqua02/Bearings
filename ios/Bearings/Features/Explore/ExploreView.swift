@@ -152,6 +152,7 @@ struct ExploreView: View {
         }
         .background(Color.paper)
         .scrollDismissesKeyboard(.interactively)
+        .collapsesMainNav()
         .refreshable { await store.reload() }
     }
 

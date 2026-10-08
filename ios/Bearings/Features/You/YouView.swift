@@ -1,51 +1,55 @@
 import SwiftUI
 
-/// The planner — app/(app)/planner/page.tsx. The student's record so far:
-/// courses and grades (read off a transcript if they upload one), the
-/// activity log in the order applications ask for, and what to do next
-/// summer. Everything here feeds the counselor and the application packet.
-struct PlannerView: View {
+/// You — what used to be the Planner, and now more: everything the
+/// counselor knows about the student. What they've told it in conversation,
+/// filed by topic and correctable line by line, alongside the record —
+/// courses and grades, activities, and what to do next summer. All of it
+/// feeds the counselor's advice and the application packet.
+///
+/// Reached from the profile and from the counselor, not a tab.
+struct YouView: View {
     @Environment(AppModel.self) private var model
-    @State private var section: Section = .courses
+    @State private var section: Section
     @State private var summary: PlannerSummary?
 
-    enum Section: Hashable { case courses, activities, opportunities }
+    enum Section: Hashable { case about, courses, activities, opportunities }
+
+    init(start: Section = .about) { _section = State(initialValue: start) }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if model.isParent {
-                    Page {
-                        TwoTone(lead: "This one belongs", rest: "to your student.")
-                        Muted("Course choices and activities are the part of this process where being watched is least useful — so the planner stays theirs. It feeds their application profile automatically; nothing gets re-typed in senior year.")
-                        Muted("What you can see is on your Home tab: their list, where each application stands, what's due next, and the aid comparison once offers arrive.")
-                    }
-                } else {
-                    Page(spacing: 22) {
-                        if model.snapshot?.profile?.mode == .build {
-                            TwoTone(lead: "What should I be doing?", rest: "That's the right question.")
-                        } else {
-                            TwoTone(lead: "Your record so far", rest: "— and what's still ahead.")
-                        }
-                        SegmentTabs(tabs: [(.courses, "Courses"), (.activities, "Activities"),
-                                           (.opportunities, "Opportunities")],
-                                    selection: $section)
-                        switch section {
-                        case .courses: CoursesSection(summary: summary)
-                        case .activities: ActivitiesSection(limits: summary?.limits)
-                        case .opportunities: OpportunitiesSection()
-                        }
+        Group {
+            if model.isParent {
+                Page {
+                    TwoTone(lead: "This one belongs", rest: "to your student.")
+                    Muted("What they tell their counselor, their courses and their activities are the part of this process where being watched is least useful — so it stays theirs. It feeds their application profile automatically; nothing gets re-typed in senior year.")
+                    Muted("What you can see is on your Home tab: their list, where each application stands, what's due next, and the aid comparison once offers arrive.")
+                }
+            } else {
+                Page(spacing: 22) {
+                    TwoTone(lead: "You,", rest: "as your counselor knows you.")
+                    SegmentTabs(tabs: [(.about, "About you"), (.courses, "Courses"), (.activities, "Activities"),
+                                       (.opportunities, "Opportunities")],
+                                selection: $section)
+                    switch section {
+                    case .about: MemorySection()
+                    case .courses: CoursesSection(summary: summary)
+                    case .activities: ActivitiesSection(limits: summary?.limits)
+                    case .opportunities: OpportunitiesSection()
                     }
                 }
             }
-            .rootScreen("Planner", hidesBar: true)
         }
+        .navigationTitle("You")
+        .navigationBarTitleDisplayMode(.inline)
+        .paperChrome()
         .task(id: model.plannerRevision) {
             guard !model.isParent else { return }
             summary = try? await model.api.get("/api/v1/planner")
         }
     }
 }
+
+struct YouRoute: Hashable {}
 
 // MARK: Courses
 

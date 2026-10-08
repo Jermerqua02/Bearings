@@ -295,7 +295,7 @@ struct SchoolDetailView: View {
                 Muted("I know your profile — ask me anything about fit, chances, or cost.")
                 Button {
                     model.askAbout = s
-                    model.tab = .counselor
+                    model.counselorOpen = true
                 } label: { Label("Ask the counselor", systemImage: "arrow.up.right") }
                     .buttonStyle(InkButtonStyle(compact: true))
             }

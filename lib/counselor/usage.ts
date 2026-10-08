@@ -9,15 +9,26 @@ import "server-only";
 import { db } from "@/lib/db";
 import { aiUsage } from "@/lib/db/schema";
 
-/** Claude Opus 5 list rates, US dollars per million tokens. */
-const RATES = {
-  model: "claude-opus-5",
-  inputPerMTok: 5,
-  outputPerMTok: 25,
+/** List rates, US dollars per million tokens. */
+interface Rate {
+  inputPerMTok: number;
+  outputPerMTok: number;
   // Cache reads are ~0.1x input; 5-minute cache writes are 1.25x.
-  cacheReadPerMTok: 0.5,
-  cacheWritePerMTok: 6.25,
-} as const;
+  cacheReadPerMTok: number;
+  cacheWritePerMTok: number;
+}
+
+/*
+  Per model. Every call used to be priced as Opus, including the Haiku
+  title and memory calls — overstating them roughly fivefold on the admin
+  usage page.
+*/
+const RATE_TABLE: Record<string, Rate> = {
+  "claude-opus-5": { inputPerMTok: 5, outputPerMTok: 25, cacheReadPerMTok: 0.5, cacheWritePerMTok: 6.25 },
+  "claude-haiku-4-5-20251001": { inputPerMTok: 1, outputPerMTok: 5, cacheReadPerMTok: 0.1, cacheWritePerMTok: 1.25 },
+};
+
+const RATES = { model: "claude-opus-5" } as const;
 
 export type AiFeature =
   | "chat"
@@ -29,7 +40,8 @@ export type AiFeature =
   | "summarize"
   | "speech"
   | "thread_title"
-  | "transcript";
+  | "transcript"
+  | "memory";
 
 export interface UsageCounts {
   input_tokens?: number;
@@ -39,12 +51,13 @@ export interface UsageCounts {
 }
 
 /** Millicents (tenths of a cent) — a why-this-school call costs well under a cent. */
-export function costMillicents(u: UsageCounts): number {
+export function costMillicents(u: UsageCounts, model: string = RATES.model): number {
+  const r = RATE_TABLE[model] ?? RATE_TABLE[RATES.model];
   const dollars =
-    ((u.input_tokens ?? 0) / 1e6) * RATES.inputPerMTok +
-    ((u.output_tokens ?? 0) / 1e6) * RATES.outputPerMTok +
-    ((u.cache_read_input_tokens ?? 0) / 1e6) * RATES.cacheReadPerMTok +
-    ((u.cache_creation_input_tokens ?? 0) / 1e6) * RATES.cacheWritePerMTok;
+    ((u.input_tokens ?? 0) / 1e6) * r.inputPerMTok +
+    ((u.output_tokens ?? 0) / 1e6) * r.outputPerMTok +
+    ((u.cache_read_input_tokens ?? 0) / 1e6) * r.cacheReadPerMTok +
+    ((u.cache_creation_input_tokens ?? 0) / 1e6) * r.cacheWritePerMTok;
   return Math.round(dollars * 100_000);
 }
 
@@ -73,7 +86,7 @@ export async function recordUsage(
       outputTokens: usage.output_tokens ?? 0,
       cacheReadTokens: usage.cache_read_input_tokens ?? 0,
       cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
-      costMillicents: costOverride ?? costMillicents(usage),
+      costMillicents: costOverride ?? costMillicents(usage, model),
     });
   } catch (err) {
     console.error("[ai-usage] failed to record:", err);

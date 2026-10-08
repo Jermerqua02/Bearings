@@ -109,6 +109,12 @@ export interface StudentProfile {
   values: StudentValue[];
   /** The AI-identified narrative thread. Never a number. */
   throughline?: Throughline;
+  /**
+   * What the student has told the counselor in past conversations
+   * (counselor_memory). Attached server-side when the profile is handed to
+   * the model, never sent to the client inside the profile.
+   */
+  counselorNotes?: { category: string; fact: string }[];
 }
 
 export interface ParentProfile {

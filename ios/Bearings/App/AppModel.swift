@@ -28,10 +28,18 @@ final class AppModel {
     /// conversation about it and clears this.
     var askAbout: School?
     /// Which tab is showing, so a screen can send the student elsewhere.
-    var tab: AppTab = .home
+    var tab: AppTab = .home {
+        didSet { if tab != oldValue { navCollapsed = false } }
+    }
+    /// The counselor sheet, opened from the chat button on any screen.
+    var counselorOpen = false
+    /// The main nav shrinks to a menu button while the student scrolls
+    /// down, and comes back on scroll up or a tap.
+    var navCollapsed = false
     #if DEBUG
     var devSchool: String?
     var devSettings = false
+    var devYou = false
     #endif
 
     let api = APIClient.shared
@@ -55,9 +63,9 @@ final class AppModel {
         // BEARINGS_DEV_SCHOOL=<id> opens that school over Explore.
         switch env["BEARINGS_DEV_TAB"] {
         case "explore": tab = .explore
-        case "counselor": tab = .counselor
+        case "counselor": counselorOpen = true
         case "apply": tab = .apply
-        case "planner": tab = .planner
+        case "you": devYou = true
         case "settings": devSettings = true
         default: break
         }
@@ -260,7 +268,9 @@ final class AppModel {
     }
 }
 
-enum AppTab: Hashable { case home, explore, counselor, apply, planner }
+/// The three places in the main nav. The counselor isn't a tab — it opens
+/// over whatever's showing — and "You" lives under the profile.
+enum AppTab: Hashable, CaseIterable { case home, explore, apply }
 
 struct SignUpForm: Encodable {
     var name = ""

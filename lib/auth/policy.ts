@@ -156,7 +156,8 @@ export type Resource =
   | "coursePlan"
   | "transcripts"
   | "checkIns"
-  | "preferences";
+  | "preferences"
+  | "counselorMemory";
 
 const PARENT_READABLE: ReadonlySet<Resource> = new Set<Resource>([
   "listEntries",

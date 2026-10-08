@@ -25,6 +25,7 @@ struct Page<Content: View>: View {
         .background(Color.paper)
         .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(Self.devAnchor)
+        .collapsesMainNav()
     }
 
     /// DEBUG: BEARINGS_DEV_SCROLL=0.5 opens every page scrolled halfway, so

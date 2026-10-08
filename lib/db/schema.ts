@@ -1004,6 +1004,7 @@ export const aiFeatureEnum = pgEnum("ai_feature", [
   // costs far more in input tokens than any chat turn — so it gets its own
   // line rather than hiding inside another feature's total.
   "transcript",
+  "memory",
 ]);
 
 export const aiUsage = pgTable(
@@ -1226,3 +1227,37 @@ export const userAvatars = pgTable("user_avatar", {
   bytes: bytea("bytes").notNull(),
   ...timestamps,
 });
+
+/* ————————————— Counselor memory ————————————— */
+
+/**
+ * What the student has told the counselor about themselves, kept across
+ * conversations.
+ *
+ * Each row is one durable fact in plain words ("Wants to stay within a
+ * day's drive of home"), filed under a topic from lib/memory.ts. Most are
+ * pulled from chat turns by a small model after the reply is sent; the
+ * student can also add, correct or delete them on the You screen, which is
+ * the point — it's their record of what the counselor believes, and the
+ * counselor reads it on every answer.
+ *
+ * Student-private ("counselorMemory" in lib/auth/policy.ts): a parent never
+ * reads it, the same as the threads it came from.
+ */
+export const counselorMemories = pgTable(
+  "counselor_memory",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    studentId: text("student_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    category: text("category").notNull(),
+    fact: text("fact").notNull(),
+    /** "chat" when the counselor picked it up; "student" when typed in. */
+    source: text("source").notNull().default("chat"),
+    /** The conversation it came from, while that conversation exists. */
+    threadId: uuid("thread_id").references(() => counselorThreads.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+  (t) => [index("counselor_memory_student_idx").on(t.studentId)],
+);

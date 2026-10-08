@@ -44,6 +44,26 @@ struct SettingsView: View {
                 }
 
                 TwoTone(lead: viewer.name, rest: viewer.role == .parent ? "· parent" : "")
+
+                if viewer.role != .parent {
+                    NavigationLink(value: YouRoute()) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "person.text.rectangle").font(.system(size: 18))
+                                .frame(width: 44, height: 44).background(Color.surface, in: Circle())
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("You").font(.display(19)).foregroundStyle(Color.ink)
+                                Text("What your counselor knows, your courses and grades, activities").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                                    .multilineTextAlignment(.leading)
+                            }
+                            Spacer()
+                            RoundIcon(icon: "arrow.up.right", fill: .surface)
+                        }
+                        .padding(16)
+                        .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+                        .softShadow()
+                    }
+                    .buttonStyle(.plain)
+                }
                 CardView {
                     row("Email", viewer.email)
                     Divider().overlay(Color.hairline)
@@ -70,7 +90,7 @@ struct SettingsView: View {
             Text("Bearings \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
                 .font(.system(size: 12)).foregroundStyle(Color.grayMid)
         }
-        .navigationTitle("Settings")
+        .navigationTitle("Profile")
         .navigationBarTitleDisplayMode(.inline)
         .paperChrome()
     }

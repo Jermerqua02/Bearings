@@ -109,6 +109,12 @@ export interface TranscriptReading {
   reportedGpa: ReportedGpa;
 }
 
+/** What a chat turn taught the counselor. See extractMemories. */
+export interface MemoryChanges {
+  add: { category: string; fact: string }[];
+  update: { id: string; fact: string }[];
+}
+
 export interface CounselorService {
   chat(req: CounselorRequest): Promise<CounselorResponse>;
   greet(profile: Profile): Promise<CounselorMessage>;
@@ -139,6 +145,17 @@ export interface CounselorService {
    * call rather than complicating the reply the student is waiting for.
    */
   titleFor(firstMessage: string, reply: string): Promise<string>;
+  /**
+   * Durable facts about the student in one exchange, measured against what
+   * is already remembered: new ones to add, existing ones the student has
+   * now corrected. Empty when there's nothing worth keeping, which is most
+   * turns.
+   */
+  extractMemories(input: {
+    studentMessage: string;
+    counselorReply: string;
+    known: { id: string; category: string; fact: string }[];
+  }): Promise<MemoryChanges>;
   /**
    * Read an uploaded transcript into course rows.
    *
@@ -337,6 +354,10 @@ const mockCounselor: CounselorService = {
     } and your preference for a ${profile.campus.settings[0] ?? "college-town"} setting, ${
       school.shortName
     } hits an unusual combination: ${school.academics.notablePrograms[0]}, and a culture that students describe as "${school.life.vibe.toLowerCase()}"`;
+  },
+
+  async extractMemories() {
+    return { add: [], update: [] };
   },
 
   async titleFor(firstMessage) {

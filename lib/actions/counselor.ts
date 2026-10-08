@@ -28,6 +28,7 @@ import {
 } from "@/lib/db/schema";
 import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
+import { addMemories, rawMemories, updateMemory } from "@/lib/db/queries/memory";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { UserFacingError } from "@/lib/actions/_error";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
@@ -91,12 +92,37 @@ async function guardedServiceFor(userId: string, feature: string) {
   return serviceFor(userId);
 }
 
-/** The viewer's profile, read from the session — never from the client. */
+/**
+ * The viewer's profile, read from the session — never from the client —
+ * with what they've told the counselor before attached, so every model
+ * call (chat, greeting, why-this-school, interviews) knows it.
+ */
 async function sessionProfile() {
   const viewer = await requireViewer();
   const snap = await loadSnapshot(viewer);
   if (!snap.profile) throw new UserFacingError("Finish onboarding first.");
-  return { viewer, profile: snap.profile };
+  const profile = snap.profile;
+  if (profile.role === "student") {
+    const notes = await rawMemories(viewer.userId).catch(() => []);
+    profile.counselorNotes = notes.map((n) => ({ category: n.category, fact: n.fact }));
+  }
+  return { viewer, profile };
+}
+
+/**
+ * Learn from a turn: file anything durable the student said about
+ * themselves. Runs after the reply is saved and never blocks or fails it —
+ * the student is already reading the answer.
+ */
+async function rememberFromTurn(userId: string, threadId: string, studentMessage: string, counselorReply: string) {
+  try {
+    const known = (await rawMemories(userId)).map((m) => ({ id: m.id, category: m.category, fact: m.fact }));
+    const changes = await serviceFor(userId).extractMemories({ studentMessage, counselorReply, known });
+    if (changes.add.length) await addMemories(userId, changes.add, "chat", threadId);
+    for (const u of changes.update) await updateMemory(userId, u.id, { fact: u.fact });
+  } catch (err) {
+    console.error("[memory] could not learn from turn:", err);
+  }
 }
 
 /* ————————————— Threads ————————————— */
@@ -296,6 +322,7 @@ export async function chatAction(input: {
   });
 
   await persist(input.threadId, res.message);
+  void rememberFromTurn(s.userId, input.threadId, input.message, res.message.text);
 
   /*
     Name the thread from the first real exchange.
@@ -417,6 +444,8 @@ function profileHash(p: StudentProfile | { role: "parent" }): string {
     s.campus,
     s.budget.maxPerYear,
     s.values,
+    // A remembered fact can change the answer ("needs to stay near home").
+    s.counselorNotes ?? [],
   ]);
 }
 

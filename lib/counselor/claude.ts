@@ -10,6 +10,7 @@
    payload can't request another student's scope.
    ———————————————————————————————————————— */
 
+import { MEMORY_CATEGORIES, isMemoryCategory } from "@/lib/memory";
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type {
@@ -418,8 +419,8 @@ export function createClaudeCounselor(deps: {
   /** Who to bill this call to. Every call is metered. */
   userId: string;
 }): CounselorService {
-  const meter = (feature: AiFeature, usage: UsageCounts | undefined) => {
-    if (usage) void recordUsage(deps.userId, feature, usage);
+  const meter = (feature: AiFeature, usage: UsageCounts | undefined, model?: string) => {
+    if (usage) void recordUsage(deps.userId, feature, usage, model);
   };
 
   return {
@@ -547,6 +548,65 @@ This is self-understanding, not positioning. Never compare them to other applica
       return textOf(res.content);
     },
 
+    async extractMemories({ studentMessage, counselorReply, known }) {
+      /*
+        Haiku again, for the same reasons as titles: it runs after every
+        reply, off the student's critical path, and it's filing, not counsel.
+
+        The bar for keeping something is "would a good counselor write this
+        in their notes" — a fact about the student that will still be true
+        and still matter next month. Questions, the counselor's own advice,
+        and small talk are not facts about the student.
+      */
+      const categories = MEMORY_CATEGORIES.map((c) => `- ${c.id}: ${c.description}`).join("\n");
+      const knownList = known.length
+        ? known.map((k) => `[${k.id}] (${k.category}) ${k.fact}`).join("\n")
+        : "(nothing yet)";
+      try {
+        const res = await anthropic().messages.create({
+          model: "claude-haiku-4-5-20251001",
+          max_tokens: 600,
+          system: [
+            {
+              type: "text",
+              text:
+                "You keep a college counselor's notes on one high school student. From one exchange, record only durable facts the STUDENT revealed about themselves: grades, scores, classes, activities, roles, awards, jobs, interests, intended majors, career ideas, what they want in a college, schools they love or have ruled out, money and family circumstances, constraints, background, values.\n\n" +
+                "Do not record: questions they asked, the counselor's advice or opinions, plans the counselor suggested that the student didn't adopt, small talk, or anything already in the known notes unless the student has now changed it.\n\n" +
+                "Write each fact as a short third-person note without the student's name, specific and self-contained: \"Plays varsity soccer; team captain junior year\", \"Wants to stay within a day's drive of home\", \"Family can contribute about $15k a year\".\n\n" +
+                "Categories:\n" + categories + "\n\n" +
+                'Reply with JSON only: {"add":[{"category":"<id>","fact":"<note>"}],"update":[{"id":"<known id>","fact":"<corrected note>"}]}. Use update when the student corrects or changes a known note. Most exchanges reveal nothing new — then reply {"add":[],"update":[]}.',
+            },
+          ],
+          messages: [
+            {
+              role: "user",
+              content: `Known notes:\n${knownList}\n\nStudent said:\n${studentMessage.slice(0, 3000)}\n\nCounselor replied:\n${counselorReply.slice(0, 1500)}`,
+            },
+          ],
+        });
+        meter("memory", res.usage as UsageCounts, "claude-haiku-4-5-20251001");
+        const raw = textOf(res.content).trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
+        const parsed = JSON.parse(raw) as { add?: unknown; update?: unknown };
+        const knownIds = new Set(known.map((k) => k.id));
+        const clean = (v: unknown) => (typeof v === "string" ? v.replace(/\s+/g, " ").trim().slice(0, 280) : "");
+        return {
+          add: (Array.isArray(parsed.add) ? parsed.add : [])
+            .map((a) => ({ category: String(a?.category ?? ""), fact: clean(a?.fact) }))
+            .filter((a) => isMemoryCategory(a.category) && a.fact.length > 3)
+            .slice(0, 8),
+          update: (Array.isArray(parsed.update) ? parsed.update : [])
+            .map((u) => ({ id: String(u?.id ?? ""), fact: clean(u?.fact) }))
+            .filter((u) => knownIds.has(u.id) && u.fact.length > 3)
+            .slice(0, 8),
+        };
+      } catch (err) {
+        // Memory is a nicety on top of the reply; a bad parse just means
+        // this turn taught us nothing.
+        console.error("[memory] extraction failed:", err);
+        return { add: [], update: [] };
+      }
+    },
+
     async titleFor(firstMessage: string, reply: string): Promise<string> {
       /*
         Haiku, not the counselor's model, and deliberately.
@@ -580,7 +640,7 @@ This is self-understanding, not positioning. Never compare them to other applica
           ],
         });
         const raw = textOf(res.content).trim();
-        meter("thread_title", res.usage as UsageCounts);
+        meter("thread_title", res.usage as UsageCounts, "claude-haiku-4-5-20251001");
 
         // A model that ignores the brief must not produce a worse title than
         // the student's own words would have.

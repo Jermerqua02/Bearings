@@ -7,6 +7,7 @@
    generic chatbot.
    ———————————————————————————————————————— */
 
+import { MEMORY_CATEGORIES } from "@/lib/memory";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Profile, School, StudentProfile } from "@/lib/types";
 
@@ -78,9 +79,27 @@ function studentSummary(p: StudentProfile): string {
     `- Budget: ${budget}`,
     p.geography.regions.length ? `- Regions: ${p.geography.regions.join(", ")}` : "",
     p.values.length ? `- Priorities: ${p.values.join(", ")}` : "",
+    notesSection(p),
   ]
     .filter(Boolean)
     .join("\n");
+}
+
+/**
+ * What they've told you before, by topic. This is what lets the counselor
+ * pick up where the student left off in a different conversation — and the
+ * student can see and correct every line of it on their You screen.
+ */
+function notesSection(p: StudentProfile): string {
+  const notes = p.counselorNotes ?? [];
+  if (!notes.length) return "";
+  const byTopic = MEMORY_CATEGORIES.map((c) => {
+    const lines = notes.filter((n) => n.category === c.id).map((n) => `  - ${n.fact}`);
+    return lines.length ? `- ${c.label}:\n${lines.join("\n")}` : "";
+  }).filter(Boolean);
+  return byTopic.length
+    ? `\nWhat they've told you in earlier conversations (their own words, as remembered — trust it, and don't ask again for what's here):\n${byTopic.join("\n")}`
+    : "";
 }
 
 function parentSummary(p: Extract<Profile, { role: "parent" }>): string {

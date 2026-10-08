@@ -5,6 +5,7 @@ import SwiftUI
 /// conversation; past conversations are one tap away in the top corner.
 struct CounselorView: View {
     @Environment(AppModel.self) private var model
+    @Environment(\.dismiss) private var dismiss
     @State private var store = CounselorStore()
     @State private var path = NavigationPath()
     @State private var draft = ""
@@ -38,6 +39,10 @@ struct CounselorView: View {
             }
             .rootScreen("Counselor")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { dismiss() } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel("Close")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink(value: ConversationsRoute()) {
                         Image(systemName: "list.bullet")
@@ -48,6 +53,7 @@ struct CounselorView: View {
             .navigationDestination(for: ConversationsRoute.self) { _ in ConversationsView(store: store) }
             .navigationDestination(for: ThreadRoute.self) { ChatView(store: store, threadId: $0.id) }
             .navigationDestination(for: InterviewRoute.self) { _ in InterviewView() }
+            .navigationDestination(for: YouRoute.self) { _ in YouView() }
             .schoolDestination()
         }
         .task { if !store.loaded && model.snapshot?.profile != nil { await store.load() } }
@@ -80,6 +86,25 @@ struct CounselorView: View {
                 }
             }
             .disabled(starting)
+
+            // What it knows about you — and where you can correct it.
+            NavigationLink(value: YouRoute()) {
+                HStack(spacing: 14) {
+                    Image(systemName: "sparkles").font(.system(size: 18)).foregroundStyle(Color.ink)
+                        .frame(width: 44, height: 44).background(Color.surface, in: Circle())
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("What I know about you").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                        Text("Everything you've told me, your grades and activities — fix anything that's off.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer()
+                    RoundIcon(icon: "arrow.up.right", fill: .surface)
+                }
+                .padding(16)
+                .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+                .softShadow()
+            }
+            .buttonStyle(.plain)
 
             NavigationLink(value: InterviewRoute()) {
                 HStack(spacing: 14) {

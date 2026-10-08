@@ -20,6 +20,7 @@ struct HomeView: View {
                         }
                         .padding(20)
                     }
+                    .collapsesMainNav()
                     .refreshable { try? await model.refresh() }
                 } else {
                     RetryView(message: "Your account didn't load.") { try? await model.refresh() }
@@ -28,10 +29,14 @@ struct HomeView: View {
             .background(Color.paper)
             .rootScreen("Home")
             #if DEBUG
-            .task { if model.devSettings { model.devSettings = false; path.append(SettingsRoute()) } }
+            .task {
+                if model.devSettings { model.devSettings = false; path.append(SettingsRoute()) }
+                if model.devYou { model.devYou = false; path.append(SettingsRoute()); path.append(YouRoute()) }
+            }
             #endif
             .schoolDestination()
             .navigationDestination(for: SettingsRoute.self) { _ in SettingsView() }
+            .navigationDestination(for: YouRoute.self) { _ in YouView() }
             .toolbar {
                 // The photo is its own round button; iOS 26 would otherwise
                 // set it inside a wider glass capsule.
@@ -146,7 +151,7 @@ private struct StudentHome: View {
         Panel(icon: "sparkles", title: "From your counselor", tint: .lavender) {
             Text(Match.balanceMessage(reach: counts.reach, target: counts.target, likely: counts.likely))
                 .font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
-            Button { model.tab = .counselor } label: { Label("Talk it through", systemImage: "arrow.up.right") }
+            Button { model.counselorOpen = true } label: { Label("Talk it through", systemImage: "arrow.up.right") }
                 .buttonStyle(InkButtonStyle(compact: true))
         }
 
