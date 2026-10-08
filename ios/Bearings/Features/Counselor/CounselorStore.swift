@@ -29,18 +29,16 @@ final class CounselorStore {
         }
     }
 
-    /// Start a thread and let the counselor open it. Returns the new id.
-    func start(about school: School? = nil) async -> String? {
+    /// Open a conversation for the student's first message — no greeting
+    /// first, since they've already said what they came to ask. Titled
+    /// "About Reed College" when it starts from a school. Returns the id.
+    func create(about school: School? = nil) async -> String? {
         struct Body: Encodable { let title: String? }
         let title = school.map { "About \($0.shortName)" }
         do {
             let created: CreatedID = try await api.post("/api/v1/counselor/threads", Body(title: title))
             threads.append(CounselorThread(id: created.id, title: title ?? "New conversation", messages: []))
             if let school { contextSchool[created.id] = school.id; schools[school.id] = school }
-            pending.insert(created.id)
-            defer { pending.remove(created.id) }
-            let greeting: CounselorMessage = try await api.post("/api/v1/counselor/threads/\(created.id)/greet")
-            append(greeting, to: created.id)
             return created.id
         } catch {
             self.error = error.localizedDescription
