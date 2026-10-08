@@ -25,7 +25,7 @@ struct SectionHeader<Trailing: View>: View {
                 .background(iconBackground, in: Circle())
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 1) {
-                Text(title).font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.ink)
+                Text(title).font(.display(19)).foregroundStyle(Color.ink)
                 if let subtitle {
                     Text(subtitle).font(.system(size: 13)).foregroundStyle(Color.grayStrong)
                 }

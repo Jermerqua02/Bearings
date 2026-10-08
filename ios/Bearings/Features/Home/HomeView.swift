@@ -4,9 +4,10 @@ import SwiftUI
 /// and a parent, and an invitation to onboard when there's no profile yet.
 struct HomeView: View {
     @Environment(AppModel.self) private var model
+    @State private var path = NavigationPath()
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Group {
                 if let snap = model.snapshot {
                     ScrollView {
@@ -26,12 +27,19 @@ struct HomeView: View {
             }
             .background(Color.paper)
             .rootScreen("Home")
+            #if DEBUG
+            .task { if model.devSettings { model.devSettings = false; path.append(SettingsRoute()) } }
+            #endif
             .schoolDestination()
             .navigationDestination(for: SettingsRoute.self) { _ in SettingsView() }
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    NavigationLink(value: SettingsRoute()) { Image(systemName: "person.crop.circle") }
-                        .accessibilityLabel("Account and settings")
+                // The photo is its own round button; iOS 26 would otherwise
+                // set it inside a wider glass capsule.
+                if #available(iOS 26.0, *) {
+                    ToolbarItem(placement: .topBarLeading) { profileButton }
+                        .sharedBackgroundVisibility(.hidden)
+                } else {
+                    ToolbarItem(placement: .topBarLeading) { profileButton }
                 }
             }
         }
@@ -247,6 +255,14 @@ private struct ParentHome: View {
 }
 
 struct SettingsRoute: Hashable {}
+
+extension HomeView {
+    var profileButton: some View {
+        NavigationLink(value: SettingsRoute()) { AvatarView(size: 38) }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Your profile and settings")
+    }
+}
 
 // MARK: Shared
 

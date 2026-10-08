@@ -82,7 +82,7 @@ struct SchoolDetailView: View {
                     }
                 }
             }
-            Text(s.name).font(.system(size: 30, weight: .semibold)).tracking(-0.5)
+            Text(s.name).font(.display(30)).tracking(-0.3)
                 .fixedSize(horizontal: false, vertical: true)
             if !model.isParent {
                 if onList {

@@ -19,6 +19,8 @@ struct Viewer: Codable, Equatable {
     let name: String
     let email: String
     let role: Role
+    /// When the profile photo last changed; nil if there isn't one.
+    let avatarUpdatedAt: String?
 }
 
 enum GradeMode: String, Codable {

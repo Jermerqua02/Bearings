@@ -47,8 +47,8 @@ struct TwoTone: View {
 
     var body: some View {
         (Text(lead + " ").foregroundStyle(Color.ink) + Text(rest).foregroundStyle(Color.grayMid))
-            .font(.system(size: size, weight: .semibold))
-            .tracking(-0.4)
+            .font(.display(size))
+            .tracking(-0.3)
             .fixedSize(horizontal: false, vertical: true)
     }
 }

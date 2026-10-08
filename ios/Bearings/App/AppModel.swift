@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 /// The app's single source of truth — the native counterpart of
 /// lib/profile-context.tsx. Holds the snapshot and owns every mutation, so
@@ -19,6 +20,10 @@ final class AppModel {
     /// Bumped whenever the course plan or transcripts change, so the
     /// planner refetches the GPA the server computes from them.
     var plannerRevision = 0
+    /// The profile photo, once fetched. Nil means none set (or not loaded).
+    var avatar: UIImage?
+    private var avatarVersion: String?
+
     /// Set by "Ask the counselor" on a school; the counselor tab opens a
     /// conversation about it and clears this.
     var askAbout: School?
@@ -26,6 +31,7 @@ final class AppModel {
     var tab: AppTab = .home
     #if DEBUG
     var devSchool: String?
+    var devSettings = false
     #endif
 
     let api = APIClient.shared
@@ -52,6 +58,7 @@ final class AppModel {
         case "counselor": tab = .counselor
         case "apply": tab = .apply
         case "planner": tab = .planner
+        case "settings": devSettings = true
         default: break
         }
         if let school = env["BEARINGS_DEV_SCHOOL"], !school.isEmpty {
@@ -95,6 +102,8 @@ final class AppModel {
         Keychain.deleteToken()
         viewer = nil
         snapshot = nil
+        avatar = nil
+        avatarVersion = nil
         phase = .signedOut
     }
 
@@ -102,6 +111,51 @@ final class AppModel {
         let res: SnapshotResponse = try await api.get("/api/v1/snapshot")
         viewer = res.viewer
         snapshot = res.snapshot
+        await syncAvatar()
+    }
+
+    // MARK: Profile photo
+
+    /// Fetch the photo only when the server says it changed.
+    private func syncAvatar() async {
+        let version = viewer?.avatarUpdatedAt
+        guard version != avatarVersion else { return }
+        avatarVersion = version
+        guard version != nil, let data = try? await api.data("/api/v1/me/avatar") else {
+            avatar = nil
+            return
+        }
+        avatar = UIImage(data: data)
+    }
+
+    /// Square-crop from the center, shrink to 512px, upload as JPEG. Shows
+    /// at once; reverts if the upload fails.
+    func setAvatar(_ image: UIImage) async {
+        let prepared = image.squareCropped(to: 512)
+        guard let jpeg = prepared.jpegData(compressionQuality: 0.85) else { return }
+        let before = avatar
+        avatar = prepared
+        struct Saved: Decodable { let updatedAt: String }
+        do {
+            let saved: Saved = try await api.upload("/api/v1/me/avatar", data: jpeg,
+                                                    filename: "avatar.jpg", mimeType: "image/jpeg")
+            avatarVersion = saved.updatedAt
+        } catch {
+            avatar = before
+            self.error = error.localizedDescription
+        }
+    }
+
+    func removeAvatar() async {
+        let before = avatar
+        avatar = nil
+        do {
+            try await api.perform("DELETE", "/api/v1/me/avatar")
+            avatarVersion = nil
+        } catch {
+            avatar = before
+            self.error = error.localizedDescription
+        }
     }
 
     // MARK: Lookups

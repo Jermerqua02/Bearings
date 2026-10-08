@@ -57,6 +57,14 @@ final class APIClient {
         _ = try await send(method, path, body: method == "DELETE" ? nil : body)
     }
 
+    /// Raw bytes, or nil on 404 — for images the app shows itself.
+    func data(_ path: String) async throws -> Data? {
+        let (data, response) = try await raw("GET", path, body: nil as Empty?, authenticated: true)
+        if response.statusCode == 404 { return nil }
+        try check(data, response)
+        return data
+    }
+
     /// A file, as multipart/form-data with field "file" — the shape
     /// /api/transcript has always taken from the web.
     func upload<T: Decodable>(_ path: String, data: Data, filename: String, mimeType: String) async throws -> T {

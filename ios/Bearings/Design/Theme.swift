@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import CoreText
 
 /*
   The tokens from app/globals.css. Swiss / editorial: near-white paper,
@@ -73,6 +75,27 @@ extension ChanceTier {
 }
 
 extension Font {
-    static let headline1 = Font.system(size: 30, weight: .semibold).leading(.tight)
+    static let headline1 = Font.display(30)
     static let body17 = Font.system(size: 17)
+
+    /// Raleway, for headlines and section titles. Body copy, numbers in
+    /// tiles and anything dense stay on the system face, where legibility
+    /// matters more than voice.
+    ///
+    /// The bundled file is Raleway's variable font, whose default instance
+    /// is Thin, so the weight is set on the `wght` axis directly. Lining
+    /// figures are switched on: Raleway's default old-style numerals make
+    /// "1,585 schools" bounce up and down the baseline.
+    static func display(_ size: CGFloat, weight: CGFloat = 760) -> Font {
+        let wght = 0x7767_6874 // 'wght'
+        let descriptor = UIFontDescriptor(fontAttributes: [
+            .name: "Raleway-Thin",
+            UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String): [wght: weight],
+            .featureSettings: [[
+                UIFontDescriptor.FeatureKey.type: kNumberCaseType,
+                UIFontDescriptor.FeatureKey.selector: kUpperCaseNumbersSelector,
+            ]],
+        ])
+        return Font(UIFont(descriptor: descriptor, size: size))
+    }
 }

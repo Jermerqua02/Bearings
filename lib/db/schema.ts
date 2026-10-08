@@ -1207,3 +1207,22 @@ export const transcripts = pgTable(
   },
   (t) => [index("transcript_student_idx").on(t.studentId)],
 );
+
+/* ————————————— Profile photo ————————————— */
+
+/**
+ * The photo a person chose for their account, one per user.
+ *
+ * Stored here rather than in Better Auth's `user.image`, which is a URL —
+ * that would mean a public bucket, and most of these are minors' faces.
+ * The bytes are only ever served to their owner (/api/v1/me/avatar). The
+ * app shrinks the image before upload, so a row is tens of KB.
+ */
+export const userAvatars = pgTable("user_avatar", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  contentType: text("content_type").notNull(),
+  bytes: bytea("bytes").notNull(),
+  ...timestamps,
+});

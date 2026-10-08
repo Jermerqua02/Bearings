@@ -1,14 +1,48 @@
 import SwiftUI
+import PhotosUI
 
 /// Account and settings, reached from Home. Styled like the rest of the
 /// app rather than as a stock grouped form.
 struct SettingsView: View {
     @Environment(AppModel.self) private var model
     @State private var confirmingSignOut = false
+    @State private var photo: PhotosPickerItem?
+    @State private var savingPhoto = false
 
     var body: some View {
         Page(spacing: 22) {
             if let viewer = model.viewer {
+                // The photo, large, with the controls to change it.
+                VStack(spacing: 14) {
+                    AvatarView(size: 112)
+                        .overlay { if savingPhoto { ProgressView().tint(.white) } }
+                    let pickerTitle = model.avatar == nil ? "Add a photo" : "Change photo"
+                    HStack(spacing: 10) {
+                        PhotosPicker(selection: $photo, matching: .images) {
+                            Label(pickerTitle, systemImage: "camera")
+                        }
+                        .buttonStyle(OutlineButtonStyle(compact: true))
+                        if model.avatar != nil {
+                            Button("Remove") { Task { await model.removeAvatar() } }
+                                .buttonStyle(LinkButtonStyle(color: .grayStrong))
+                        }
+                    }
+                    .disabled(savingPhoto)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .onChange(of: photo) { _, item in
+                    guard let item else { return }
+                    photo = nil
+                    savingPhoto = true
+                    Task {
+                        defer { savingPhoto = false }
+                        if let data = try? await item.loadTransferable(type: Data.self), let image = UIImage(data: data) {
+                            await model.setAvatar(image)
+                        }
+                    }
+                }
+
                 TwoTone(lead: viewer.name, rest: viewer.role == .parent ? "· parent" : "")
                 CardView {
                     row("Email", viewer.email)

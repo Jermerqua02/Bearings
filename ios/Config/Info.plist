@@ -12,6 +12,12 @@
 	     TestFlight doesn't ask the compliance question on every build. -->
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<!-- Raleway (SIL Open Font License; Resources/Fonts/Raleway-OFL.txt),
+	     for display headlines. One variable file; weight is set in code. -->
+	<key>UIAppFonts</key>
+	<array>
+		<string>Raleway-Variable.ttf</string>
+	</array>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

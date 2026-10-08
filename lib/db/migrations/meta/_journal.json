@@ -120,6 +120,13 @@
       "when": 1786919732623,
       "tag": "0016_strange_junta",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791499397545,
+      "tag": "0017_bored_sheva_callister",
+      "breakpoints": true
     }
   ]
 }
