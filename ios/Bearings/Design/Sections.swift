@@ -61,7 +61,7 @@ struct Panel<Content: View>: View {
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(tint, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
-        .shadow(color: tint == .surface ? .black.opacity(0.045) : .clear, radius: 14, y: 4)
+        .softShadow()
     }
 }
 
@@ -72,6 +72,9 @@ struct StatTile: View {
     var note: String?
     var tint: Color = .surface
     var icon: String?
+    /// False for tiles nested inside a panel — the panel already lifts
+    /// them, and a shadow on a shadow goes muddy.
+    var elevated = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -97,6 +100,7 @@ struct StatTile: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .background(tint, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .softShadow(elevated)
         .accessibilityElement(children: .combine)
     }
 }
@@ -206,6 +210,12 @@ extension View {
     func surfaceCard(radius: CGFloat = Radius.tile) -> some View {
         self
             .background(Color.surface, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .shadow(color: .black.opacity(0.045), radius: 14, y: 4)
+            .softShadow()
+    }
+
+    /// The one shadow every card on the page uses: wide, low, barely there.
+    /// Tinted panels get it too, so every card lifts the same way.
+    func softShadow(_ on: Bool = true) -> some View {
+        self.shadow(color: .black.opacity(on ? 0.06 : 0), radius: 18, x: 0, y: 6)
     }
 }

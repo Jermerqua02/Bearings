@@ -33,7 +33,7 @@ struct CardView<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(tint, in: RoundedRectangle(cornerRadius: radius, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).stroke(border))
-            .shadow(color: tint == .surface ? .black.opacity(0.045) : .clear, radius: 14, y: 4)
+            .softShadow()
     }
 }
 

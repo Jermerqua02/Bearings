@@ -162,8 +162,8 @@ struct SchoolDetailView: View {
         return Panel(icon: "dollarsign.circle", title: "Cost — honestly", subtitle: "Net price, not sticker, is the real number") {
             if hasCost {
                 TileRow {
-                    StatTile(label: "Average net price", value: c.avgNetPrice.map { Format.thousands($0) } ?? "—", tint: .mist)
-                    StatTile(label: "Sticker price", value: c.stickerPrice.map { Format.thousands($0) } ?? "—", tint: .mist)
+                    StatTile(label: "Average net price", value: c.avgNetPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
+                    StatTile(label: "Sticker price", value: c.stickerPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
                 }
                 if !bands.isEmpty {
                     Text("By family income").font(.system(size: 14, weight: .semibold)).padding(.top, 4)
@@ -197,7 +197,7 @@ struct SchoolDetailView: View {
             if !tiles.isEmpty || !majors.isEmpty || !notable.isEmpty {
                 Panel(icon: "books.vertical", title: "Academics", tint: .mist) {
                     if !tiles.isEmpty {
-                        TileRow { ForEach(tiles, id: \.0) { StatTile(label: $0.0, value: $0.1) } }
+                        TileRow { ForEach(tiles, id: \.0) { StatTile(label: $0.0, value: $0.1, elevated: false) } }
                     }
                     if !majors.isEmpty {
                         Text("Popular majors").font(.system(size: 14, weight: .semibold))
@@ -280,8 +280,8 @@ struct SchoolDetailView: View {
         if let o = s.outcomes, o.gradRate != nil || o.medianEarnings10yr != nil {
             Panel(icon: "graduationcap", title: "Outcomes") {
                 TileRow {
-                    if let g = o.gradRate { StatTile(label: "Graduate in six years", value: Format.rate(g), tint: .mist) }
-                    if let e = o.medianEarnings10yr { StatTile(label: "Median earnings, 10 yrs out", value: Format.thousands(e), tint: .mist) }
+                    if let g = o.gradRate { StatTile(label: "Graduate in six years", value: Format.rate(g), tint: .mist, elevated: false) }
+                    if let e = o.medianEarnings10yr { StatTile(label: "Median earnings, 10 yrs out", value: Format.thousands(e), tint: .mist, elevated: false) }
                 }
                 if let n = o.alumniNetwork { FactRows(rows: [("Alumni network", n.capitalized)]) }
             }

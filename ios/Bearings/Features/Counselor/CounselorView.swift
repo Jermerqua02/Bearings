@@ -87,6 +87,7 @@ struct CounselorView: View {
                 }
                 .padding(16)
                 .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+                .softShadow()
             }
             .buttonStyle(.plain)
 

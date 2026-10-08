@@ -212,6 +212,7 @@ struct ExploreView: View {
                             .padding(16)
                             .frame(width: 250, height: 140, alignment: .topLeading)
                             .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+                            .softShadow()
                         }
                         .buttonStyle(.plain)
                     }

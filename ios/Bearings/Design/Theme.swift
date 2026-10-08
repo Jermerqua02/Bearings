@@ -16,7 +16,8 @@ extension Color {
                   blue: Double(hex & 0xFF) / 255)
     }
 
-    static let paper = Color(hex: 0xF5F6F4)
+    // A true neutral — the earlier #F5F6F4 read faintly green.
+    static let paper = Color(hex: 0xF5F5F5)
     static let surface = Color.white
     static let ink = Color(hex: 0x111111)
     static let grayStrong = Color(hex: 0x6B6B6B)
