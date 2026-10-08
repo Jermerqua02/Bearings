@@ -372,3 +372,23 @@ extension View {
         self.toolbarBackground(Color.paper, for: .navigationBar)
     }
 }
+
+extension View {
+    /// A tab's root screen: no visible title. The tab bar already says
+    /// where you are, and the page opens with its own headline — a title
+    /// in the bar plus a label above the headline said the same word three
+    /// times. The title is still set, so the back button on pushed screens
+    /// and VoiceOver both have it.
+    ///
+    /// `hidesBar` drops the bar entirely on screens with no buttons in it,
+    /// so the headline sits at the top instead of under an empty strip.
+    /// Screens pushed from here still get their own bar and back button.
+    func rootScreen(_ title: String, hidesBar: Bool = false) -> some View {
+        self
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .principal) { Color.clear.frame(width: 1, height: 1).accessibilityHidden(true) } }
+            .toolbar(hidesBar ? .hidden : .automatic, for: .navigationBar)
+            .paperChrome()
+    }
+}

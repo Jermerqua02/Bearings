@@ -25,9 +25,7 @@ struct HomeView: View {
                 }
             }
             .background(Color.paper)
-            .navigationTitle("Bearings")
-            .navigationBarTitleDisplayMode(.inline)
-            .paperChrome()
+            .rootScreen("Home")
             .schoolDestination()
             .navigationDestination(for: SettingsRoute.self) { _ in SettingsView() }
             .toolbar {

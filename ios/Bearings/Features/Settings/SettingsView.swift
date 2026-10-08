@@ -8,7 +8,6 @@ struct SettingsView: View {
 
     var body: some View {
         Page(spacing: 22) {
-            SectionLabel("Settings")
             if let viewer = model.viewer {
                 TwoTone(lead: viewer.name, rest: viewer.role == .parent ? "· parent" : "")
                 CardView {

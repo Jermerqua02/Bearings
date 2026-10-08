@@ -77,9 +77,7 @@ struct ExploreView: View {
                     results
                 }
             }
-            .navigationTitle("Explore")
-            .navigationBarTitleDisplayMode(.inline)
-            .paperChrome()
+            .rootScreen("Explore", hidesBar: true)
             .schoolDestination()
             .sheet(isPresented: $filtersOpen) {
                 if let options = store.options {
@@ -242,7 +240,6 @@ struct ExploreView: View {
 
     private var needsProfile: some View {
         Page {
-            SectionLabel("Explore")
             if store.isParent {
                 TwoTone(lead: "The explorer works", rest: "from your student's profile.")
                 Muted("Chances, fit and net price are all calculated against a specific student's grades, budget and preferences — so this page waits until yours has finished onboarding. Their list, deadlines and aid comparisons are already on your Home tab.")

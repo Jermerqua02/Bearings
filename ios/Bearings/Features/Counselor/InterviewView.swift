@@ -16,7 +16,6 @@ struct InterviewView: View {
 
     var body: some View {
         Page(spacing: 22) {
-            SectionLabel("Interviews")
             TwoTone(lead: "Practice the conversation", rest: "before it counts.")
 
             if !primerHidden {

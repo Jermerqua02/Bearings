@@ -22,7 +22,6 @@ struct ApplyView: View {
     var body: some View {
         NavigationStack {
             Page(spacing: 20) {
-                SectionLabel("Apply")
                 TwoTone(lead: model.isParent ? "Where things stand," : "Your applications,", rest: "one school at a time.")
 
                 let list = model.snapshot?.list ?? []
@@ -44,9 +43,7 @@ struct ApplyView: View {
                     }
                 }
             }
-            .navigationTitle("Apply")
-            .navigationBarTitleDisplayMode(.inline)
-            .paperChrome()
+            .rootScreen("Apply", hidesBar: true)
             .schoolDestination()
             .refreshable { try? await model.refresh(); await load() }
         }

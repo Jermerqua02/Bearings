@@ -24,7 +24,6 @@ struct CounselorView: View {
                 // server refuses ("Finish onboarding first").
                 if model.snapshot != nil && model.snapshot?.profile == nil {
                     Page {
-                        SectionLabel("Counselor")
                         TwoTone(lead: "Finish onboarding first.", rest: "Your counselor reads your profile before it says anything.")
                         Link("Start onboarding on the web →", destination: Config.apiBaseURL.appending(path: "onboarding"))
                             .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
@@ -33,9 +32,7 @@ struct CounselorView: View {
                     home
                 }
             }
-            .navigationTitle("Counselor")
-            .navigationBarTitleDisplayMode(.inline)
-            .paperChrome()
+            .rootScreen("Counselor")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { start() } label: { Image(systemName: "square.and.pencil") }
@@ -65,7 +62,6 @@ struct CounselorView: View {
 
     private var home: some View {
         Page(spacing: 24) {
-            SectionLabel("Counselor")
             TwoTone(lead: "Ask me anything.", rest: "I've read your profile.")
 
             VStack(alignment: .leading, spacing: 10) {

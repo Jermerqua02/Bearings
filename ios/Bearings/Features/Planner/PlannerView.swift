@@ -16,14 +16,12 @@ struct PlannerView: View {
             Group {
                 if model.isParent {
                     Page {
-                        SectionLabel("Planner")
                         TwoTone(lead: "This one belongs", rest: "to your student.")
                         Muted("Course choices and activities are the part of this process where being watched is least useful — so the planner stays theirs. It feeds their application profile automatically; nothing gets re-typed in senior year.")
                         Muted("What you can see is on your Home tab: their list, where each application stands, what's due next, and the aid comparison once offers arrive.")
                     }
                 } else {
                     Page(spacing: 22) {
-                        SectionLabel("Planner")
                         if model.snapshot?.profile?.mode == .build {
                             TwoTone(lead: "What should I be doing?", rest: "That's the right question.")
                         } else {
@@ -40,9 +38,7 @@ struct PlannerView: View {
                     }
                 }
             }
-            .navigationTitle("Planner")
-            .navigationBarTitleDisplayMode(.inline)
-            .paperChrome()
+            .rootScreen("Planner", hidesBar: true)
         }
         .task(id: model.plannerRevision) {
             guard !model.isParent else { return }
