@@ -1,19 +1,21 @@
 import SwiftUI
 import ImageIO
 
-/// The graduate on Home: plays the dance once, rests on his opening pose
-/// for a beat, then plays again.
+/// The graduate on Home: dances, rests on his standing pose for a beat,
+/// then dances again — a different dance each time, picked at random from
+/// the clips bundled as Resources/graduate-1.png, graduate-2.png, …
 ///
-/// The frames are a transparent animated PNG (Resources/graduate.png), cut
-/// out of the original GIF's white background with Vision so he stands on
-/// the app's own paper. Frames are decoded one at a time as they're shown —
-/// holding all 121 decoded would be ~45 MB for a decoration.
+/// The clips are transparent animated PNGs, cut out of the original GIFs'
+/// white background with Vision so he stands on the app's own paper, and
+/// cropped to one shared box so he never shifts between dances (see
+/// ios/scripts/cutout-character.swift). Frames are decoded one at a time
+/// as they're shown — holding a clip's 121 frames decoded would be ~45 MB.
 struct GraduateView: View {
     /// How long he holds still between dances.
     var rest: Duration = .milliseconds(2500)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var frame: CGImage? = GraduateFrames.shared?.image(at: 0)
+    @State private var frame: CGImage? = GraduateClips.all.first?.image(at: 0)
 
     var body: some View {
         Group {
@@ -27,31 +29,38 @@ struct GraduateView: View {
         .accessibilityHidden(true)
         // Tied to the view's lifetime, so it stops when Home isn't showing.
         .task(id: reduceMotion) {
-            guard !reduceMotion, let frames = GraduateFrames.shared else { return }
+            let clips = GraduateClips.all
+            guard !reduceMotion, !clips.isEmpty else { return }
+            var last = -1
             while !Task.isCancelled {
-                for i in 0..<frames.count {
-                    frame = frames.image(at: i)
-                    try? await Task.sleep(for: .seconds(frames.delays[i]))
+                // Any clip but the one just played, so it never repeats twice running.
+                let pick = clips.count > 1
+                    ? (0..<clips.count).filter { $0 != last }.randomElement()!
+                    : 0
+                last = pick
+                let clip = clips[pick]
+                for i in 0..<clip.count {
+                    frame = clip.image(at: i)
+                    try? await Task.sleep(for: .seconds(clip.delays[i]))
                     if Task.isCancelled { return }
                 }
-                frame = frames.image(at: 0)
+                // Every clip starts on the same standing pose, so resting on
+                // this one's first frame matches whichever plays next.
+                frame = clip.image(at: 0)
                 try? await Task.sleep(for: rest)
             }
         }
     }
 }
 
-/// The animation's frames, read lazily from the bundled APNG.
-final class GraduateFrames {
-    static let shared = GraduateFrames()
-
+/// One dance, read lazily from its APNG.
+final class GraduateClip {
     let delays: [Double]
     private let source: CGImageSource
     var count: Int { delays.count }
 
-    private init?() {
-        guard let url = Bundle.main.url(forResource: "graduate", withExtension: "png"),
-              let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
+    init?(url: URL) {
+        guard let source = CGImageSourceCreateWithURL(url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary)
         else { return nil }
         self.source = source
         delays = (0..<CGImageSourceGetCount(source)).map { i in
@@ -64,5 +73,13 @@ final class GraduateFrames {
 
     func image(at index: Int) -> CGImage? {
         CGImageSourceCreateImageAtIndex(source, index, [kCGImageSourceShouldCache: false] as CFDictionary)
+    }
+}
+
+enum GraduateClips {
+    /// graduate-1.png, graduate-2.png, … — however many are bundled.
+    static let all: [GraduateClip] = (1...20).compactMap { n in
+        guard let url = Bundle.main.url(forResource: "graduate-\(n)", withExtension: "png") else { return nil }
+        return GraduateClip(url: url)
     }
 }

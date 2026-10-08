@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The account's photo in a circle, or their initials when there isn't one.
+/// The account's photo in a circle — the graduate until they add their own.
 struct AvatarView: View {
     @Environment(AppModel.self) private var model
     var size: CGFloat = 36
@@ -10,6 +10,10 @@ struct AvatarView: View {
         Group {
             if let image = model.avatar {
                 Image(uiImage: image).resizable().scaledToFill()
+            } else if let graduate = Self.defaultImage {
+                // Until they add their own: the graduate from Home.
+                Image(uiImage: graduate).resizable().scaledToFill()
+                    .background(Color.mist)
             } else {
                 Text(initials)
                     .font(.system(size: size * 0.38, weight: .semibold))
@@ -24,6 +28,9 @@ struct AvatarView: View {
         .softShadow()
         .accessibilityHidden(true)
     }
+
+    private static let defaultImage: UIImage? = Bundle.main.path(forResource: "default-avatar", ofType: "png")
+        .flatMap(UIImage.init(contentsOfFile:))
 
     private var initials: String {
         let parts = (model.viewer?.name ?? "").split(separator: " ")
