@@ -38,22 +38,22 @@ struct HomeView: View {
     }
 }
 
+/// The top of Home: the graduate, large and centered, with the greeting
+/// beneath him.
 private struct Greeting: View {
     let name: String
     let rest: String
     let label: String
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 4) {
-            VStack(alignment: .leading, spacing: 10) {
-                SectionLabel(label)
-                (Text("Hi \(name). ").foregroundStyle(Color.ink) + Text(rest).foregroundStyle(Color.grayMid))
-                    .font(.headline1)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
+        VStack(alignment: .leading, spacing: 14) {
             GraduateView()
-                .frame(width: 132, height: 150)
+                .frame(height: 230)
+                .frame(maxWidth: .infinity)
+            SectionLabel(label)
+            (Text("Hi \(name). ").foregroundStyle(Color.ink) + Text(rest).foregroundStyle(Color.grayMid))
+                .font(.headline1)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.bottom, 4)
     }
