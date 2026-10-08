@@ -7,13 +7,20 @@ extension AppModel {
 
     // MARK: Courses
 
-    func addCourse(year: Int, subject: Course.Subject, name: String, level: Course.Level) async {
-        struct Body: Encodable { let year: Int; let subject: Course.Subject; let name: String; let level: Course.Level; let status: Course.Status }
+    /// Add a course — planned, in progress, or already finished with its
+    /// grade, for students typing in a record rather than uploading one.
+    func addCourse(year: Int, subject: Course.Subject, name: String, level: Course.Level,
+                   status: Course.Status = .planned, grade: String? = nil) async {
+        struct Body: Encodable {
+            let year: Int; let subject: Course.Subject; let name: String
+            let level: Course.Level; let status: Course.Status; let grade: String?
+        }
+        let grade = status == .completed ? grade : nil
         do {
             let created: CreatedID = try await api.post("/api/v1/courses",
-                Body(year: year, subject: subject, name: name, level: level, status: .planned))
+                Body(year: year, subject: subject, name: name, level: level, status: status, grade: grade))
             snapshot?.coursePlan.append(Course(id: created.id, year: year, subject: subject, name: name,
-                                               level: level, status: .planned))
+                                               level: level, status: status, grade: grade))
             plannerChanged()
         } catch {
             self.error = error.localizedDescription
@@ -27,11 +34,15 @@ extension AppModel {
         change(&after)
         snapshot!.coursePlan[i] = after
 
-        struct Patch: Encodable { let status: Course.Status?; let grade: String?; let level: Course.Level?; let name: String? }
+        struct Patch: Encodable {
+            let status: Course.Status?; let grade: String?; let level: Course.Level?
+            let name: String?; let subject: Course.Subject?
+        }
         let patch = Patch(status: after.status != before.status ? after.status : nil,
                           grade: after.grade != before.grade ? (after.grade ?? "") : nil,
                           level: after.level != before.level ? after.level : nil,
-                          name: after.name != before.name ? after.name : nil)
+                          name: after.name != before.name ? after.name : nil,
+                          subject: after.subject != before.subject ? after.subject : nil)
         mutate(rollback: { snap in
             if let j = snap.coursePlan.firstIndex(where: { $0.id == id }) { snap.coursePlan[j] = before }
         }) {

@@ -56,7 +56,11 @@ struct PlannerView: View {
 private struct CoursesSection: View {
     @Environment(AppModel.self) private var model
     let summary: PlannerSummary?
-    @State private var addingYear: Int?
+    /// The sheet: adding to a year, or editing one course.
+    @State private var form: CourseFormTarget?
+    /// Years whose courses are unlocked for editing. Grades are records,
+    /// so they read as fixed text until the student asks to change them.
+    @State private var editingYears: Set<Int> = []
 
     var body: some View {
         let courses = model.snapshot?.coursePlan ?? []
@@ -67,9 +71,23 @@ private struct CoursesSection: View {
                 let rows = courses.filter { $0.year == year }
                     .sorted { ($0.subject.order, $0.name, $0.term ?? "") < ($1.subject.order, $1.name, $1.term ?? "") }
                 VStack(alignment: .leading, spacing: 10) {
+                    let editing = editingYears.contains(year)
                     SectionHeader(icon: "\(year - 8).circle", title: "\(year)th grade",
                                   subtitle: rows.isEmpty ? nil : "\(rows.count) course\(rows.count == 1 ? "" : "s")") {
-                        RoundIconButton(icon: "plus", fill: .highlight, label: "Add a \(year)th-grade course") { addingYear = year }
+                        HStack(spacing: 8) {
+                            if !rows.isEmpty {
+                                Button(editing ? "Done" : "Edit") {
+                                    withAnimation(.snappy) {
+                                        if editing { editingYears.remove(year) } else { editingYears.insert(year) }
+                                    }
+                                }
+                                .buttonStyle(OutlineButtonStyle(compact: true))
+                                .accessibilityLabel(editing ? "Done editing \(year)th grade" : "Edit \(year)th-grade courses")
+                            }
+                            RoundIconButton(icon: "plus", fill: .highlight, label: "Add a \(year)th-grade course") {
+                                form = .add(year: year)
+                            }
+                        }
                     }
                     if rows.isEmpty {
                         Muted("Nothing yet.", size: 14)
@@ -77,7 +95,7 @@ private struct CoursesSection: View {
                         VStack(spacing: 0) {
                             ForEach(Array(rows.enumerated()), id: \.element.id) { i, course in
                                 if i > 0 { Divider().overlay(Color.hairline) }
-                                CourseRow(course: course, grades: summary?.gradeOptions ?? [])
+                                CourseRow(course: course, editing: editing) { form = .edit(course) }
                             }
                         }
                         .padding(.horizontal, 14)
@@ -86,9 +104,9 @@ private struct CoursesSection: View {
                 }
             }
         }
-        .sheet(item: Binding(get: { addingYear.map(YearRef.init) }, set: { addingYear = $0?.year })) { ref in
-            AddCourseSheet(year: ref.year)
-                .presentationDetents([.medium])
+        .sheet(item: $form) { target in
+            CourseFormSheet(target: target, grades: summary?.gradeOptions ?? [])
+                .presentationDetents([.large])
                 .presentationBackground(Color.paper)
         }
     }
@@ -126,102 +144,182 @@ private struct CoursesSection: View {
     }
 }
 
-private struct YearRef: Identifiable { let year: Int; var id: Int { year } }
+enum CourseFormTarget: Identifiable {
+    case add(year: Int)
+    case edit(Course)
+
+    var id: String {
+        switch self {
+        case .add(let year): "add-\(year)"
+        case .edit(let course): course.id
+        }
+    }
+}
 
 private extension Course.Subject {
     var order: Int { Course.Subject.allCases.firstIndex(of: self) ?? 0 }
 }
 
+/// One course. Read-only by default — the grade is a record, shown as a
+/// fixed badge. In edit mode the row offers edit and remove instead.
 private struct CourseRow: View {
     @Environment(AppModel.self) private var model
     let course: Course
-    let grades: [String]
+    let editing: Bool
+    let edit: () -> Void
+    @State private var confirmingRemove = false
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
+            if editing {
+                Button { confirmingRemove = true } label: {
+                    Image(systemName: "minus.circle.fill").font(.system(size: 20)).foregroundStyle(Color.reach)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Remove \(course.name)")
+                .transition(.move(edge: .leading).combined(with: .opacity))
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text(course.name).font(.system(size: 15, weight: .medium))
                     .foregroundStyle(course.status == .planned ? Color.grayMid : Color.ink)
                 // The term is what tells two rows for one class apart — a
                 // semestered course is two grades, not a duplicate.
-                Text([course.subject.rawValue, course.level.label, course.term,
-                      course.status == .planned ? "planned" : course.status == .inProgress ? "now" : nil]
-                    .compactMap { $0 }.joined(separator: " · ").uppercased())
+                Text([course.subject.rawValue, course.level.label, course.term].compactMap { $0 }
+                    .joined(separator: " · ").uppercased())
                     .font(.system(size: 11, weight: .medium)).tracking(0.5).foregroundStyle(Color.grayMid)
             }
             Spacer(minLength: 8)
-            if course.status == .completed {
-                SelectBox(options: [("", "—")] + grades.map { ($0, $0) },
-                          selection: Binding(get: { course.grade ?? "" },
-                                             set: { g in model.updateCourse(course.id) { $0.grade = g.isEmpty ? nil : g } }),
-                          compact: true)
-                    .frame(width: 78)
-                    .accessibilityLabel("Grade for \(course.name)")
+            if editing {
+                RoundIconButton(icon: "pencil", fill: .mist, size: 32, label: "Edit \(course.name)", action: edit)
             } else {
-                Button(course.status == .planned ? "Start" : "Finish") {
-                    model.updateCourse(course.id) { $0.status = course.status == .planned ? .inProgress : .completed }
-                }
-                .buttonStyle(OutlineButtonStyle(compact: true))
-                .accessibilityLabel(course.status == .planned ? "Mark \(course.name) as in progress" : "Mark \(course.name) as completed")
+                badge
             }
-            Menu {
-                Button("Remove course", role: .destructive) { model.removeCourse(course.id) }
-            } label: {
-                Image(systemName: "ellipsis").foregroundStyle(Color.grayMid).frame(width: 28, height: 36)
-            }
-            .accessibilityLabel("More for \(course.name)")
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 11)
+        .confirmationDialog("Remove \(course.name)?", isPresented: $confirmingRemove, titleVisibility: .visible) {
+            Button("Remove course", role: .destructive) { model.removeCourse(course.id) }
+        }
+    }
+
+    /// Grade if there is one; otherwise where the course stands.
+    @ViewBuilder
+    private var badge: some View {
+        switch course.status {
+        case .completed:
+            Text(course.grade.flatMap { $0.isEmpty ? nil : $0 } ?? "—")
+                .font(.system(size: 15, weight: .semibold))
+                .frame(minWidth: 44)
+                .padding(.vertical, 6)
+                .background(course.grade == nil ? Color.fill : Color.mist, in: Capsule())
+                .accessibilityLabel(course.grade.map { "Grade \($0)" } ?? "No grade recorded")
+        case .inProgress:
+            Text("Taking now").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.ink)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .background(Color.highlightSoft, in: Capsule())
+        case .planned:
+            Text("Planned").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.grayStrong)
+                .padding(.horizontal, 10).padding(.vertical, 6)
+                .overlay(Capsule().stroke(Color.hairline))
+        }
     }
 }
 
-private struct AddCourseSheet: View {
+/// Add a course or edit one — the same form either way, so typing in a
+/// finished course with its grade is as easy as planning one.
+private struct CourseFormSheet: View {
     @Environment(AppModel.self) private var model
     @Environment(\.dismiss) private var dismiss
-    let year: Int
+    let target: CourseFormTarget
+    let grades: [String]
+
     @State private var name = ""
     @State private var subject: Course.Subject = .english
     @State private var level: Course.Level = .regular
+    @State private var status: Course.Status = .completed
+    @State private var grade = ""
     @State private var saving = false
+
+    private var year: Int {
+        switch target {
+        case .add(let y): y
+        case .edit(let c): c.year
+        }
+    }
+
+    private var isEdit: Bool { if case .edit = target { true } else { false } }
 
     var body: some View {
         NavigationStack {
-            Page(spacing: 20) {
-                BoxField(placeholder: "Course name", text: $name)
+            Page(spacing: 22) {
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionLabel("Subject")
-                    FlowLayout {
-                        ForEach(Course.Subject.allCases, id: \.self) { s in
-                            Chip(label: s.rawValue, active: subject == s) { subject = s }
+                    SectionLabel("Course")
+                    BoxField(placeholder: "e.g. AP Biology", text: $name)
+                }
+                group("Status") {
+                    ForEach(Course.Status.allCases, id: \.self) { s in
+                        Chip(label: s.label, active: status == s) { status = s }
+                    }
+                }
+                if status == .completed {
+                    group("Grade") {
+                        ForEach(grades, id: \.self) { g in
+                            Chip(label: g, active: grade == g) { grade = grade == g ? "" : g }
                         }
                     }
                 }
-                VStack(alignment: .leading, spacing: 8) {
-                    SectionLabel("Level")
-                    FlowLayout {
-                        ForEach(Course.Level.allCases, id: \.self) { l in
-                            Chip(label: l.label, active: level == l) { level = l }
-                        }
+                group("Level") {
+                    ForEach(Course.Level.allCases, id: \.self) { l in
+                        Chip(label: l.label, active: level == l) { level = l }
+                    }
+                }
+                group("Subject") {
+                    ForEach(Course.Subject.allCases, id: \.self) { s in
+                        Chip(label: s.rawValue, active: subject == s) { subject = s }
                     }
                 }
             }
-            .navigationTitle("Add a \(year)th-grade course")
+            .navigationTitle(isEdit ? "Edit course" : "Add a \(year)th-grade course")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Add") {
-                        saving = true
-                        Task {
-                            await model.addCourse(year: year, subject: subject,
-                                                  name: name.trimmingCharacters(in: .whitespaces), level: level)
-                            dismiss()
-                        }
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
+                    Button(isEdit ? "Save" : "Add", action: save)
+                        .fontWeight(.semibold)
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty || saving)
                 }
             }
+        }
+        .onAppear {
+            if case .edit(let c) = target {
+                name = c.name; subject = c.subject; level = c.level; status = c.status; grade = c.grade ?? ""
+            }
+        }
+    }
+
+    private func group<C: View>(_ title: String, @ViewBuilder _ chips: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionLabel(title)
+            FlowLayout { chips() }
+        }
+    }
+
+    private func save() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let finalGrade = status == .completed && !grade.isEmpty ? grade : nil
+        switch target {
+        case .add(let y):
+            saving = true
+            Task {
+                await model.addCourse(year: y, subject: subject, name: trimmed, level: level,
+                                      status: status, grade: finalGrade)
+                dismiss()
+            }
+        case .edit(let c):
+            model.updateCourse(c.id) {
+                $0.name = trimmed; $0.subject = subject; $0.level = level
+                $0.status = status; $0.grade = finalGrade
+            }
+            dismiss()
         }
     }
 }
