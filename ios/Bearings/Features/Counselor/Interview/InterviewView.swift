@@ -12,6 +12,9 @@ struct InterviewView: View {
     /// The student chose the keyboard, or speaking isn't available.
     @State private var typing = false
     @State private var showEarlier = false
+    /// The question on screen. Each gets its own page, so the next one is a
+    /// fresh start; earlier ones in the sitting are a swipe back.
+    @State private var page: UUID?
 
     var body: some View {
         Group {
@@ -119,42 +122,90 @@ struct InterviewView: View {
     // MARK: The conversation
 
     private var conversation: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    SectionLabel(session.schoolName ?? "General practice")
-                    ForEach(session.exchanges) { exchange in
-                        ExchangeView(exchange: exchange, session: session)
-                    }
-                    if session.phase == .thinking {
-                        ThinkingLine(reduceMotion: reduceMotion)
-                    }
-                    Color.clear.frame(height: 1).id("end")
+        VStack(spacing: 0) {
+            pageHeader
+            TabView(selection: $page) {
+                ForEach(session.exchanges) { exchange in
+                    ExchangePage(exchange: exchange, session: session, reduceMotion: reduceMotion)
+                        .tag(Optional(exchange.id))
                 }
-                .padding(20)
-                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .tabViewStyle(.page(indexDisplayMode: .never))
             .background(Color.paper)
-            .scrollDismissesKeyboard(.interactively)
-            .defaultScrollAnchor(.bottom)
-            .defaultScrollAnchor(.bottom, for: .sizeChanges)
-            .onChange(of: session.phase) {
-                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("end", anchor: .bottom) }
-            }
         }
         .safeAreaInset(edge: .bottom) { dock }
+        // A new question slides in as a new page.
+        .onChange(of: session.current?.id, initial: true) { _, id in
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.35)) { page = id }
+        }
+    }
+
+    private var pageIndex: Int? { session.exchanges.firstIndex { $0.id == page } }
+    private var viewingCurrent: Bool { page == nil || page == session.current?.id }
+
+    /// Where they are in the sitting, with arrows to step through it.
+    private var pageHeader: some View {
+        let i = pageIndex ?? max(0, session.exchanges.count - 1)
+        let count = session.exchanges.count
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                SectionLabel(session.schoolName ?? "General practice")
+                Text(count > 1 ? "Question \(i + 1) of \(count)" : "Question 1")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.ink)
+            }
+            Spacer()
+            if count > 1 {
+                pageArrow("chevron.left", label: "Previous question", to: i - 1)
+                pageArrow("chevron.right", label: "Next question in this sitting", to: i + 1)
+            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
+        .background(Color.paper)
+        .overlay(alignment: .bottom) { Rectangle().fill(Color.hairline).frame(height: 1) }
+    }
+
+    private func pageArrow(_ icon: String, label: String, to target: Int) -> some View {
+        let valid = session.exchanges.indices.contains(target)
+        return Button {
+            guard valid else { return }
+            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { page = session.exchanges[target].id }
+        } label: {
+            Image(systemName: icon)
+                .font(.system(size: 14, weight: .semibold))
+                .frame(width: 36, height: 36)
+                .background(Color.surface, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(valid ? Color.ink : Color.grayMid.opacity(0.5))
+        .disabled(!valid)
+        .accessibilityLabel(label)
     }
 
     /// Whatever the current turn asks of the student, pinned to the bottom.
     @ViewBuilder
     private var dock: some View {
+        // Looking back at an earlier question: the way back to this one.
+        // Not mid-recording, though — the stop button stays reachable.
+        let lookingBack = !viewingCurrent && !session.ears.recording && !session.ears.finishing
         let content = VStack(alignment: .leading, spacing: 12) {
-            if let error = session.error { InlineNote(text: error, kind: .problem) }
-            switch session.phase {
-            case .asking: askingControls
-            case .answering: answeringControls
-            case .feedback: feedbackControls
-            case .thinking, .choosing: EmptyView()
+            if lookingBack {
+                Button {
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) { page = session.current?.id }
+                } label: {
+                    Label("Back to question \(session.exchanges.count)", systemImage: "arrow.right")
+                }
+                .buttonStyle(InkButtonStyle())
+                .frame(maxWidth: .infinity)
+            } else {
+                if let error = session.error { InlineNote(text: error, kind: .problem) }
+                switch session.phase {
+                case .asking: askingControls
+                case .answering: answeringControls
+                case .feedback: feedbackControls
+                case .thinking, .choosing: EmptyView()
+                }
             }
         }
         .padding(.horizontal, 20)
@@ -163,7 +214,7 @@ struct InterviewView: View {
         .background(Color.paper)
         .overlay(alignment: .top) { Rectangle().fill(Color.hairline).frame(height: 1) }
 
-        if session.phase != .thinking || session.error != nil { content }
+        if lookingBack || session.phase != .thinking || session.error != nil { content }
     }
 
     private var askingControls: some View {
@@ -253,6 +304,37 @@ struct InterviewView: View {
 }
 
 // MARK: Pieces
+
+/// One question's page: scrolls on its own, and keeps the newest part of
+/// the current turn in view as her reply and cards arrive.
+private struct ExchangePage: View {
+    let exchange: InterviewSession.Exchange
+    let session: InterviewSession
+    let reduceMotion: Bool
+
+    var body: some View {
+        let isCurrent = exchange.id == session.current?.id
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ExchangeView(exchange: exchange, session: session)
+                    if isCurrent, session.phase == .thinking {
+                        ThinkingLine(reduceMotion: reduceMotion)
+                    }
+                    Color.clear.frame(height: 1).id("end")
+                }
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .defaultScrollAnchor(.bottom, for: .sizeChanges)
+            .onChange(of: session.phase) {
+                guard isCurrent else { return }
+                withAnimation(reduceMotion ? nil : .default) { proxy.scrollTo("end", anchor: .bottom) }
+            }
+        }
+    }
+}
 
 /// One question in the sitting: hers, the student's answer, her reply.
 private struct ExchangeView: View {
