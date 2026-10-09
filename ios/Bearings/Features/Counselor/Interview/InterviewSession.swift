@@ -91,6 +91,7 @@ final class InterviewSession {
         sitting += 1
         exchanges = []
         error = nil
+        voice.prepareAcknowledgments()
         await ask(firstQuestion())
     }
 
@@ -185,6 +186,7 @@ final class InterviewSession {
         error = nil
         sent = text
         phase = .thinking
+        voice.acknowledge()
         do {
             let fb: InterviewFeedback = try await api.post("/api/v1/interviews", Body(
                 schoolId: schoolId.isEmpty ? nil : schoolId, question: question, answer: text,
@@ -195,7 +197,9 @@ final class InterviewSession {
             answer = ""
             sent = nil
             phase = .feedback
-            // Fetch the next question's voice while she gives this reply.
+            // Her reply first, then the next question's voice, fetched while
+            // she gives this one.
+            voice.prefetch(fb.followUp)
             voice.prefetch(nextQuestion)
             let id = exchanges[exchanges.count - 1].id
             await voice.say(fb.followUp)

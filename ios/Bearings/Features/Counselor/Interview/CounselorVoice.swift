@@ -11,7 +11,13 @@ import Observation
 ///            limited, or unavailable. The interview never waits on audio.
 ///   silent — muted: the text types itself out briefly, no sound.
 ///
-/// Gemini returns no word timings, so the hosted reveal is paced across the
+/// A hosted line is voiced in pieces of a sentence or two, all requested at
+/// once and played in order: the first piece is ready in about two seconds,
+/// where the whole reply took six or more, and the rest arrive while it
+/// plays. If a later piece fails, the rest of the line is shown rather than
+/// said in a second, robotic voice.
+///
+/// Gemini returns no word timings, so the hosted reveal is paced across each
 /// clip's duration, each word weighted by its length plus a pause after
 /// punctuation, kept a beat ahead of the voice. The device voice reports
 /// each word as it starts, so that reveal is exact.
@@ -44,6 +50,11 @@ final class CounselorVoice {
 
     private let api = APIClient.shared
     private var player: AVAudioPlayer?
+    /// The acknowledgment playing while she reads an answer. Separate from
+    /// `player`, so her reply waits for it to finish instead of cutting it off.
+    private var ackPlayer: AVAudioPlayer?
+    /// Acknowledgment clips, fetched when a sitting starts.
+    private var acks: [String: Data] = [:]
     private let synthesizer = AVSpeechSynthesizer()
     private let deviceEvents = DeviceSpeechEvents()
     /// The utterance being spoken, so a late callback from one that was
@@ -83,7 +94,7 @@ final class CounselorVoice {
 
     /// Say `line` and return when it's finished — or stopped.
     func say(_ line: String) async {
-        stop()
+        halt()
         generation += 1
         let mine = generation
         text = line
@@ -91,13 +102,13 @@ final class CounselorVoice {
         speaking = true
 
         if muted {
-            await typeOut(mine)
-        } else if let audio = await hostedAudio(for: line, generation: mine), mine == generation {
-            if !(await play(audio, generation: mine)), mine == generation {
-                await speakOnDevice(mine)
-            }
-        } else if mine == generation {
-            await speakOnDevice(mine)
+            await finishAcknowledgment()
+            if mine == generation { await typeOut(mine) }
+        } else if hostedOff {
+            await finishAcknowledgment()
+            if mine == generation { await speakOnDevice(mine) }
+        } else {
+            await sayHosted(mine)
         }
 
         if mine == generation {
@@ -107,8 +118,15 @@ final class CounselorVoice {
         }
     }
 
-    /// Stop talking and show the whole line.
+    /// Stop talking — the acknowledgment too — and show the whole line.
     func stop() {
+        ackPlayer?.stop()
+        ackPlayer = nil
+        halt()
+    }
+
+    /// Stop the line being said, leaving any acknowledgment to finish.
+    private func halt() {
         generation += 1
         player?.stop()
         player = nil
@@ -121,8 +139,10 @@ final class CounselorVoice {
 
     /// Start fetching a line's audio now, to say it later without the wait.
     func prefetch(_ line: String) {
-        guard !muted, !hostedOff, prefetched[line] == nil else { return }
-        prefetched[line] = fetchTask(line)
+        guard !muted, !hostedOff else { return }
+        for piece in Self.pieces(of: line) where prefetched[piece.text] == nil {
+            prefetched[piece.text] = fetchTask(piece.text)
+        }
     }
 
     /// Forget everything — a new sitting starts clean.
@@ -132,6 +152,47 @@ final class CounselorVoice {
         revealed = 0
         prefetched.values.forEach { $0.cancel() }
         prefetched = [:]
+    }
+
+    // MARK: Acknowledging
+
+    /// What she says the moment an answer is sent, so the wait while she
+    /// reads it isn't silence — the way an interviewer says "mm, okay".
+    static let acknowledgments = [
+        "Okay, give me a second with that.",
+        "Mm, okay. Let me think about that.",
+        "Got it. One moment.",
+        "Alright, let me sit with that for a second.",
+    ]
+
+    /// Fetch the acknowledgments ahead of time; they only ever play from here.
+    func prepareAcknowledgments() {
+        guard !muted, !hostedOff else { return }
+        for line in Self.acknowledgments where acks[line] == nil {
+            let task = fetchTask(line)
+            Task { [weak self] in
+                if let data = await task.value { self?.acks[line] = data }
+            }
+        }
+    }
+
+    /// Play one, if any is ready. Never waits and never uses the device
+    /// voice: a late or robotic "one moment" is worse than none.
+    func acknowledge() {
+        guard !muted, let data = Self.acknowledgments.shuffled().lazy.compactMap({ self.acks[$0] }).first,
+              let ack = try? AVAudioPlayer(data: data) else { return }
+        InterviewAudio.activate()
+        ackPlayer?.stop()
+        ackPlayer = ack
+        ack.play()
+    }
+
+    /// Her reply starts after the acknowledgment, not on top of it.
+    private func finishAcknowledgment() async {
+        while let ack = ackPlayer, ack.isPlaying {
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+        ackPlayer = nil
     }
 
     // MARK: Hosted
@@ -146,25 +207,44 @@ final class CounselorVoice {
         }
     }
 
-    private func hostedAudio(for line: String, generation mine: Int) async -> Data? {
-        guard !hostedOff else { return nil }
+    private func sayHosted(_ mine: Int) async {
+        let pieces = Self.pieces(of: text)
+        // Every piece is asked for now; each plays as soon as it's its turn.
+        let tasks = pieces.map { prefetched.removeValue(forKey: $0.text) ?? fetchTask($0.text) }
         preparing = true
-        let task = prefetched.removeValue(forKey: line) ?? fetchTask(line)
-        let data = await task.value
-        if mine == generation { preparing = false }
-        if data != nil { hostedFailures = 0 } else if !task.isCancelled { hostedFailures += 1 }
-        return data
+        await finishAcknowledgment()
+
+        for (i, piece) in pieces.enumerated() {
+            let data = await tasks[i].value
+            guard mine == generation else { break }
+            if i == 0 { preparing = false }
+            guard let data else {
+                if !tasks[i].isCancelled { hostedFailures += 1 }
+                // Nothing said yet: the phone's voice says it all. Partway
+                // through, the rest is shown rather than said in a second voice.
+                if i == 0 { await speakOnDevice(mine) }
+                break
+            }
+            hostedFailures = 0
+            if !(await play(data, from: piece.start, to: piece.end, generation: mine)) {
+                if i == 0, mine == generation { await speakOnDevice(mine) }
+                break
+            }
+        }
+        // Whatever is left unasked-for (stopped early) isn't needed.
+        tasks.forEach { $0.cancel() }
     }
 
-    /// Returns false if the clip wouldn't play, so the caller can fall back.
-    private func play(_ data: Data, generation mine: Int) async -> Bool {
+    /// Play one clip, revealing the words of `text` between `from` and `to`
+    /// (UTF-16) in step with it. False if it wouldn't play.
+    private func play(_ data: Data, from: Int, to: Int, generation mine: Int) async -> Bool {
         guard let player = try? AVAudioPlayer(data: data), player.duration > 0 else { return false }
         InterviewAudio.activate()
         self.player = player
         player.prepareToPlay()
         guard player.play() else { self.player = nil; return false }
 
-        let words = Self.words(in: text)
+        let words = Self.words(in: text).filter { $0.end > from && $0.end <= to }
         let total = words.reduce(0) { $0 + $1.weight }
         // Gemini leaves a little air at each end; pace across the middle,
         // and stay a quarter-second ahead so the eye never waits on the ear.
@@ -172,10 +252,10 @@ final class CounselorVoice {
         while mine == generation, player.isPlaying {
             if reduceMotion {
                 revealed = text.utf16.count
-            } else {
+            } else if total > 0 {
                 let at = (player.currentTime + 0.25) / span * total
                 var before = 0.0
-                var shown = 0
+                var shown = revealed
                 for word in words {
                     if before > at { break }
                     shown = word.end
@@ -185,8 +265,43 @@ final class CounselorVoice {
             }
             try? await Task.sleep(for: .milliseconds(40))
         }
-        if mine == generation { self.player = nil }
+        if mine == generation {
+            self.player = nil
+            revealed = max(revealed, to)
+        }
         return true
+    }
+
+    /// A line cut where it can be voiced in parts: after a sentence's end
+    /// punctuation and the space that follows. Pieces under about 40
+    /// characters join the next, so a clip is never a word or two — those
+    /// sound clipped, and Gemini sometimes refuses one outright.
+    static func pieces(of line: String) -> [(text: String, start: Int, end: Int)] {
+        var cuts: [Int] = []
+        var offset = 0
+        var previous: Character = " "
+        for ch in line {
+            if ch.isWhitespace, ".!?".contains(previous) { cuts.append(offset + ch.utf16.count) }
+            previous = ch
+            offset += ch.utf16.count
+        }
+        let total = line.utf16.count
+        var pieces: [(text: String, start: Int, end: Int)] = []
+        var start = 0
+        for cut in cuts + [total] where cut > start {
+            if cut < total, cut - start < 40 { continue }
+            pieces.append((String(line.utf16[line.utf16.index(line.utf16.startIndex, offsetBy: start)..<line.utf16.index(line.utf16.startIndex, offsetBy: cut)]) ?? "", start, cut))
+            start = cut
+        }
+        // A short last sentence rides with the one before it.
+        if pieces.count > 1, let last = pieces.last, last.end - last.start < 40 {
+            pieces.removeLast()
+            let prev = pieces.removeLast()
+            let s = line.utf16.index(line.utf16.startIndex, offsetBy: prev.start)
+            pieces.append((String(line.utf16[s...]) ?? "", prev.start, total))
+        }
+        return pieces.map { (text: $0.text.trimmingCharacters(in: .whitespacesAndNewlines), start: $0.start, end: $0.end) }
+            .filter { !$0.text.isEmpty }
     }
 
     // MARK: Device

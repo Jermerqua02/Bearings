@@ -39,7 +39,8 @@ export interface Limit {
  * hour of steady practice; the app falls back to the phone's own voice past it.
  */
 export const LIMITS: Record<string, Limit> = {
-  speech: { max: 120, windowMinutes: 60 },
+  // Interview practice speaks sentence by sentence, about five clips a question.
+  speech: { max: 300, windowMinutes: 60 },
   chat: { max: 120, windowMinutes: 60 },
   essay_feedback: { max: 60, windowMinutes: 60 },
   interview: { max: 60, windowMinutes: 60 },

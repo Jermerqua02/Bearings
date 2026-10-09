@@ -40,6 +40,8 @@ import { UserFacingError } from "@/lib/actions/_error";
 import { recordUsage, type AiFeature, type UsageCounts } from "./usage";
 
 const MODEL = "claude-opus-5";
+/** Interview feedback: a spoken back-and-forth, where every second of waiting shows. */
+const INTERVIEW_SPEED = { model: "claude-sonnet-5-5", effort: "low" } as const;
 
 let client: Anthropic | null = null;
 function anthropic(): Anthropic {
@@ -197,6 +199,8 @@ async function askJson<T>(
   userContent: string | Anthropic.ContentBlockParam[],
   schema: Record<string, unknown>,
   maxTokens = 1024,
+  /** For a route where waiting matters more than depth. Defaults to MODEL at medium effort. */
+  speed?: { model: string; effort: "low" | "medium" | "high" },
 ): Promise<{ data: T; usage: UsageCounts }> {
   // The SDK path checks this in anthropic(); the raw-HTTP path used to send
   // `x-api-key: undefined` and surface a 401 instead of the missing key.
@@ -212,13 +216,17 @@ async function askJson<T>(
       "x-api-key": process.env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
+      // A declined request is re-run on a fallback model inside the same
+      // call, rather than coming back empty mid-interview.
+      ...(speed ? { "anthropic-beta": "server-side-fallback-2026-07-01" } : {}),
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: speed?.model ?? MODEL,
       max_tokens: maxTokens,
       system,
       thinking: { type: "adaptive" },
-      output_config: { effort: "medium", format: { type: "json_schema", schema } },
+      output_config: { effort: speed?.effort ?? "medium", format: { type: "json_schema", schema } },
+      ...(speed ? { fallbacks: "default" } : {}),
       messages: [{ role: "user", content: userContent }],
     }),
   });
@@ -232,6 +240,7 @@ async function askJson<T>(
     usage: UsageCounts;
     stop_reason: string;
   };
+  if (json.stop_reason === "refusal") throw new Error("The model declined this request.");
   const text = textOf(json.content);
   if (!text) {
     throw new Error(
@@ -836,8 +845,12 @@ not contain it, hint at it, or end with any question.`,
         // Thinking draws on this too, and the session history makes the
         // prompt longer than the old single-pair ask. 1200 left little room.
         2048,
+        // The student is sitting in silence until this returns. Sonnet at
+        // low effort answers in ~4s where Opus at medium took 8–10s, and the
+        // coaching holds up (measured 2026-10-09).
+        INTERVIEW_SPEED,
       );
-      meter("interview", usage);
+      meter("interview", usage, INTERVIEW_SPEED.model);
       return { ...turn, tooBrief: turn.tooBrief || words < 20 };
     },
 
