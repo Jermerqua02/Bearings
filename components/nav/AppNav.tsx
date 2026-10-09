@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import AccountMenu from "@/components/nav/AccountMenu";
 import { useApp } from "@/lib/profile-context";
 import { gradeModeLabel, type Role } from "@/lib/types";
+import Wordmark from "@/components/Wordmark";
 
 /* Primary nav — desktop header + mobile bottom tab bar.
    Mobile tabs: Home · Explore · Counselor · List · Apply (per spec).
@@ -108,11 +109,8 @@ export default function AppNav({
       <header className="hidden md:block border-b border-hairline bg-paper/95 backdrop-blur sticky top-0 z-40">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-10">
-            <Link
-              href="/dashboard"
-              className="text-[1.05rem] font-semibold tracking-tight"
-            >
-              Bearings
+            <Link href="/dashboard">
+              <Wordmark />
             </Link>
             <nav aria-label="Primary" className="flex items-center gap-6">
               {[...visibleTabs.slice(1), ...visibleSecondary].map((t) => (
@@ -146,8 +144,8 @@ export default function AppNav({
           destinations and none of them were these. */}
       <header className="md:hidden sticky top-0 z-40 bg-paper/95 backdrop-blur border-b border-hairline">
         <div className="px-5 h-14 flex items-center justify-between">
-          <Link href="/dashboard" className="text-[1rem] font-semibold tracking-tight">
-            Bearings
+          <Link href="/dashboard">
+            <Wordmark />
           </Link>
           <div className="flex items-center gap-3">
             <span className="label-caps">{gradeModeLabel[mode]}</span>

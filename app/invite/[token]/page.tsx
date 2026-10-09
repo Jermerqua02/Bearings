@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { parentStudentLinks, users } from "@/lib/db/schema";
 import { getViewer } from "@/lib/auth/policy";
 import AcceptInvite from "./AcceptInvite";
+import Wordmark from "@/components/Wordmark";
 
 export const dynamic = "force-dynamic";
 
@@ -48,8 +49,8 @@ export default async function InvitePage({
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="border-b border-hairline">
         <div className="max-w-3xl mx-auto px-5 md:px-6 h-16 flex items-center">
-          <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Bearings
+          <Link href="/">
+            <Wordmark />
           </Link>
         </div>
       </header>

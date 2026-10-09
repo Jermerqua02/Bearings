@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button";
 import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
+import Wordmark from "@/components/Wordmark";
 
 /* Landing / marketing (logged out).
    Gallery-editorial: oversized two-tone lead, full-bleed visual band,
@@ -22,9 +23,7 @@ export default function LandingPage() {
       {/* Header */}
       <header className="sticky top-0 z-30 border-b border-hairline bg-paper/85 backdrop-blur-md">
         <div className="max-w-[1400px] mx-auto px-5 md:px-10 h-16 flex items-center justify-between">
-          <span className="text-[1.05rem] font-semibold tracking-tight">
-            Bearings
-          </span>
+          <Wordmark />
           <nav className="flex items-center gap-4">
             <Link
               href="/dashboard"

@@ -25,6 +25,7 @@ import type {
   StudentProfile,
   StudentValue,
 } from "@/lib/types";
+import Wordmark from "@/components/Wordmark";
 
 /* ————————————— Answer state ————————————— */
 
@@ -944,8 +945,8 @@ function OnboardingShell() {
   return (
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="flex items-center justify-between px-5 md:px-6 h-16">
-        <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-          Bearings
+        <Link href="/">
+          <Wordmark />
         </Link>
         <span className="label-caps">First meeting</span>
       </header>

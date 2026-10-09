@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { requestPasswordReset, resetPassword } from "@/lib/auth-client";
+import Wordmark from "@/components/Wordmark";
 
 const MIN_LENGTH = 10;
 
@@ -88,8 +89,8 @@ export default function ResetPasswordForm() {
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="border-b border-hairline">
         <div className="max-w-6xl mx-auto px-5 md:px-6 h-16 flex items-center">
-          <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Bearings
+          <Link href="/">
+            <Wordmark />
           </Link>
         </div>
       </header>

@@ -10,6 +10,7 @@ import { signUpWithRole } from "@/lib/actions/auth";
 import { signIn } from "@/lib/auth-client";
 import { MINIMUM_AGE } from "@/lib/legal";
 import type { Role } from "@/lib/types";
+import Wordmark from "@/components/Wordmark";
 
 /* The signup form.
 
@@ -102,8 +103,8 @@ export default function SignUpForm() {
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="border-b border-hairline">
         <div className="max-w-6xl mx-auto px-5 md:px-6 h-16 flex items-center">
-          <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Bearings
+          <Link href="/">
+            <Wordmark />
           </Link>
         </div>
       </header>

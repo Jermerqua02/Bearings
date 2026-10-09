@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { COMPANY, hasUnfilledPlaceholders } from "@/lib/legal";
+import Wordmark from "@/components/Wordmark";
 
 /* Shell for the public legal documents.
 
@@ -14,8 +15,8 @@ export default function LegalLayout({
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="border-b border-hairline">
         <div className="max-w-3xl mx-auto px-5 md:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Bearings
+          <Link href="/">
+            <Wordmark />
           </Link>
           <nav className="flex items-center gap-5 text-[0.9rem] text-gray-mid">
             <Link href="/terms" className="hover:text-ink transition-quiet">

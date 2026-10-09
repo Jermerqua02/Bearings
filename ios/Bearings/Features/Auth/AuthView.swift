@@ -16,7 +16,11 @@ struct AuthView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Bearings").font(.system(size: 17, weight: .semibold))
+                    Image("Wordmark")
+                        .resizable().scaledToFit()
+                        .frame(height: 30)
+                        .padding(.bottom, 12)
+                        .accessibilityLabel("Lumni")
                     Text(creating ? "Make an account." : "Welcome back.")
                         .font(.headline1)
                     Text("An honest college counselor, always available.")

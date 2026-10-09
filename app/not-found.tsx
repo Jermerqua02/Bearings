@@ -11,14 +11,15 @@
 import Link from "next/link";
 import TwoTone from "@/components/ui/TwoTone";
 import SectionLabel from "@/components/ui/SectionLabel";
+import Wordmark from "@/components/Wordmark";
 
 export default function NotFound() {
   return (
     <div className="min-h-screen bg-paper flex flex-col">
       <header className="border-b border-hairline">
         <div className="max-w-6xl mx-auto px-5 md:px-6 h-16 flex items-center">
-          <Link href="/" className="text-[1.05rem] font-semibold tracking-tight">
-            Bearings
+          <Link href="/">
+            <Wordmark />
           </Link>
         </div>
       </header>
