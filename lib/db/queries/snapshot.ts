@@ -449,6 +449,7 @@ function toStudentProfile(r: StudentRow): Profile {
       maxPerYear: r.budgetMaxPerYear ?? undefined,
       willFileFafsa: r.willFileFafsa,
     },
+    homeState: r.homeState ?? undefined,
     values: r.values as Profile extends { values: infer V } ? V : never,
     throughline: r.throughlineParagraph
       ? {

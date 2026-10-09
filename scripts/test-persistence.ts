@@ -40,6 +40,7 @@ const REFERENCE = new Set([
   "school_outcome",
   "school_deadline",
   "school_logo",
+  "school_tuition_program",
   "opportunity",
 ]);
 

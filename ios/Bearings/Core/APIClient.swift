@@ -65,6 +65,15 @@ final class APIClient {
         return data
     }
 
+    /// JSON in, raw bytes out — for /api/tts, which answers audio/wav.
+    /// `timeout` is for callers with a fallback that beats waiting out the
+    /// 90 seconds a counselor reply is allowed.
+    func postData(_ path: String, _ body: some Encodable, timeout: TimeInterval? = nil) async throws -> Data {
+        let (data, response) = try await raw("POST", path, body: body, authenticated: true, timeout: timeout)
+        try check(data, response)
+        return data
+    }
+
     /// A file, as multipart/form-data with field "file" — the shape
     /// /api/transcript has always taken from the web.
     func upload<T: Decodable>(_ path: String, data: Data, filename: String, mimeType: String) async throws -> T {
@@ -92,6 +101,64 @@ final class APIClient {
         }
         try check(respData, response as! HTTPURLResponse)
         return try decode(respData)
+    }
+
+    // MARK: Streaming
+
+    /// One server-sent event: its name and its JSON payload.
+    struct ServerEvent {
+        let name: String
+        let data: Data
+
+        func decode<T: Decodable>(_ type: T.Type) -> T? { try? JSONDecoder().decode(type, from: data) }
+    }
+
+    /// POST, answered as server-sent events — the counselor's streamed
+    /// replies. A failure before the stream opens (signed out, a bad
+    /// request) throws the same APIError as any other call.
+    func events(_ path: String, _ body: some Encodable) -> AsyncThrowingStream<ServerEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var request = try makeRequest("POST", path, body: body, authenticated: true)
+                    request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+                    let (bytes, response): (URLSession.AsyncBytes, URLResponse)
+                    do {
+                        (bytes, response) = try await session.bytes(for: request)
+                    } catch {
+                        throw APIError.offline
+                    }
+                    let http = response as! HTTPURLResponse
+                    guard (200..<300).contains(http.statusCode) else {
+                        var data = Data()
+                        for try await byte in bytes { data.append(byte) }
+                        try check(data, http)
+                        return
+                    }
+                    var name = "message", payload = ""
+                    for try await line in bytes.lines {
+                        if line.hasPrefix("event:") {
+                            name = line.dropFirst(6).trimmingCharacters(in: .whitespaces)
+                        } else if line.hasPrefix("data:") {
+                            payload += line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                        }
+                        // `lines` drops the blank line that ends an event, so an
+                        // event is complete once its data line has arrived —
+                        // the server sends exactly one per event.
+                        if !payload.isEmpty {
+                            continuation.yield(ServerEvent(name: name, data: Data(payload.utf8)))
+                            name = "message"; payload = ""
+                        }
+                    }
+                    continuation.finish()
+                } catch let error as APIError {
+                    continuation.finish(throwing: error)
+                } catch {
+                    continuation.finish(throwing: Task.isCancelled ? error : APIError.offline)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
     // MARK: Auth
@@ -129,7 +196,21 @@ final class APIClient {
     }
 
     private func raw<B: Encodable>(_ method: String, _ path: String, query: [URLQueryItem] = [],
-                                   body: B?, authenticated: Bool) async throws -> (Data, HTTPURLResponse) {
+                                   body: B?, authenticated: Bool,
+                                   timeout: TimeInterval? = nil) async throws -> (Data, HTTPURLResponse) {
+        let request = try makeRequest(method, path, query: query, body: body,
+                                      authenticated: authenticated, timeout: timeout)
+        do {
+            let (data, response) = try await session.data(for: request)
+            return (data, response as! HTTPURLResponse)
+        } catch {
+            throw APIError.offline
+        }
+    }
+
+    private func makeRequest<B: Encodable>(_ method: String, _ path: String, query: [URLQueryItem] = [],
+                                           body: B?, authenticated: Bool,
+                                           timeout: TimeInterval? = nil) throws -> URLRequest {
         var components = URLComponents(url: Config.apiBaseURL.appending(path: path),
                                        resolvingAgainstBaseURL: false)!
         if !query.isEmpty { components.queryItems = query }
@@ -137,6 +218,7 @@ final class APIClient {
         var request = URLRequest(url: components.url!)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let timeout { request.timeoutInterval = timeout }
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(body)
@@ -144,13 +226,7 @@ final class APIClient {
         if authenticated, let token {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
-
-        do {
-            let (data, response) = try await session.data(for: request)
-            return (data, response as! HTTPURLResponse)
-        } catch {
-            throw APIError.offline
-        }
+        return request
     }
 
     private func check(_ data: Data, _ response: HTTPURLResponse) throws {

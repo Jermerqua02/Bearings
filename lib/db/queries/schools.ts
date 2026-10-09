@@ -24,6 +24,7 @@ import { db } from "@/lib/db";
 import {
   schoolAdmissions,
   schoolApplications,
+  schoolTuitionPrograms,
   schoolCosts,
   schoolDeadlines,
   schoolOutcomes,
@@ -51,6 +52,7 @@ type CostRow = typeof schoolCosts.$inferSelect;
 type OutcomeRow = typeof schoolOutcomes.$inferSelect;
 type DeadlineRow = typeof schoolDeadlines.$inferSelect;
 type ApplicationRow = typeof schoolApplications.$inferSelect;
+type ProgramRow = typeof schoolTuitionPrograms.$inferSelect;
 
 /** Which cycle-scoped slices came from a real row. */
 export interface Coverage {
@@ -117,6 +119,7 @@ function assemble(
   out: OutcomeRow | undefined,
   deadlines: DeadlineRow[],
   app?: ApplicationRow,
+  programs: ProgramRow[] = [],
 ): SchoolRecord {
   const byPlan: Partial<Record<ApplicationPlan, string>> = {};
   for (const d of deadlines) {
@@ -157,6 +160,16 @@ function assemble(
       },
       percentNeedMet: cost?.percentNeedMet ?? undefined,
       meritAid: (cost?.meritAid ?? undefined) as School["cost"]["meritAid"],
+      tuitionInState: cost?.tuitionInState ?? undefined,
+      tuitionOutOfState: cost?.tuitionOutOfState ?? undefined,
+      tuitionPrograms: programs.length
+        ? programs.map((p) => ({
+            program: p.program,
+            eligibleStates: p.eligibleStates,
+            restrictions: p.restrictions ?? undefined,
+            url: p.url ?? undefined,
+          }))
+        : undefined,
     },
     academics: {
       topMajors: row.topMajors,
@@ -183,6 +196,7 @@ function assemble(
     },
     outcomes: {
       gradRate: out?.gradRate ?? undefined,
+      gradRate4yr: out?.gradRate4yr ?? undefined,
       medianEarnings10yr: out?.medianEarnings10yr ?? undefined,
       alumniNetwork: (out?.alumniNetwork ?? undefined) as School["outcomes"]["alumniNetwork"],
     },
@@ -202,7 +216,7 @@ export async function getSchoolsByIds(ids: string[]): Promise<SchoolRecord[]> {
   // inArray with an empty array builds invalid SQL.
   if (ids.length === 0) return [];
 
-  const [rows, adm, cost, out, dl, app] = await Promise.all([
+  const [rows, adm, cost, out, dl, app, programs] = await Promise.all([
     db.select().from(schools).where(inArray(schools.id, ids)),
     db
       .select()
@@ -228,12 +242,15 @@ export async function getSchoolsByIds(ids: string[]): Promise<SchoolRecord[]> {
       .where(
         and(inArray(schoolApplications.schoolId, ids), eq(schoolApplications.cycle, CURRENT_CYCLE)),
       ),
+    db.select().from(schoolTuitionPrograms).where(inArray(schoolTuitionPrograms.schoolId, ids)),
   ]);
 
   const admBy = new Map(adm.map((r) => [r.schoolId, r]));
   const costBy = new Map(cost.map((r) => [r.schoolId, r]));
   const outBy = new Map(out.map((r) => [r.schoolId, r]));
   const appBy = new Map(app.map((r) => [r.schoolId, r]));
+  const programsBy = new Map<string, ProgramRow[]>();
+  for (const p of programs) programsBy.set(p.schoolId, [...(programsBy.get(p.schoolId) ?? []), p]);
   const dlBy = new Map<string, DeadlineRow[]>();
   for (const d of dl) {
     const list = dlBy.get(d.schoolId) ?? [];
@@ -249,6 +266,7 @@ export async function getSchoolsByIds(ids: string[]): Promise<SchoolRecord[]> {
       outBy.get(r.id),
       dlBy.get(r.id) ?? [],
       appBy.get(r.id),
+      programsBy.get(r.id) ?? [],
     ),
   );
 }

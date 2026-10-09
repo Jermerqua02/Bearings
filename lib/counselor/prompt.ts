@@ -10,6 +10,7 @@
 import { MEMORY_CATEGORIES } from "@/lib/memory";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Profile, School, StudentProfile } from "@/lib/types";
+import { residencyAt, residencyNote, US_STATES } from "@/lib/residency";
 
 /** Product rules, stated once, shared by every call. */
 const HOUSE_RULES = `
@@ -23,6 +24,12 @@ Non-negotiable rules:
   applicants. Chance tiers are categories (reach / target / likely), not
   numbers. Self-understanding, not competitive positioning.
 - Net price, not sticker price, is the default number you discuss.
+- Where the student lives decides what public colleges cost them. Published
+  net prices at a public school are for in-state students; the residency
+  notes you're given say what applies to this student — in-state,
+  out-of-state, or a regional exchange like WUE — so use them, and never
+  hedge with "if you're a resident of…" when you know. When their home state
+  is unknown and cost matters to the answer, ask where they live.
 - No outcome guarantees, no fabricated statistics, no invented deadlines. If
   you don't know a figure, say so rather than estimating one.
 - Undecided about a major is a legitimate, complete answer. Treat it as an
@@ -77,6 +84,7 @@ function studentSummary(p: StudentProfile): string {
     `- ${test}`,
     `- Interested in: ${majors}`,
     `- Budget: ${budget}`,
+    `- Lives in: ${p.homeState ? `${US_STATES[p.homeState] ?? p.homeState} (${p.homeState})` : "not shared yet"}`,
     p.geography.regions.length ? `- Regions: ${p.geography.regions.join(", ")}` : "",
     p.values.length ? `- Priorities: ${p.values.join(", ")}` : "",
     notesSection(p),
@@ -238,7 +246,32 @@ export const RENDER_CARDS_TOOL: Anthropic.Tool = {
   },
 };
 
-export function schoolContextNote(school: School | null): string {
+/**
+ * For a conversation the student started from a school's page ("Ask the
+ * counselor"). Stronger than schoolContextNote: the whole conversation is
+ * about this school, so "here", "it" and "my chances" mean it. Carries the
+ * figures the school page shows, so the answer and the page agree.
+ */
+export function conversationSchoolNote(school: School, homeState?: string): string {
+  const $ = (n?: number) => (n == null ? null : `$${n.toLocaleString("en-US")}`);
+  const pct = (n?: number) => (n == null ? null : `${Math.round(n * 100)}%`);
+  const byIncome = school.cost.netPriceByIncome;
+  const facts = [
+    `${school.type}, ${school.undergradEnrollment.toLocaleString("en-US")} undergraduates`,
+    pct(school.admissions.acceptanceRate) && `admits ${pct(school.admissions.acceptanceRate)}`,
+    `testing ${school.admissions.testPolicy}`,
+    $(school.cost.avgNetPrice) && `average net price ${$(school.cost.avgNetPrice)}/yr`,
+    $(school.cost.stickerPrice) && `sticker price ${$(school.cost.stickerPrice)}/yr`,
+    (byIncome.under48k ?? byIncome.over110k) != null &&
+      `net price by family income: under $48k ${$(byIncome.under48k) ?? "n/a"}, $48–75k ${$(byIncome.k48to75) ?? "n/a"}, $75–110k ${$(byIncome.k75to110) ?? "n/a"}, over $110k ${$(byIncome.over110k) ?? "n/a"}`,
+    pct(school.outcomes.gradRate) && `graduation rate ${pct(school.outcomes.gradRate)} within six years`,
+    $(school.outcomes.medianEarnings10yr) && `median earnings ${$(school.outcomes.medianEarnings10yr)}`,
+    ...Object.entries(school.admissions.deadlines).map(([plan, date]) => `${plan} deadline ${date}`),
+  ].filter(Boolean);
+  return `This conversation is about ${school.name} (id: ${school.id}) in ${school.city}, ${school.state} — the student started it from that school's page. Unless they clearly mean somewhere else, "this school", "here", "it" and questions about chances, cost or fit refer to ${school.name}. What the school page shows them: ${facts.join("; ")}. ${residencyNote(school, residencyAt(school, homeState), homeState)}`;
+}
+
+export function schoolContextNote(school: School | null, homeState?: string): string {
   if (!school) return "";
-  return `The student is currently looking at ${school.name} (id: ${school.id}) in ${school.city}, ${school.state}.`;
+  return `The student is currently looking at ${school.name} (id: ${school.id}) in ${school.city}, ${school.state}. ${residencyNote(school, residencyAt(school, homeState), homeState)}`;
 }

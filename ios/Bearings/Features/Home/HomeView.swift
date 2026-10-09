@@ -103,6 +103,8 @@ private struct StudentHome: View {
         Greeting(name: profile.firstName, rest: "Here's where things stand.",
                  label: "\(GradeMode.forGrade(profile.gradeLevel).label) mode")
 
+        if profile.homeState == nil { HomeStateCard() }
+
         CheckInCard(checkIns: snapshot.checkIns)
 
         let deadlines = Match.deadlines(for: snapshot.list, schools: model.school, limit: 3)

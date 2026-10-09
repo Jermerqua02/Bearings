@@ -41,6 +41,8 @@ struct CounselorMessage: Decodable, Identifiable {
 struct CounselorThread: Decodable, Identifiable {
     let id: String
     var title: String
+    /// The school the conversation is about, when it started from one.
+    var schoolId: String?
     var messages: [CounselorMessage]
 }
 

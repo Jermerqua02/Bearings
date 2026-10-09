@@ -169,7 +169,12 @@ export interface Fit {
   _sort: number;
 }
 
-export function fit(profile: StudentProfile, school: School): Fit {
+/**
+ * `netPrice` is what this student would pay on average, when the caller
+ * knows better than the school's published (in-state) figure — the server
+ * adjusts it for where they live (lib/residency.ts, which can't load here).
+ */
+export function fit(profile: StudentProfile, school: School, netPrice = school.cost.avgNetPrice): Fit {
   let score = 0;
   const reasons: string[] = [];
 
@@ -186,7 +191,6 @@ export function fit(profile: StudentProfile, school: School): Fit {
   }
 
   const budget = profile.budget.maxPerYear;
-  const netPrice = school.cost.avgNetPrice;
   // A school that reported no net price is neither in budget nor over it.
   // Scoring it as 0 rather than -2 keeps "we don't know" from reading as
   // "too expensive" — the old code would have treated a missing figure as

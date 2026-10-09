@@ -26,6 +26,7 @@ import {
   regionLabel,
 } from "@/lib/schools";
 import { route } from "@/lib/api/v1";
+import { adjustForResidency, residencyAt } from "@/lib/residency";
 
 export const runtime = "nodejs";
 
@@ -58,8 +59,19 @@ export const GET = route("explore", "We couldn't load schools just now.", async 
   ]);
 
   let rows = result.schools.map((school) => {
-    const f = fit(profile, school);
-    return { school, tier: chanceRead(profile, school)?.tier ?? null, fitLabel: f.label, _sort: f._sort };
+    // The average net price is in-state at a public school; this is theirs,
+    // and it's what their budget is weighed against.
+    const residency = residencyAt(school, profile.homeState);
+    const netForYou = adjustForResidency(school.cost.avgNetPrice, residency);
+    const f = fit(profile, school, netForYou);
+    return {
+      school,
+      tier: chanceRead(profile, school)?.tier ?? null,
+      fitLabel: f.label,
+      netForYou: netForYou ?? null,
+      residency: residency.status,
+      _sort: f._sort,
+    };
   });
   // fit() weighs fields SQL can't sort on, so "Best fit" orders within the page.
   if (params.sort === "fit") rows = [...rows].sort((a, b) => b._sort - a._sort);

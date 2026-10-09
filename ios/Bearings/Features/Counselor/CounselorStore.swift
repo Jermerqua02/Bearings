@@ -10,11 +10,17 @@ final class CounselorStore {
     private(set) var loaded = false
     /// Thread ids waiting on a reply, so the UI can show it's thinking.
     private(set) var pending: Set<String> = []
+    /// A reply as it's being written, by thread — what the counselor is
+    /// doing and the words so far. Gone once the saved reply arrives.
+    private(set) var inProgress: [String: Draft] = [:]
+
+    struct Draft {
+        enum Phase: String { case thinking, writing, cards }
+        var phase: Phase = .thinking
+        var text = ""
+    }
     /// Schools named in cards that the snapshot didn't carry.
     private(set) var schools: [String: School] = [:]
-    /// The school a conversation is about, when it was opened from one —
-    /// sent as context with every message, as the web does.
-    private(set) var contextSchool: [String: String] = [:]
     var error: String?
 
     private let api = APIClient.shared
@@ -33,12 +39,14 @@ final class CounselorStore {
     /// first, since they've already said what they came to ask. Titled
     /// "About Reed College" when it starts from a school. Returns the id.
     func create(about school: School? = nil) async -> String? {
-        struct Body: Encodable { let title: String? }
+        struct Body: Encodable { let title: String?; let schoolId: String? }
         let title = school.map { "About \($0.shortName)" }
         do {
-            let created: CreatedID = try await api.post("/api/v1/counselor/threads", Body(title: title))
-            threads.append(CounselorThread(id: created.id, title: title ?? "New conversation", messages: []))
-            if let school { contextSchool[created.id] = school.id; schools[school.id] = school }
+            let created: CreatedID = try await api.post("/api/v1/counselor/threads",
+                                                        Body(title: title, schoolId: school?.id))
+            threads.append(CounselorThread(id: created.id, title: title ?? "New conversation",
+                                           schoolId: school?.id, messages: []))
+            if let school { schools[school.id] = school }
             return created.id
         } catch {
             self.error = error.localizedDescription
@@ -52,18 +60,55 @@ final class CounselorStore {
 
         struct Context: Encodable { let schoolId: String }
         struct Body: Encodable { let message: String; let context: Context? }
+        struct Phase: Decodable { let phase: String }
+        struct Delta: Decodable { let delta: String }
+        struct Done: Decodable { let title: String? }
+        struct Failure: Decodable { let error: String }
         append(.local(trimmed), to: threadId)
         pending.insert(threadId)
-        defer { pending.remove(threadId) }
+        inProgress[threadId] = Draft()
+        defer { pending.remove(threadId); inProgress[threadId] = nil }
 
+        // Streamed, so the answer shows as it's written rather than after a
+        // long "Thinking…". The `reply` event is the saved message and
+        // replaces the draft; the title follows once the thread is named.
+        var replied = false
         do {
-            let reply: ChatReply = try await api.post("/api/v1/counselor/threads/\(threadId)/messages",
-                                                      Body(message: trimmed,
-                                                           context: contextSchool[threadId].map(Context.init)))
-            append(reply.message, to: threadId)
-            if let title = reply.title, let i = index(threadId) { threads[i].title = title }
+            // The server knows the thread's school; sent too for a server
+            // that predates threads remembering one.
+            let body = Body(message: trimmed, context: thread(threadId)?.schoolId.map(Context.init))
+            for try await event in api.events("/api/v1/counselor/threads/\(threadId)/messages/stream", body) {
+                switch event.name {
+                case "phase":
+                    if let p = event.decode(Phase.self)?.phase, let phase = Draft.Phase(rawValue: p) {
+                        inProgress[threadId]?.phase = phase
+                    }
+                case "text":
+                    if let d = event.decode(Delta.self)?.delta { inProgress[threadId]?.text += d }
+                case "reply":
+                    if let r = event.decode(ChatReply.self) {
+                        inProgress[threadId] = nil
+                        append(r.message, to: threadId)
+                        replied = true
+                    }
+                case "done":
+                    if let title = event.decode(Done.self)?.title, let i = index(threadId) { threads[i].title = title }
+                case "error":
+                    throw APIError(status: 500, message: event.decode(Failure.self)?.error
+                                   ?? "The counselor couldn't answer just now. Try again in a moment.")
+                default:
+                    break
+                }
+            }
+            if !replied { throw APIError.offline }
+            // Clear "Thinking…" before fetching card schools — the answer is
+            // already on screen.
+            pending.remove(threadId)
             await resolveSchools()
         } catch {
+            // Losing the connection after the answer arrived only costs the
+            // title, which the next load picks up — not worth an alert.
+            if replied { return }
             // The student's message stays on screen — the server persists it
             // before calling the model, so it's in the thread either way.
             self.error = error.localizedDescription
@@ -87,6 +132,11 @@ final class CounselorStore {
 
     func school(_ id: String) -> School? { schools[id] }
 
+    /// The school a conversation is about, if it started from one.
+    func aboutSchool(_ threadId: String) -> School? {
+        thread(threadId)?.schoolId.flatMap { schools[$0] }
+    }
+
     // MARK: Private
 
     private func index(_ id: String) -> Int? { threads.firstIndex { $0.id == id } }
@@ -102,7 +152,7 @@ final class CounselorStore {
         let wanted = Set(threads.flatMap(\.messages).flatMap { $0.cards ?? [] }.compactMap { card -> String? in
             if case .school(let id, _) = card { return id }
             return nil
-        }).subtracting(schools.keys)
+        } + threads.compactMap(\.schoolId)).subtracting(schools.keys)
         guard !wanted.isEmpty else { return }
 
         let ids = Array(wanted.prefix(50)).joined(separator: ",")

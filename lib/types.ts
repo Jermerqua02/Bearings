@@ -106,6 +106,8 @@ export interface StudentProfile {
     maxPerYear?: number; // net, per year
     willFileFafsa: boolean;
   };
+  /** Two-letter USPS code. Decides in-state tuition and regional exchanges. */
+  homeState?: string;
   values: StudentValue[];
   /** The AI-identified narrative thread. Never a number. */
   throughline?: Throughline;
@@ -188,6 +190,11 @@ export interface School {
     };
     percentNeedMet?: number; // 0–1
     meritAid?: "none" | "limited" | "generous";
+    /** Published tuition and fees, by residency. Same at most privates. */
+    tuitionInState?: number;
+    tuitionOutOfState?: number;
+    /** Regional exchanges that cut out-of-state tuition here (WUE, MSEP…). */
+    tuitionPrograms?: TuitionProgramRef[];
   };
   academics: {
     topMajors: string[];
@@ -214,6 +221,7 @@ export interface School {
   };
   outcomes: {
     gradRate?: number; // 6-year, 0–1
+    gradRate4yr?: number; // on time, 0–1
     medianEarnings10yr?: number;
     alumniNetwork?: "regional" | "national" | "global";
   };
@@ -228,6 +236,15 @@ export interface School {
     carries the source it came from so the UI can attribute it.
   */
   application?: SchoolApplication;
+}
+
+/** A school's part in a regional tuition exchange; see lib/residency.ts. */
+export interface TuitionProgramRef {
+  program: string; // "wue", "msep", …
+  /** Home states whose students qualify here. */
+  eligibleStates: string[];
+  restrictions?: string;
+  url?: string;
 }
 
 /** IPEDS's answer to "does this school ask for X". Never a boolean. */

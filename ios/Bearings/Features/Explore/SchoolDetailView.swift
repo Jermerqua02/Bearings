@@ -23,7 +23,8 @@ struct SchoolDetailView: View {
         }
         .navigationBarTitleDisplayMode(.inline)
         .paperChrome()
-        .task { await load() }
+        // Again when the home state changes: the prices depend on it.
+        .task(id: model.homeStateRevision) { await load() }
     }
 
     private func load() async {
@@ -104,15 +105,50 @@ struct SchoolDetailView: View {
         return VStack(spacing: 10) {
             TileRow {
                 StatTile(label: "What you'd likely pay / yr", value: d.estimate.map { Format.thousands($0) } ?? "—",
-                         tint: .highlight, icon: "dollarsign")
+                         note: residencyNote(d.residency), tint: .highlight, icon: "dollarsign")
                 StatTile(label: "Acceptance rate", value: a.acceptanceRate == nil ? "—" : Format.rate(a.acceptanceRate),
                          tint: .surface, icon: "checkmark.seal")
             }
             TileRow {
-                StatTile(label: d.deadline.map { "Next deadline · \($0.plan)" } ?? "Next deadline",
-                         value: d.deadline.flatMap { Match.date($0.date)?.formatted(.dateTime.month(.abbreviated).day()) } ?? "—",
-                         tint: .surface, icon: "calendar")
+                deadlineTile(d)
                 StatTile(label: "Testing", value: testPolicy(a.testPolicy), tint: .surface, icon: "pencil.and.list.clipboard")
+            }
+        }
+    }
+
+    /// Whose price the estimate is: theirs as an in-state, out-of-state or
+    /// exchange student — or, not knowing their state, an in-stater's.
+    private func residencyNote(_ r: SchoolDetailResponse.Residency?) -> String? {
+        switch r?.status {
+        case .inState: "In-state for you"
+        // Without tuition figures nothing was added: say the price is in-state.
+        case .outOfState: r?.extraPerYear == nil ? "In-state price — you'd pay more" : "Out-of-state tuition included"
+        case .exchange:
+            r?.program.map { r?.extraPerYear == nil ? "In-state price — \($0.shortName) may apply" : "With \($0.shortName)" }
+        case .unknown: "If you're in-state"
+        default: nil
+        }
+    }
+
+    /// The next date to file by. When we hold none, say so plainly and
+    /// send them to the school — "—" read as "there isn't one".
+    @ViewBuilder
+    private func deadlineTile(_ d: SchoolDetailResponse) -> some View {
+        if let next = d.deadline, let date = Match.date(next.date) {
+            StatTile(label: "Next deadline · \(next.plan)",
+                     value: date.formatted(.dateTime.month(.abbreviated).day()),
+                     tint: .surface, icon: "calendar")
+        } else {
+            // Dates on file but none ahead: this cycle's have passed.
+            let passed = !d.school.admissions.deadlines.isEmpty
+            let tile = StatTile(label: passed ? "Deadlines this year" : "Deadline",
+                                value: passed ? "Passed" : "Not listed",
+                                note: d.school.application?.url == nil ? nil : "Check \(d.school.shortName)'s site ↗",
+                                tint: .surface, icon: "calendar")
+            if let link = d.school.application?.url.flatMap(URL.init(string:)) {
+                Link(destination: link) { tile }.buttonStyle(.plain)
+            } else {
+                tile
             }
         }
     }
@@ -160,15 +196,20 @@ struct SchoolDetailView: View {
         ].compactMap { label, v in v.map { (label, "\(Format.dollars($0)) / yr") } }
         let hasCost = c.avgNetPrice != nil || c.stickerPrice != nil || !bands.isEmpty
 
+        let r = d.residency
+        let isPublic = r != nil && r?.status != .private
         return Panel(icon: "dollarsign.circle", title: "Cost — honestly", subtitle: "Net price, not sticker, is the real number") {
+            if let r { ResidencyPanel(residency: r, school: d.school) }
             if hasCost {
                 TileRow {
-                    StatTile(label: "Average net price", value: c.avgNetPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
+                    StatTile(label: isPublic ? "Average net price, in-state" : "Average net price",
+                             value: c.avgNetPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
                     StatTile(label: "Sticker price", value: c.stickerPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
                 }
                 if !bands.isEmpty {
-                    Text("By family income").font(.system(size: 14, weight: .semibold)).padding(.top, 4)
+                    Text(isPublic ? "By family income, in-state" : "By family income").font(.system(size: 14, weight: .semibold)).padding(.top, 4)
                     FactRows(rows: bands)
+                    if let note = flatAidNote(d.school) { Muted(note, size: 13) }
                 }
                 if let met = c.percentNeedMet {
                     Muted("Meets \(Format.rate(met)) of demonstrated need on average\(c.meritAid.map { " · merit aid: \($0)" } ?? ""). \"Need\" is what the aid formulas say your family can't pay — we'll help you check their math.", size: 13)
@@ -181,6 +222,15 @@ struct SchoolDetailView: View {
                     .buttonStyle(OutlineButtonStyle(compact: true))
             }
         }
+    }
+
+    /// When lower-income families pay nearly what higher-income ones do. It
+    /// reads like a mistake and isn't: the federal figures say the school
+    /// gives little need-based aid, which is worth knowing early.
+    private func flatAidNote(_ s: School) -> String? {
+        guard let low = s.cost.netPriceByIncome?.under48k, let high = s.cost.netPriceByIncome?.over110k,
+              high > 0, low >= high * 0.8 else { return nil }
+        return "Families under $48k pay nearly as much here as families over $110k. That's what \(s.shortName) reports to the Department of Education, not a mistake — it gives little need-based aid. Run its net price calculator, and look hard at outside scholarships before counting on it."
     }
 
     @ViewBuilder
@@ -278,11 +328,21 @@ struct SchoolDetailView: View {
 
     @ViewBuilder
     private func outcomes(_ s: School) -> some View {
-        if let o = s.outcomes, o.gradRate != nil || o.medianEarnings10yr != nil {
+        if let o = s.outcomes, o.gradRate != nil || o.gradRate4yr != nil || o.medianEarnings10yr != nil {
             Panel(icon: "graduationcap", title: "Outcomes") {
                 TileRow {
-                    if let g = o.gradRate { StatTile(label: "Graduate in six years", value: Format.rate(g), tint: .mist, elevated: false) }
-                    if let e = o.medianEarnings10yr { StatTile(label: "Median earnings, 10 yrs out", value: Format.thousands(e), tint: .mist, elevated: false) }
+                    // Four years is what a family plans and pays for; the
+                    // six-year figure is the federal headline, so it stays
+                    // alongside — the gap between them is worth seeing.
+                    if let g4 = o.gradRate4yr {
+                        StatTile(label: "Graduate in four years", value: Format.rate(g4),
+                                 note: o.gradRate.map { "\(Format.rate($0)) within six" }, tint: .mist, elevated: false)
+                    } else if let g = o.gradRate {
+                        StatTile(label: "Graduate within six years", value: Format.rate(g), tint: .mist, elevated: false)
+                    }
+                    // Scorecard measures ten years after starting college —
+                    // about six after graduating.
+                    if let e = o.medianEarnings10yr { StatTile(label: "Median earnings after college", value: Format.thousands(e), tint: .mist, elevated: false) }
                 }
                 if let n = o.alumniNetwork { FactRows(rows: [("Alumni network", n.capitalized)]) }
             }

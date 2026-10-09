@@ -30,6 +30,9 @@ struct ExploreRow: Decodable, Identifiable {
     let school: School
     let tier: ChanceTier?
     let fitLabel: String
+    /// The average net price for this student — out-of-state tuition added
+    /// at a public school in another state. Older servers don't send it.
+    let netForYou: Double?
 }
 
 struct CounselorPick: Decodable, Identifiable {
@@ -93,8 +96,33 @@ struct SchoolDetailResponse: Decodable {
     let chance: Chance?
     let fit: Fit?
     let estimate: Double?
+    let residency: Residency?
     let deadline: DeadlineRef?
     let you: You?
+
+    /// Where the student lives, and what that does to the price here
+    /// (lib/residency.ts).
+    struct Residency: Decodable {
+        enum Status: String, Decodable { case unknown, inState = "in-state", outOfState = "out-of-state", exchange, `private` }
+        let status: Status
+        let homeState: String?
+        let homeStateName: String?
+        let extraPerYear: Double?
+        let outOfStateExtraPerYear: Double?
+        let program: Program?
+        /// Exchanges that depend on their major or county — not counted in
+        /// the estimate, worth asking about. Absent from older servers.
+        let maybe: [Program]?
+
+        struct Program: Decodable {
+            let name: String
+            let shortName: String
+            let terms: String
+            let howToGet: String
+            let restrictions: String?
+            let url: String?
+        }
+    }
 
     struct Chance: Decodable { let tier: ChanceTier; let confidence: String; let caveat: String? }
     struct Fit: Decodable { let label: String; let reasons: [String] }

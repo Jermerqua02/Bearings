@@ -122,6 +122,26 @@ final class AppModel {
         await syncAvatar()
     }
 
+    // MARK: Home state
+
+    /// Where the student lives. Nil for a parent, or before they've said.
+    var homeState: String? {
+        if case .student(let p) = snapshot?.profile { return p.homeState }
+        return nil
+    }
+
+    /// Save it, then reload so every price recomputes against it.
+    func setHomeState(_ code: String) async throws {
+        struct Body: Encodable { let state: String }
+        try await api.perform("PUT", "/api/v1/me/home-state", Body(state: code))
+        try await refresh()
+        homeStateRevision += 1
+    }
+
+    /// Bumped when the home state changes, for views holding prices worked
+    /// out against the old one (a school page) to reload.
+    var homeStateRevision = 0
+
     // MARK: Profile photo
 
     /// Fetch the photo only when the server says it changed.

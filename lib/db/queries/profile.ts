@@ -11,8 +11,10 @@
 
 import "server-only";
 
+import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { parentProfiles, studentProfiles } from "@/lib/db/schema";
+import { isUsState } from "@/lib/states";
 import type { CampusSetting, Profile, Region, SchoolSize } from "@/lib/types";
 
 export async function saveProfile(userId: string, profile: Profile): Promise<void> {
@@ -57,6 +59,10 @@ export async function saveProfile(userId: string, profile: Profile): Promise<voi
     budgetMaxPerYear: profile.budget?.maxPerYear ?? null,
     willFileFafsa: profile.budget?.willFileFafsa ?? true,
     values: profile.values ?? [],
+    // Only when given: re-running onboarding from an older client mustn't
+    // erase a state the student set since. It comes from the client, so
+    // only a real code is kept — anything else would mis-price every school.
+    ...(isUsState(profile.homeState) ? { homeState: profile.homeState } : {}),
   };
 
   await db
@@ -66,4 +72,17 @@ export async function saveProfile(userId: string, profile: Profile): Promise<voi
       target: studentProfiles.userId,
       set: { ...row, updatedAt: new Date() },
     });
+}
+
+/**
+ * The student's home state on its own — asked once of profiles made before
+ * onboarding asked it, and changeable any time after. Null clears it.
+ */
+export async function setHomeState(userId: string, homeState: string | null) {
+  const rows = await db
+    .update(studentProfiles)
+    .set({ homeState, updatedAt: new Date() })
+    .where(eq(studentProfiles.userId, userId))
+    .returning({ userId: studentProfiles.userId });
+  return rows.length > 0;
 }

@@ -16,6 +16,7 @@ import { completeOnboardingAction } from "@/lib/actions/onboarding";
 import { localSummary } from "@/lib/onboarding-summary";
 import ReadAloud from "@/components/ReadAloud";
 import { useApp } from "@/lib/profile-context";
+import { US_STATES } from "@/lib/states";
 import type {
   GradeLevel,
   ParentProfile,
@@ -39,6 +40,7 @@ interface Answers {
   testScore?: string;
   majors?: string[];
   activities?: string;
+  homeState?: string;
   regions?: Region[];
   settings?: string[];
   budget?: string;
@@ -119,6 +121,7 @@ type StepId =
   | "testing"
   | "majors"
   | "activities"
+  | "home-state"
   | "regions"
   | "settings"
   | "budget"
@@ -154,6 +157,7 @@ function stepsFor(role?: "student" | "parent"): StepId[] {
     "testing",
     "majors",
     "activities",
+    "home-state",
     "regions",
     "settings",
     "budget",
@@ -331,6 +335,7 @@ function buildProfile(a: Answers): Profile {
         ]
       : [],
     geography: { regions: a.regions ?? [] },
+    homeState: a.homeState,
     campus: {
       sizes: [],
       settings: (a.settings ?? []).map(
@@ -657,6 +662,29 @@ function OnboardingFlow() {
               autoFocus
               className="w-full max-w-2xl border border-hairline rounded-[3px] bg-surface p-4 text-[1.05rem] leading-relaxed focus:border-ink outline-none placeholder:text-gray-mid/60 transition-quiet resize-none"
             />
+          ),
+        };
+      case "home-state":
+        return {
+          prompt: "What state do you live in?",
+          note: "Public colleges charge much less if you live in their state, and some give students from nearby states a discount (like WUE in the West). This is how I work out what you'd really pay.",
+          valid: !!answers.homeState,
+          body: (
+            <select
+              value={answers.homeState ?? ""}
+              onChange={(e) => set({ homeState: e.target.value || undefined })}
+              autoFocus
+              className="w-full max-w-md border border-hairline rounded-[3px] bg-surface p-4 text-[1.05rem] focus:border-ink outline-none transition-quiet"
+            >
+              <option value="">Choose your state</option>
+              {Object.entries(US_STATES)
+                .sort(([, a], [, b]) => a.localeCompare(b))
+                .map(([code, name]) => (
+                  <option key={code} value={code}>
+                    {name}
+                  </option>
+                ))}
+            </select>
           ),
         };
       case "regions":

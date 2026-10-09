@@ -71,6 +71,8 @@ struct StudentProfile: Decodable {
     let firstName: String
     let gradeLevel: Int
     let intendedMajors: [String]
+    /// Two-letter code; nil until they've told us.
+    let homeState: String?
 }
 
 struct ParentProfile: Decodable {
@@ -133,6 +135,9 @@ struct School: Codable, Identifiable, Hashable {
         let netPriceByIncome: IncomeBands?
         let percentNeedMet: Double?
         let meritAid: String?
+        /// Published tuition and fees, by residency.
+        let tuitionInState: Double?
+        let tuitionOutOfState: Double?
     }
 
     struct IncomeBands: Codable {
@@ -169,7 +174,10 @@ struct School: Codable, Identifiable, Hashable {
     }
 
     struct Outcomes: Codable {
+        /// Within six years.
         let gradRate: Double?
+        /// On time, within four.
+        let gradRate4yr: Double?
         let medianEarnings10yr: Double?
         let alumniNetwork: String?
     }

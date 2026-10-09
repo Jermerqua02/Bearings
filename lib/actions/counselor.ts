@@ -33,10 +33,18 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { UserFacingError } from "@/lib/actions/_error";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
 import { localTitle } from "@/lib/counselor";
-import type { CounselorCard, CounselorMessage, EssayFeedback, InterviewFeedback } from "@/lib/counselor";
+import type {
+  ChatEvents,
+  CounselorCard,
+  CounselorMessage,
+  EssayFeedback,
+  InterviewExchange,
+  InterviewFeedback,
+} from "@/lib/counselor";
 import { courseworkSummary } from "@/lib/coursework";
 import type { GradeLevel, School, StudentProfile } from "@/lib/types";
 import { getSchoolById, getSchoolMap } from "@/lib/db/queries/schools";
+import { residencyAt, residencyNote } from "@/lib/residency";
 
 /**
  * Ids the model is allowed to reference, cached briefly.
@@ -127,11 +135,13 @@ async function rememberFromTurn(userId: string, threadId: string, studentMessage
 
 /* ————————————— Threads ————————————— */
 
-export async function createThreadAction(title?: string) {
+export async function createThreadAction(title?: string, schoolId?: string) {
   const s = await requireStudent();
+  // An id that names no school is dropped rather than failing the thread.
+  const school = schoolId ? await getSchoolById(schoolId) : null;
   const [row] = await db
     .insert(counselorThreads)
-    .values({ studentId: s.userId, title: title ?? "New conversation" })
+    .values({ studentId: s.userId, title: title ?? "New conversation", schoolId: school?.id ?? null })
     .returning({ id: counselorThreads.id });
   return row.id;
 }
@@ -154,6 +164,7 @@ export async function listThreadsAction() {
     out.push({
       id: t.id,
       title: t.title,
+      schoolId: t.schoolId ?? undefined,
       messages: msgs.map(toMessage),
     });
   }
@@ -190,7 +201,7 @@ async function persist(threadId: string, msg: CounselorMessage) {
  * run replied "I don't have your school list yet", which is the single most
  * likely first question. Names and tiers only; no notes, nothing private.
  */
-async function listSummaryFor(studentId: string): Promise<string> {
+async function listSummaryFor(studentId: string, homeState?: string): Promise<string> {
   const rows = await db
     .select({
       schoolId: listEntries.schoolId,
@@ -213,7 +224,10 @@ async function listSummaryFor(studentId: string): Promise<string> {
     const school = byId.get(r.schoolId);
     const name = school?.name ?? r.schoolId;
     const bits = [r.tier, r.plan, r.status, r.outcome].filter(Boolean).join(", ");
-    return `- ${name} (id: ${r.schoolId}) — ${bits}`;
+    // In-state, out-of-state, or an exchange like WUE — the counselor
+    // otherwise has to guess, and hedges ("if you're a California resident").
+    const where = school ? ` ${residencyNote(school, residencyAt(school, homeState), homeState)}` : "";
+    return `- ${name} (id: ${r.schoolId}) — ${bits}.${where}`;
   });
 
   return `The student's current list (${rows.length} schools):\n${lines.join("\n")}`;
@@ -283,6 +297,13 @@ export async function chatAction(input: {
     one back, that placeholder is what stays on screen and the generated
     title is only ever seen after a reload.
   */
+}, events?: ChatEvents & {
+  /*
+    The finished reply, as soon as it's saved — before the thread is named,
+    which is another model call. A streaming client shows the answer here
+    and the title when the action returns.
+  */
+  onReply?(message: CounselorMessage): void;
 }): Promise<{ message: CounselorMessage; title?: string }> {
   const s = await requireStudent();
   const { profile } = await sessionProfile();
@@ -290,7 +311,7 @@ export async function chatAction(input: {
   // Ownership check — threadId comes from the client, so it's an IDOR
   // vector unless verified.
   const [thread] = await db
-    .select({ id: counselorThreads.id })
+    .select({ id: counselorThreads.id, schoolId: counselorThreads.schoolId })
     .from(counselorThreads)
     .where(and(eq(counselorThreads.id, input.threadId), eq(counselorThreads.studentId, s.userId)))
     .limit(1);
@@ -309,19 +330,35 @@ export async function chatAction(input: {
     createdAt: new Date().toISOString(),
   });
 
-  const res = await (await guardedServiceFor(s.userId, "chat")).chat({
-    profile,
-    threadId: input.threadId,
-    message: input.message,
-    context: {
-      ...input.context,
-      listSummary: await listSummaryFor(s.userId),
-      courseworkSummary: await courseworkSummaryFor(s.userId),
+  // The thread's own school wins; the client's is for threads made before
+  // threads remembered one.
+  const schoolId = thread.schoolId ?? input.context?.schoolId;
+  const [service, listSummary, coursework, school] = await Promise.all([
+    guardedServiceFor(s.userId, "chat"),
+    listSummaryFor(s.userId, profile.role === "student" ? profile.homeState : undefined),
+    courseworkSummaryFor(s.userId),
+    schoolId ? getSchoolById(schoolId) : null,
+  ]);
+  const res = await service.chat(
+    {
+      profile,
+      threadId: input.threadId,
+      message: input.message,
+      context: {
+        ...input.context,
+        // A conversation started from a school's page is about that school;
+        // without it the counselor answered "what are my chances?" in general.
+        school: school ?? undefined,
+        listSummary,
+        courseworkSummary: coursework,
+      },
+      history: history.map(toMessage),
     },
-    history: history.map(toMessage),
-  });
+    events,
+  );
 
   await persist(input.threadId, res.message);
+  events?.onReply?.(res.message);
   void rememberFromTurn(s.userId, input.threadId, input.message, res.message.text);
 
   /*
@@ -444,6 +481,8 @@ function profileHash(p: StudentProfile | { role: "parent" }): string {
     s.campus,
     s.budget.maxPerYear,
     s.values,
+    // In-state or not changes "is this affordable" at every public school.
+    s.homeState ?? null,
     // A remembered fact can change the answer ("needs to stay near home").
     s.counselorNotes ?? [],
   ]);
@@ -463,11 +502,16 @@ export async function essayFeedbackAction(input: {
   return svc.essayFeedback(profile as StudentProfile, input.promptText, input.essayText);
 }
 
+/** How many earlier exchanges of a session the next turn gets to see. */
+const INTERVIEW_CONTEXT_TURNS = 6;
+
 export async function interviewTurnAction(input: {
   schoolId: string | null;
   question: string;
   answer: string;
-}): Promise<InterviewFeedback & { nextQuestion?: string }> {
+  /** This sitting's earlier exchanges, oldest first. Context only; not stored again. */
+  earlier?: InterviewExchange[];
+}): Promise<InterviewFeedback> {
   const { viewer, profile } = await sessionProfile();
   if (profile.role !== "student") {
     return { strengths: [], toWorkOn: [], followUp: "" };
@@ -479,6 +523,8 @@ export async function interviewTurnAction(input: {
     school,
     input.question,
     input.answer,
+    // Bounded here as well as at the route: the prompt is what costs money.
+    (input.earlier ?? []).slice(-INTERVIEW_CONTEXT_TURNS),
   );
 
   /*
@@ -527,7 +573,7 @@ export async function interviewTurnAction(input: {
     strengths: feedback.strengths,
     toWorkOn: feedback.toWorkOn,
     followUp: feedback.followUp,
-    nextQuestion: (feedback as { nextQuestion?: string }).nextQuestion ?? null,
+    nextQuestion: feedback.nextQuestion ?? null,
     sortOrder: n,
   });
 
@@ -572,6 +618,11 @@ export async function interviewHistoryAction(
   return rows.map((r) => ({
     question: r.question,
     answer: r.answer,
-    feedback: { strengths: r.strengths, toWorkOn: r.toWorkOn, followUp: r.followUp },
+    feedback: {
+      strengths: r.strengths,
+      toWorkOn: r.toWorkOn,
+      followUp: r.followUp,
+      ...(r.nextQuestion ? { nextQuestion: r.nextQuestion } : {}),
+    },
   }));
 }

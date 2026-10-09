@@ -73,30 +73,27 @@ struct ApplicationsResponse: Decodable {
 
 // MARK: Interviews
 
+/// POST /api/v1/interviews — the counselor's reaction to one answer.
 struct InterviewFeedback: Decodable {
     let strengths: [String]
     let toWorkOn: [String]
+    /// Her reply, written to be read aloud. Never contains the next question.
     let followUp: String
+    /// What she'd ask next. Nil on turns saved before the server sent it.
+    let nextQuestion: String?
 }
 
-struct InterviewTurn: Decodable, Identifiable {
-    var id = UUID()
+/// A saved turn from an earlier sitting, as GET /api/v1/interviews returns it.
+struct InterviewTurn: Decodable {
     let question: String
     let answer: String
     let feedback: InterviewFeedback
-
-    private enum CodingKeys: String, CodingKey { case question, answer, feedback }
-
-    init(question: String, answer: String, feedback: InterviewFeedback) {
-        self.question = question
-        self.answer = answer
-        self.feedback = feedback
-    }
 }
 
 struct InterviewState: Decodable {
     let questions: [String]
     let schools: [Named]
+    /// Every saved turn for the chosen school, oldest first.
     let turns: [InterviewTurn]
 
     struct Named: Decodable, Identifiable, Hashable { let id: String; let name: String }

@@ -12,15 +12,9 @@ struct CounselorView: View {
     /// Set when the student arrived from a school's "Ask the counselor".
     @State private var about: School?
     @State private var starting = false
-
-    /// The web's starters. Generic on purpose — no invented grades.
-    static let starters = [
-        "Am I being realistic?",
-        "What schools am I missing?",
-        "How do I stand out with my grades?",
-        "Explain early decision vs. early action",
-        "Is this school worth the money?",
-    ]
+    /// Drawn once per opening, so they change from visit to visit but not
+    /// while the student is reading them.
+    @State private var starters = Starters.draw()
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -29,7 +23,7 @@ struct CounselorView: View {
                 // server refuses ("Finish onboarding first").
                 if model.snapshot != nil && model.snapshot?.profile == nil {
                     Page {
-                        TwoTone(lead: "Finish onboarding first.", rest: "Your counselor reads your profile before it says anything.")
+                        TwoTone(lead: "Finish onboarding first.", rest: "I read your profile before I say anything.")
                         Link("Start onboarding on the web →", destination: Config.apiBaseURL.appending(path: "onboarding"))
                             .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
                     }
@@ -80,7 +74,7 @@ struct CounselorView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel("Start with")
                 FlowLayout {
-                    ForEach(Self.starters, id: \.self) { q in
+                    ForEach(about.map(Starters.about) ?? starters, id: \.self) { q in
                         Chip(label: q, active: false) { begin(q) }
                     }
                 }
@@ -112,7 +106,7 @@ struct CounselorView: View {
                         .frame(width: 44, height: 44).background(Color.surface, in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Practice an interview").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
-                        Text("Answer real questions, get honest feedback — saved per school.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                        Text("I'll ask out loud, you answer by voice — then honest feedback, one question at a time.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
                     }
                     Spacer()
                     RoundIcon(icon: "arrow.up.right", fill: .surface)
@@ -126,15 +120,7 @@ struct CounselorView: View {
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 8) {
                 if let about {
-                    HStack(spacing: 6) {
-                        Image(systemName: "building.columns").font(.system(size: 12))
-                        Text("About \(about.shortName)").font(.system(size: 13, weight: .medium))
-                        Button { self.about = nil } label: { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
-                            .accessibilityLabel("Don't ask about \(about.shortName)")
-                    }
-                    .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(Color.lavender, in: Capsule())
-                    .padding(.horizontal, 16)
+                    AboutTag(school: about) { self.about = nil }
                 }
                 ChatComposer(draft: $draft, busy: starting,
                              placeholder: about.map { "Ask about \($0.shortName)" } ?? "Ask your counselor") {
@@ -261,26 +247,25 @@ struct ChatView: View {
     let store: CounselorStore
     let threadId: String
     @State private var draft = ""
+    @State private var starters = Starters.draw()
 
     var body: some View {
         let thread = store.thread(threadId)
         let thinking = store.pending.contains(threadId)
         let studentHasSpoken = thread?.messages.contains { $0.author == .user } ?? false
+        let about = store.aboutSchool(threadId)
 
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 18) {
                     ForEach(thread?.messages ?? []) { MessageView(message: $0, store: store).id($0.id) }
                     if thinking {
-                        HStack(spacing: 8) {
-                            ProgressView()
-                            Text("Thinking…").foregroundStyle(Color.grayMid)
-                        }
-                        .id("thinking")
+                        ReplyInProgress(draft: store.inProgress[threadId], about: about)
+                            .id("thinking")
                     }
                     if !studentHasSpoken && !thinking {
                         FlowLayout {
-                            ForEach(CounselorView.starters, id: \.self) { q in
+                            ForEach(about.map(Starters.about) ?? starters, id: \.self) { q in
                                 Chip(label: q, active: false) { Task { await store.send(q, in: threadId) } }
                             }
                         }
@@ -293,10 +278,21 @@ struct ChatView: View {
             .onChange(of: thread?.messages.count) {
                 withAnimation { proxy.scrollTo(thinking ? "thinking" : thread?.messages.last?.id, anchor: .bottom) }
             }
+            // Follow the reply down as it's written.
+            .onChange(of: store.inProgress[threadId]?.text.count) {
+                proxy.scrollTo("thinking", anchor: .bottom)
+            }
         }
         .background(Color.paper)
         .safeAreaInset(edge: .bottom) {
-            ChatComposer(draft: $draft, busy: store.pending.contains(threadId), send: send)
+            VStack(alignment: .leading, spacing: 8) {
+                // Stays for the whole conversation, so it's clear every
+                // question here is about this school.
+                if let about { AboutTag(school: about) }
+                ChatComposer(draft: $draft, busy: store.pending.contains(threadId),
+                             placeholder: about.map { "Ask about \($0.shortName)" } ?? "Ask your counselor",
+                             send: send)
+            }
         }
         .navigationTitle(thread?.title ?? "Conversation")
         .navigationBarTitleDisplayMode(.inline)
@@ -308,6 +304,76 @@ struct ChatView: View {
         draft = ""
         Task { await store.send(text, in: threadId) }
     }
+}
+
+/// "About San Diego State" over the composer: the school this conversation
+/// is grounded in. Removable before the first message, fixed after.
+private struct AboutTag: View {
+    let school: School
+    var remove: (() -> Void)?
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "building.columns").font(.system(size: 12))
+            Text("About \(school.shortName)").font(.system(size: 13, weight: .medium))
+            if let remove {
+                Button(action: remove) { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)) }
+                    .accessibilityLabel("Don't ask about \(school.shortName)")
+            }
+        }
+        .padding(.horizontal, 12).padding(.vertical, 6)
+        .background(Color.lavender, in: Capsule())
+        .padding(.horizontal, 16)
+    }
+}
+
+/// The reply while it's being written: the words so far once there are
+/// some, and until then a line saying what I'm doing — a few of them in
+/// turn, so a long think doesn't look stuck.
+private struct ReplyInProgress: View {
+    let draft: CounselorStore.Draft?
+    let about: School?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let text = draft?.text, !text.isEmpty {
+                Text(LocalizedStringKey(text))
+            }
+            if draft?.text.isEmpty ?? true || draft?.phase == .cards {
+                TimelineView(.periodic(from: .now, by: 2.6)) { context in
+                    HStack(spacing: 8) {
+                        ProgressView()
+                        Text(line(at: context.date)).foregroundStyle(Color.grayMid)
+                            .contentTransition(.opacity)
+                            .animation(.easeInOut(duration: 0.3), value: line(at: context.date))
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func line(at date: Date) -> String {
+        let lines = draft?.phase == .cards ? Self.cards : thinkingLines
+        let tick = Int(date.timeIntervalSinceReferenceDate / 2.6)
+        return lines[tick % lines.count]
+    }
+
+    private var thinkingLines: [String] {
+        var lines = Self.thinking
+        if let about { lines.insert("Looking at \(about.shortName)…", at: 1) }
+        return lines
+    }
+
+    static let thinking = [
+        "Reading what you've told me…",
+        "Looking over your list…",
+        "Thinking it through…",
+        "Checking the numbers…",
+        "Weighing a few options…",
+        "Pulling it together…",
+    ]
+    static let cards = ["Pulling up the schools…", "Adding the details…"]
 }
 
 private struct MessageView: View {

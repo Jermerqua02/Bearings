@@ -72,17 +72,27 @@ export default function InterviewsPage() {
     };
   }, [schoolId]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [primerOpen, setPrimerOpen] = useState(true);
 
   const submit = async () => {
     if (!student || !answer.trim() || busy) return;
     setBusy(true);
-    const fb = await interviewTurnAction({ schoolId: school?.id ?? null, question, answer });
-    setTurns((prev) => [...prev, { question, answer, feedback: fb }]);
-    setAnswer("");
-    const next = fb.followUp.match(/"([^"]+)"/)?.[1];
-    if (next) setQuestion(next);
-    setBusy(false);
+    setError(null);
+    try {
+      const fb = await interviewTurnAction({ schoolId: school?.id ?? null, question, answer });
+      setTurns((prev) => [...prev, { question, answer, feedback: fb }]);
+      setAnswer("");
+      // Structured now; the quote-scrape is only for a reply without it.
+      const next = fb.nextQuestion ?? fb.followUp.match(/"([^"]+)"/)?.[1];
+      if (next) setQuestion(next);
+    } catch (err) {
+      // Their answer stays in the box, so trying again costs nothing.
+      console.error("[interviews] could not get feedback:", err);
+      setError("I couldn't get feedback on that just now. Try again in a moment.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -198,6 +208,11 @@ export default function InterviewsPage() {
           aria-label="Your interview answer"
           className="w-full border border-hairline rounded-[3px] bg-surface p-4 text-[1rem] leading-relaxed outline-none focus:border-ink transition-quiet resize-y"
         />
+        {error && (
+          <p role="alert" className="text-[0.85rem] text-reach mt-3">
+            {error}
+          </p>
+        )}
         <div className="flex items-center justify-between mt-3">
           <p className="text-[0.8rem] text-gray-mid">
             Voice practice is coming — for now, typing it out builds the same muscle.

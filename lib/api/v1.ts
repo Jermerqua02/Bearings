@@ -51,22 +51,24 @@ export function route<P = Record<string, never>>(
       if (result === undefined) return new NextResponse(null, { status: 204 });
       return NextResponse.json(result, { headers: { "Cache-Control": "private, no-store" } });
     } catch (err) {
-      const status =
-        err instanceof AuthzError
-          ? err.message === "Not signed in"
-            ? 401
-            : 403
-          : err instanceof NotFound
-            ? 404
-            : err instanceof UserFacingError
-              ? 400
-              : 500;
-      return NextResponse.json(
-        { error: safeError(`api:${tag}`, err, userMessage) },
-        { status, headers: { "Cache-Control": "private, no-store" } },
-      );
+      return errorResponse(tag, err, userMessage);
     }
   };
+}
+
+/** An error as the app expects it: `{ error }` with the matching status. */
+export function errorResponse(tag: string, err: unknown, userMessage: string) {
+  return NextResponse.json(
+    { error: safeError(`api:${tag}`, err, userMessage) },
+    { status: errorStatus(err), headers: { "Cache-Control": "private, no-store" } },
+  );
+}
+
+function errorStatus(err: unknown) {
+  if (err instanceof AuthzError) return err.message === "Not signed in" ? 401 : 403;
+  if (err instanceof NotFound) return 404;
+  if (err instanceof UserFacingError) return 400;
+  return 500;
 }
 
 /** The request body as an object, or a 400 the user can read. */

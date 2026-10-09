@@ -153,7 +153,12 @@ interface ScorecardRow {
   "latest.cost.net_price.private.by_income_level.48001-75000": number | null;
   "latest.cost.net_price.private.by_income_level.75001-110000": number | null;
   "latest.cost.net_price.private.by_income_level.110001-plus": number | null;
+  "latest.cost.net_price.public.by_income_level.0-48000": number | null;
+  "latest.cost.net_price.private.by_income_level.0-48000": number | null;
+  "latest.cost.tuition.in_state": number | null;
+  "latest.cost.tuition.out_of_state": number | null;
   "latest.completion.completion_rate_4yr_150nt": number | null;
+  "latest.completion.completion_rate_4yr_100nt": number | null;
   "latest.earnings.10_yrs_after_entry.median": number | null;
 }
 
@@ -188,7 +193,12 @@ const FIELDS = [
   "latest.cost.net_price.private.by_income_level.48001-75000",
   "latest.cost.net_price.private.by_income_level.75001-110000",
   "latest.cost.net_price.private.by_income_level.110001-plus",
+  "latest.cost.net_price.public.by_income_level.0-48000",
+  "latest.cost.net_price.private.by_income_level.0-48000",
+  "latest.cost.tuition.in_state",
+  "latest.cost.tuition.out_of_state",
   "latest.completion.completion_rate_4yr_150nt",
+  "latest.completion.completion_rate_4yr_100nt",
   "latest.earnings.10_yrs_after_entry.median",
 ].join(",");
 
@@ -238,12 +248,13 @@ function netPrice(r: ScorecardRow, ownership: number) {
   const low = band("30001-48000") as number | null;
 
   // Our schema has four income bands and Scorecard has five: the bottom two
-  // both fall under our "under 48k". Averaged when both are present so the
-  // figure reflects the whole band rather than one end of it.
+  // both fall under our "under 48k". Scorecard also publishes that combined
+  // band itself, weighted by how many students are in each half — use it.
+  // A plain average of the two halves, the old fallback, counts a handful
+  // of families the same as hundreds.
   const under48k =
-    lowest != null && low != null
-      ? Math.round((lowest + low) / 2)
-      : (lowest ?? low ?? null);
+    (band("0-48000") as number | null) ??
+    (lowest != null && low != null ? Math.round((lowest + low) / 2) : (lowest ?? low ?? null));
 
   return {
     avg:
@@ -447,6 +458,8 @@ async function writeChildren(rows: ScorecardRow[]) {
         netPrice48to75k: np.k48to75,
         netPrice75to110k: np.k75to110,
         netPriceOver110k: np.over110k,
+        tuitionInState: r["latest.cost.tuition.in_state"],
+        tuitionOutOfState: r["latest.cost.tuition.out_of_state"],
         // Both are editorial judgements with no Scorecard equivalent.
         percentNeedMet: null,
         meritAid: null,
@@ -460,6 +473,7 @@ async function writeChildren(rows: ScorecardRow[]) {
         schoolId: id,
         year: CURRENT_CYCLE,
         gradRate: grad,
+        gradRate4yr: r["latest.completion.completion_rate_4yr_100nt"],
         medianEarnings10yr: earnings,
         alumniNetwork: null,
       });

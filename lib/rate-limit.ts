@@ -33,11 +33,13 @@ export interface Limit {
  * Per-feature allowances, sized to be invisible to a person using the
  * product and obvious to a loop.
  *
- * Speech is the tightest: it is the most expensive per call and the least
- * likely to be wanted forty times in an hour.
+ * Speech was the tightest, at 30, when read-aloud was the only use. Interview
+ * practice now speaks every question and every reply — two clips a turn — so
+ * 30 ended a sitting after about fifteen answers, mid-practice. 120 covers an
+ * hour of steady practice; the app falls back to the phone's own voice past it.
  */
 export const LIMITS: Record<string, Limit> = {
-  speech: { max: 30, windowMinutes: 60 },
+  speech: { max: 120, windowMinutes: 60 },
   chat: { max: 120, windowMinutes: 60 },
   essay_feedback: { max: 60, windowMinutes: 60 },
   interview: { max: 60, windowMinutes: 60 },

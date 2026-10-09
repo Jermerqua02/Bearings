@@ -273,7 +273,7 @@ private struct ResultCard: View {
                             .multilineTextAlignment(.leading)
                         Text([
                             "\(s.city), \(s.state)",
-                            s.cost.avgNetPrice.map { "~\(Format.thousands($0)) net" },
+                            (row.netForYou ?? s.cost.avgNetPrice).map { "~\(Format.thousands($0)) net" },
                             s.admissions.acceptanceRate.map { "\(Format.rate($0)) admit" },
                         ].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 13)).foregroundStyle(Color.grayMid)

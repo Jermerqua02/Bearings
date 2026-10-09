@@ -1,15 +1,22 @@
 /* ————————————————————————————————————————
    GET  /api/v1/interviews?schoolId=   — questions, schools, saved practice
-   POST /api/v1/interviews { schoolId?, question, answer } — feedback
+   POST /api/v1/interviews { schoolId?, question, answer, history? }
+        — feedback, and the question the counselor would ask next
 
    Practice is kept per school (and one session for general practice), so
    coming back continues where the student left off.
+
+   `history` is the app's current sitting — the questions already asked
+   and answered, oldest first — so the next question builds on them rather
+   than repeating one. It's context for the model only; each turn is still
+   stored on its own when it's answered.
    ———————————————————————————————————————— */
 
 import { interviewHistoryAction, interviewTurnAction } from "@/lib/actions/counselor";
 import { requireStudent } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
 import { BadRequest, body, route, str } from "@/lib/api/v1";
+import type { InterviewExchange } from "@/lib/counselor";
 import type { School } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -24,6 +31,20 @@ const COMMON_QUESTIONS = [
   "What would you add to our campus community?",
   "What are you reading, watching, or making right now?",
 ];
+
+/** Only the most recent exchanges are worth their tokens. */
+const MAX_HISTORY = 6;
+
+/** The sitting so far, validated like every other field: bounded, typed, or a 400. */
+function history(value: unknown): InterviewExchange[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value) || value.length > 50) throw new BadRequest("Invalid history.");
+  return value.slice(-MAX_HISTORY).map((t) => {
+    if (!t || typeof t !== "object") throw new BadRequest("Invalid history.");
+    const { question, answer } = t as Record<string, unknown>;
+    return { question: str(question, "history", 500), answer: str(answer, "history", 8_000) };
+  });
+}
 
 function offersInterview(s: School): boolean {
   const rate = s.admissions.acceptanceRate;
@@ -56,6 +77,7 @@ export const POST = route(
       schoolId: typeof b.schoolId === "string" && b.schoolId ? b.schoolId : null,
       question: str(b.question, "question", 500),
       answer,
+      earlier: history(b.history),
     });
   },
 );

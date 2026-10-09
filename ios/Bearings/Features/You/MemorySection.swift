@@ -13,13 +13,15 @@ struct MemorySection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Panel(icon: "sparkles", title: "What your counselor knows",
+            Panel(icon: "sparkles", title: "What I know about you",
                   subtitle: facts.isEmpty ? "Nothing yet" : "\(facts.count) thing\(facts.count == 1 ? "" : "s") you've shared",
                   tint: .lavender) {
-                Muted("It picks these up as you talk — your goals, what you've done, what matters in a college, what you're working around — and reads them before every answer, so you never have to repeat yourself. If something's wrong or out of date, fix it here.", size: 14)
-                Button { editing = .add(topic: nil) } label: { Label("Tell your counselor something", systemImage: "plus") }
+                Muted("I pick these up as we talk — your goals, what you've done, what matters to you in a college, what you're working around — and read them before every answer, so you never have to repeat yourself. If something's wrong or out of date, fix it here.", size: 14)
+                Button { editing = .add(topic: nil) } label: { Label("Tell me something", systemImage: "plus") }
                     .buttonStyle(HighlightButtonStyle(compact: true))
             }
+
+            HomeStateRow()
 
             if let error { InlineNote(text: error, kind: .problem) }
 
@@ -153,8 +155,8 @@ private struct MemoryEditSheet: View {
         NavigationStack {
             Page(spacing: 20) {
                 Muted(existing == nil
-                      ? "Write it the way you'd tell a counselor. It'll be part of every answer from now on."
-                      : "Correct it, move it, or remove it. Your counselor uses the new version from the next message.",
+                      ? "Write it the way you'd say it to me. I'll keep it in mind for every answer from now on."
+                      : "Correct it, move it, or remove it. I'll use the new version from your next message.",
                       size: 14)
                 TextArea(placeholder: "e.g. I want to stay close to home for my family", text: $text, minLines: 3)
                 VStack(alignment: .leading, spacing: 10) {
@@ -166,12 +168,12 @@ private struct MemoryEditSheet: View {
                 if let existing {
                     Button("Remove this", role: .destructive) { confirmingDelete = true }
                         .buttonStyle(LinkButtonStyle(color: .reach))
-                        .confirmationDialog("Your counselor will forget this.", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                        .confirmationDialog("I'll forget this.", isPresented: $confirmingDelete, titleVisibility: .visible) {
                             Button("Remove", role: .destructive) { done(.delete(id: existing.id)); dismiss() }
                         }
                 }
             }
-            .navigationTitle(existing == nil ? "Tell your counselor" : "Edit")
+            .navigationTitle(existing == nil ? "Tell me something" : "Edit")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }

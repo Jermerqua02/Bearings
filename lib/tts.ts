@@ -11,8 +11,8 @@
    client just receives audio/wav and hands it to the Web Audio API.
 
    Never throws. Speech is an enhancement — if it fails, the caller falls
-   back to the browser's built-in voice, and the student still hears their
-   summary.
+   back to the device's built-in voice (the browser's, or iOS's), and the
+   student still hears it.
    ———————————————————————————————————————— */
 
 import "server-only";
@@ -22,7 +22,9 @@ const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODE
 
 /**
  * Voice. Kore reads as warm and even — it suits reading a student's own
- * profile back to them, which is the only thing this is used for.
+ * profile back to them, and it's the counselor's voice in interview
+ * practice on iOS, where she asks each question and gives her reaction
+ * aloud. Those are the two things this is used for.
  */
 const VOICE = "Kore";
 

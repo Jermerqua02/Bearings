@@ -62,6 +62,8 @@ export interface CounselorRequest {
      * name the actual courses they've taken.
      */
     courseworkSummary?: string;
+    /** The school `schoolId` names, resolved by the server. */
+    school?: School;
   };
   history: CounselorMessage[];
 }
@@ -81,7 +83,16 @@ export interface EssayFeedback {
 export interface InterviewFeedback {
   strengths: string[];
   toWorkOn: string[];
+  /** The counselor's spoken reaction, first person. Never the next question. */
   followUp: string;
+  /** What she'd ask next. Absent on turns saved before it was structured. */
+  nextQuestion?: string;
+}
+
+/** A question already asked and answered in the current practice session. */
+export interface InterviewExchange {
+  question: string;
+  answer: string;
 }
 
 /**
@@ -115,8 +126,21 @@ export interface MemoryChanges {
   update: { id: string; fact: string }[];
 }
 
+/**
+ * What a chat turn is doing while the student waits, for a client that
+ * streams. "thinking" before any words, "writing" once they start arriving,
+ * "cards" while the schools/timelines under the answer are being put
+ * together. Every hook is optional; a caller that ignores them gets the
+ * same reply, just all at once.
+ */
+export interface ChatEvents {
+  onPhase?(phase: "thinking" | "writing" | "cards"): void;
+  /** The next piece of the answer's text, in order. */
+  onText?(delta: string): void;
+}
+
 export interface CounselorService {
-  chat(req: CounselorRequest): Promise<CounselorResponse>;
+  chat(req: CounselorRequest, events?: ChatEvents): Promise<CounselorResponse>;
   greet(profile: Profile): Promise<CounselorMessage>;
   /** "Here's what I'm hearing about you" — end of onboarding. */
   summarizeProfile(profile: Profile): Promise<string>;
@@ -129,12 +153,17 @@ export interface CounselorService {
     promptText: string,
     essayText: string
   ): Promise<EssayFeedback>;
-  /** Mock-interview turn: next question + feedback on the last answer. */
+  /**
+   * Mock-interview turn: next question + feedback on the last answer.
+   * `earlier` is what this session has already covered, oldest first, so
+   * the next question builds on it instead of repeating it.
+   */
   interviewTurn(
     profile: StudentProfile,
     school: School | null,
     question: string,
-    answer: string
+    answer: string,
+    earlier?: InterviewExchange[]
   ): Promise<InterviewFeedback>;
   /**
    * A short name for a conversation, from how it opened.
@@ -212,7 +241,8 @@ const mockCounselor: CounselorService = {
     return { id: mid(), author: "counselor", text, createdAt: new Date().toISOString() };
   },
 
-  async chat(req) {
+  async chat(req, events) {
+    events?.onPhase?.("thinking");
     await delay(700);
     const p = req.profile;
     const lower = req.message.toLowerCase();
@@ -252,6 +282,8 @@ const mockCounselor: CounselorService = {
         : `Good question. Here's how I'd frame it for where your student is right now. (This is a mock response; the real model plugs in via lib/counselor.ts.)`;
     }
 
+    events?.onPhase?.("writing");
+    events?.onText?.(text);
     return {
       message: { id: mid(), author: "counselor", text, cards, createdAt: new Date().toISOString() },
       nudge:
@@ -341,9 +373,12 @@ const mockCounselor: CounselorService = {
         : [
             "Trim the wind-up — start with the example, then explain why it matters.",
           ],
-      followUp: school
-        ? `Good. Next: ${school.shortName} interviewers often ask — "What would you add to our campus that isn't already here?" Take a minute before answering.`
-        : `Next question: "Tell me about a time you changed your mind about something that mattered to you."`,
+      followUp: short
+        ? "I like that you got straight to it. Now I want the story behind it — give me one moment I could picture."
+        : "That had a real example in it, and I could hear that it mattered to you. Let's keep going.",
+      nextQuestion: school
+        ? `What would you add to ${school.shortName} that isn't already there?`
+        : "Tell me about a time you changed your mind about something that mattered to you.",
     };
   },
 

@@ -79,11 +79,11 @@ export const COMPANY = {
   stops matching the text it was given for.
 */
 export const TERMS_VERSION = "2026-08-10";
-export const PRIVACY_VERSION = "2026-08-10";
+export const PRIVACY_VERSION = "2026-10-09";
 
 /** Shown at the top of each document. Keep in step with the versions above. */
 export const TERMS_EFFECTIVE = "August 10, 2026";
-export const PRIVACY_EFFECTIVE = "August 10, 2026";
+export const PRIVACY_EFFECTIVE = "October 9, 2026";
 
 /**
  * Minimum age to hold an account.

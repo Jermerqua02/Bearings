@@ -12,6 +12,7 @@ import { getSchoolById } from "@/lib/db/queries/schools";
 import { loadProfileOnly } from "@/lib/db/queries/snapshot";
 import { chanceRead, fit, nextDeadline } from "@/lib/match";
 import { NotFound, route } from "@/lib/api/v1";
+import { adjustForResidency, residencyAt, US_STATES } from "@/lib/residency";
 
 export const runtime = "nodejs";
 
@@ -25,13 +26,17 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
 
   const student = profile?.role === "student" ? profile : null;
   const read = student ? chanceRead(student, school) : null;
-  const f = student ? fit(student, school) : null;
+  // Those figures are in-state at a public school; where the student lives
+  // decides what's added on top (lib/residency.ts), budget fit included.
+  const homeState = student?.homeState;
+  const residency = residencyAt(school, homeState);
+  const f = student ? fit(student, school, adjustForResidency(school.cost.avgNetPrice, residency)) : null;
 
   // Same banding as SchoolDetail.tsx: the student's stated budget picks the
   // income band that best matches it; no budget, the school's average.
   const income = school.cost.netPriceByIncome;
   const budget = student?.budget.maxPerYear;
-  const estimate =
+  const banded =
     budget === undefined
       ? school.cost.avgNetPrice
       : budget <= 30000
@@ -40,12 +45,40 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
           ? income.k75to110
           : income.over110k;
 
+  const estimate = adjustForResidency(banded, residency);
+
   const dl = nextDeadline(school);
   return {
     school,
     chance: read,
     fit: f ? { label: f.label, reasons: f.reasons } : null,
     estimate: estimate ?? null,
+    residency: {
+      status: residency.status,
+      homeState: homeState ?? null,
+      homeStateName: homeState ? (US_STATES[homeState] ?? homeState) : null,
+      extraPerYear: residency.extraPerYear ?? null,
+      outOfStateExtraPerYear: residency.outOfStateExtraPerYear ?? null,
+      program: residency.program
+        ? {
+            name: residency.program.name,
+            shortName: residency.program.shortName,
+            terms: residency.program.terms,
+            howToGet: residency.program.howToGet,
+            restrictions: residency.program.restrictions ?? null,
+            url: residency.program.schoolUrl ?? residency.program.url,
+          }
+        : null,
+      // Exchanges that hinge on their major or county: worth asking about.
+      maybe: (residency.maybe ?? []).map((p) => ({
+        name: p.name,
+        shortName: p.shortName,
+        terms: p.terms,
+        howToGet: p.howToGet,
+        restrictions: p.restrictions ?? null,
+        url: p.schoolUrl ?? p.url,
+      })),
+    },
     deadline: dl ? { plan: dl.plan, date: dl.iso } : null,
     you: student
       ? { gpaUnweighted: student.gpa.unweighted ?? null, sat: student.testScores.sat ?? null }

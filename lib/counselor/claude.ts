@@ -14,12 +14,14 @@ import { MEMORY_CATEGORIES, isMemoryCategory } from "@/lib/memory";
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type {
+  ChatEvents,
   CounselorCard,
   CounselorMessage,
   CounselorRequest,
   CounselorResponse,
   CounselorService,
   EssayFeedback,
+  InterviewExchange,
   InterviewFeedback,
   TranscriptReading,
 } from "@/lib/counselor";
@@ -32,7 +34,7 @@ import type {
   StudentProfile,
   Throughline,
 } from "@/lib/types";
-import { chatSystemPrompt, RENDER_CARDS_TOOL, schoolContextNote } from "./prompt";
+import { chatSystemPrompt, conversationSchoolNote, RENDER_CARDS_TOOL, schoolContextNote } from "./prompt";
 import { enforceNeverWrites } from "./guardrails";
 import { UserFacingError } from "@/lib/actions/_error";
 import { recordUsage, type AiFeature, type UsageCounts } from "./usage";
@@ -114,6 +116,45 @@ async function ask(
     ...(opts.tools ? { tools: opts.tools } : {}),
     messages,
   });
+}
+
+/**
+ * ask(), streamed — for the chat, where the student is watching. Reports
+ * what the model is doing as it does it (thinking, writing, building cards)
+ * and hands over the answer's text as it's written, then resolves to the
+ * same final message ask() would have returned.
+ */
+async function askStreamed(
+  system: string,
+  messages: Anthropic.MessageParam[],
+  opts: { tools?: Anthropic.Tool[]; maxTokens?: number; effort?: "low" | "medium" | "high" },
+  events: ChatEvents = {},
+) {
+  const stream = anthropic().messages.stream({
+    model: MODEL,
+    max_tokens: opts.maxTokens ?? 2048,
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+    thinking: { type: "adaptive" },
+    output_config: { effort: opts.effort ?? "medium" },
+    ...(opts.tools ? { tools: opts.tools } : {}),
+    messages,
+  });
+  let textBlocks = 0;
+  for await (const event of stream) {
+    if (event.type === "content_block_start") {
+      const kind = event.content_block.type;
+      if (kind === "thinking" || kind === "redacted_thinking") events.onPhase?.("thinking");
+      else if (kind === "tool_use") events.onPhase?.("cards");
+      else if (kind === "text") {
+        events.onPhase?.("writing");
+        // textOf() joins separate text blocks with a newline; match it.
+        if (textBlocks++ > 0) events.onText?.("\n");
+      }
+    } else if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+      events.onText?.(event.delta.text);
+    }
+  }
+  return stream.finalMessage();
 }
 
 /**
@@ -424,8 +465,14 @@ export function createClaudeCounselor(deps: {
   };
 
   return {
-    async chat(req: CounselorRequest): Promise<CounselorResponse> {
+    async chat(req: CounselorRequest, events?: ChatEvents): Promise<CounselorResponse> {
       const contextNote = [
+        req.context?.school
+          ? conversationSchoolNote(
+              req.context.school,
+              req.profile.role === "student" ? req.profile.homeState : undefined,
+            )
+          : "",
         req.context?.listSummary ?? "",
         req.context?.courseworkSummary ?? "",
         req.context?.screen
@@ -440,10 +487,11 @@ export function createClaudeCounselor(deps: {
         content: m.text,
       }));
 
-      const res = await ask(
+      const res = await askStreamed(
         chatSystemPrompt(req.profile, contextNote),
         [...history, { role: "user", content: req.message }],
         { tools: [RENDER_CARDS_TOOL], maxTokens: 2048 },
+        events,
       );
       meter("chat", res.usage as UsageCounts);
 
@@ -535,7 +583,7 @@ This is self-understanding, not positioning. Never compare them to other applica
 
     async whyThisSchool(profile: StudentProfile, school: School): Promise<string> {
       const res = await ask(
-        chatSystemPrompt(profile, schoolContextNote(school)),
+        chatSystemPrompt(profile, schoolContextNote(school, profile.homeState)),
         [
           {
             role: "user",
@@ -718,6 +766,7 @@ Give observations on structure, specificity, and voice, and questions that would
       school: School | null,
       question: string,
       answer: string,
+      earlier: InterviewExchange[] = [],
     ): Promise<InterviewFeedback> {
       const schema = {
         type: "object",
@@ -732,19 +781,46 @@ Give observations on structure, specificity, and voice, and questions that would
         },
       };
 
-      const { data: turn, usage } = await askJson<InterviewFeedback & { nextQuestion: string }>(
-        chatSystemPrompt(profile, schoolContextNote(school)),
-        `Mock interview${school ? ` for ${school.name}` : ""}.
+      /*
+        The session so far. Without it every turn was judged alone, and the
+        next question was picked blind: the app would ask "Tell me about
+        yourself" twice in five minutes, and never follow a thread the
+        student had just opened.
+      */
+      const sofar = earlier.length
+        ? `Earlier in this practice session (oldest first):
+${earlier
+  .map((t, i) => `${i + 1}. Q: ${t.question}\n   A: """${t.answer}"""`)
+  .join("\n")}
 
-Question asked: ${question}
+`
+        : "";
+
+      const { data: turn, usage } = await askJson<InterviewFeedback & { nextQuestion: string }>(
+        chatSystemPrompt(profile, schoolContextNote(school, profile.homeState)),
+        `Mock interview${school ? ` for ${school.name}` : ""}. You are playing the interviewer and coaching at the same time.
+
+${sofar}Question just asked: ${question}
 Their answer: """${answer}"""
 
-Give 1–3 genuine strengths, 1–3 concrete things to work on, a short
-conversational "followUp" reaction, and the single "nextQuestion" you'd ask
-next. Put the next question in nextQuestion only — do not repeat it inside
-followUp.`,
+Give 1–3 genuine strengths and 1–3 concrete things to work on, each one short
+line.
+
+"followUp" is your reply, and it will be READ ALOUD to the student in your
+voice, so write it for the ear: 2–4 sentences, warm and direct, first person
+("I liked…", "I wanted more of…"), addressed to them as "you". Plain spoken
+English — no lists, headings, quotation marks around phrases, emoji, or
+markdown. React to what they actually said.
+
+"nextQuestion" is the single question you'd ask next, phrased the way an
+interviewer would say it out loud. Build on what they've said this session —
+pick up a thread they opened, or move to ground not yet covered — and never
+repeat a question already asked. Put it in nextQuestion only: followUp must
+not contain it, hint at it, or end with any question.`,
         schema,
-        1200,
+        // Thinking draws on this too, and the session history makes the
+        // prompt longer than the old single-pair ask. 1200 left little room.
+        2048,
       );
       meter("interview", usage);
       return turn;

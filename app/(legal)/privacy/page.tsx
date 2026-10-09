@@ -128,11 +128,19 @@ export default function PrivacyPage() {
           <strong>Read-aloud is separate.</strong> If you press &ldquo;Read
           aloud&rdquo; to hear your profile summary spoken, the text of that
           summary is sent to Google (Gemini) to synthesize the audio, because our
-          primary provider does not offer speech. Nothing else is sent — not your
-          essays, not your counselor conversations — and it happens only when you
-          press the button. If you would rather nothing leave your device, your
-          browser can read the text aloud itself; the feature falls back to that
+          primary provider does not offer speech. Interview practice in the app
+          is read aloud the same way: the counselor&rsquo;s questions and replies
+          are sent to Google to be spoken, unless you mute her voice. Nothing
+          else is sent — not your essays, not your answers, not your counselor
+          conversations. If you would rather nothing leave your device, your
+          device can read the text aloud itself; the feature falls back to that
           automatically when the hosted voice is unavailable.
+        </p>
+        <p>
+          <strong>Spoken answers stay on your phone.</strong> When you answer an
+          interview question out loud, your phone transcribes it on the device.
+          The recording is never uploaded or stored; only the text of your answer
+          is sent, exactly as if you had typed it.
         </p>
         <Bullets
           items={[
@@ -175,7 +183,8 @@ export default function PrivacyPage() {
               behalf, bound by contract to use it only for that purpose: our
               hosting and database provider (Railway), our AI model provider
               (Anthropic), our email provider (Resend, for password resets and
-              notifications), and Google (Gemini) for read-aloud speech only.
+              notifications), and Google (Gemini) for read-aloud speech only —
+              the text being spoken, never your voice.
               Each receives the minimum needed for its job.
             </>,
             <>

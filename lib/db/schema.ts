@@ -312,6 +312,11 @@ export const studentProfiles = pgTable("student_profile", {
   budgetMaxPerYear: integer("budget_max_per_year"),
   willFileFafsa: boolean("will_file_fafsa").notNull().default(false),
 
+  // Two-letter USPS code. Decides in-state vs out-of-state tuition at every
+  // public school, and which regional exchanges (WUE and the like) apply.
+  // Null for profiles made before it was asked — the app asks once.
+  homeState: text("home_state"),
+
   values: text("values").array().notNull().default([]),
 
   // Throughline: AI-generated but must persist. generatedAt lets us tell when
@@ -562,12 +567,45 @@ export const schoolCosts = pgTable(
     netPrice48to75k: integer("net_price_48_to_75k"),
     netPrice75to110k: integer("net_price_75_to_110k"),
     netPriceOver110k: integer("net_price_over_110k"),
+    /*
+      Published tuition and fees, by residency. Scorecard's net prices at a
+      public school are for in-state students; the gap between these two is
+      what an out-of-state student pays on top.
+    */
+    tuitionInState: integer("tuition_in_state"),
+    tuitionOutOfState: integer("tuition_out_of_state"),
     percentNeedMet: doublePrecision("percent_need_met"),
     /** Editorial judgement, not a Scorecard field. Null when unknown. */
     meritAid: meritAidEnum("merit_aid"),
     ...timestamps,
   },
   (t) => [unique("school_cost_year").on(t.schoolId, t.year)],
+);
+
+/*
+  Regional tuition exchanges a school takes part in — WUE, MSEP, the New
+  England Regional Student Program, state reciprocity agreements. A student
+  from one of `eligibleStates` pays reduced out-of-state tuition here.
+
+  One row per school per program, written by scripts/import-tuition-programs.ts
+  from lib/data/reciprocity.json; the program itself (its name, its terms,
+  how to ask for it) lives in that file.
+*/
+export const schoolTuitionPrograms = pgTable(
+  "school_tuition_program",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schoolId: text("school_id")
+      .notNull()
+      .references(() => schools.id, { onDelete: "cascade" }),
+    program: text("program").notNull(), // "wue", "msep", …
+    eligibleStates: text("eligible_states").array().notNull(),
+    /** This school's own limits: majors, GPA, a cap on awards. */
+    restrictions: text("restrictions"),
+    url: text("url"),
+    ...timestamps,
+  },
+  (t) => [unique("school_tuition_program_school").on(t.schoolId, t.program)],
 );
 
 export const schoolOutcomes = pgTable(
@@ -578,7 +616,10 @@ export const schoolOutcomes = pgTable(
       .notNull()
       .references(() => schools.id, { onDelete: "cascade" }),
     year: text("year").notNull(),
+    /** Within six years (150% of normal time) — the federal headline figure. */
     gradRate: doublePrecision("grad_rate"),
+    /** Within four years: what a family actually plans and pays for. */
+    gradRate4yr: doublePrecision("grad_rate_4yr"),
     medianEarnings10yr: integer("median_earnings_10yr"),
     /** Editorial judgement, not a Scorecard field. Null when unknown. */
     alumniNetwork: alumniNetworkEnum("alumni_network"),
@@ -875,6 +916,9 @@ export const counselorThreads = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("New conversation"),
+    // Set when the conversation started from a school's page: every turn in
+    // it is about that school, after a reload and on any device.
+    schoolId: text("school_id").references(() => schools.id, { onDelete: "set null" }),
     ...timestamps,
   },
   (t) => [index("counselor_thread_student_idx").on(t.studentId)],

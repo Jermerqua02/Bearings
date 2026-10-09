@@ -44,11 +44,10 @@ interface Thread {
    with a 3.9 or a 2.8 was offered a question about somebody else's grades.
    The generic form asks the same thing without inventing a number. */
 const SUGGESTED_PROMPTS = [
-  "Am I being realistic?",
+  "Where do I stand right now?",
   "What schools am I missing?",
-  "How do I stand out with my grades?",
   "Explain early decision vs. early action",
-  "Is this school worth the money?",
+  "How do I figure out what college will really cost?",
 ];
 
 /* ————— Card renderers ————— */
@@ -326,6 +325,7 @@ function CounselorInner() {
     try {
       const id = await createThreadAction(
         contextSchool ? `About ${contextSchool.shortName}` : undefined,
+        contextSchool?.id,
       );
       const greeting = await greetAction(id);
       setThreads((prev) =>
