@@ -17,8 +17,25 @@
 
 import "server-only";
 
-const MODEL = "gemini-3.1-flash-tts-preview";
-const ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+/*
+  Best first. The 3.1 preview is often turned away with 503 "high demand"
+  (or 429 on quota), and one failure used to send the iPhone to its own,
+  robotic voice for the rest of the sitting. 2.5 Flash has the same voices
+  and answers in about 2.5s, so a busy 3.1 falls through to it instead.
+*/
+const MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
+const endpoint = (model: string) =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+/** Per attempt: long enough for 3.1 on a slow day, short enough to leave the fallback time inside the app's 12s. */
+const ATTEMPT_MS = 7000;
+
+/*
+  Delivery, in plain words — Gemini's TTS takes direction like this and
+  doesn't read it out (checked: a directed clip is no longer than a plain
+  one). Without it the voice reads like an announcer.
+*/
+const STYLE =
+  "Read this aloud the way a warm, encouraging college counselor talks to a student across a table: relaxed, natural pace, friendly and sincere, never announcer-like.\n\n";
 
 /**
  * Voice. Kore reads as warm and even — it suits reading a student's own
@@ -38,6 +55,8 @@ export const MAX_SPEECH_CHARS = 3000;
 
 export interface SpeechResult {
   wav: Buffer;
+  /** The model that spoke it — the fallback is billed under its own name. */
+  model: string;
   /** Audio tokens billed, for lib/counselor/usage.ts. */
   outputTokens: number;
   inputTokens: number;
@@ -77,12 +96,22 @@ export async function synthesize(text: string): Promise<SpeechResult | null> {
   const trimmed = text.trim().slice(0, MAX_SPEECH_CHARS);
   if (!trimmed) return null;
 
+  for (const model of MODELS) {
+    const result = await attempt(model, key, trimmed);
+    if (result) return result;
+  }
+  return null;
+}
+
+/** One model, once. Null on any failure, so the next model gets a turn. */
+async function attempt(model: string, key: string, text: string): Promise<SpeechResult | null> {
   try {
-    const res = await fetch(`${ENDPOINT}?key=${encodeURIComponent(key)}`, {
+    const res = await fetch(`${endpoint(model)}?key=${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(ATTEMPT_MS),
       body: JSON.stringify({
-        contents: [{ parts: [{ text: trimmed }] }],
+        contents: [{ parts: [{ text: STYLE + text }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: {
@@ -94,7 +123,7 @@ export async function synthesize(text: string): Promise<SpeechResult | null> {
 
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
-      console.error(`[tts] Gemini returned ${res.status}: ${detail.slice(0, 300)}`);
+      console.error(`[tts] ${model} returned ${res.status}: ${detail.slice(0, 300)}`);
       return null;
     }
 
@@ -105,17 +134,18 @@ export async function synthesize(text: string): Promise<SpeechResult | null> {
 
     const base64 = json.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
     if (!base64) {
-      console.error("[tts] Gemini returned no audio payload");
+      console.error(`[tts] ${model} returned no audio payload`);
       return null;
     }
 
     return {
       wav: pcmToWav(Buffer.from(base64, "base64")),
+      model,
       inputTokens: json.usageMetadata?.promptTokenCount ?? 0,
       outputTokens: json.usageMetadata?.candidatesTokenCount ?? 0,
     };
   } catch (err) {
-    console.error("[tts] synthesis failed:", err);
+    console.error(`[tts] ${model} failed:`, err);
     return null;
   }
 }

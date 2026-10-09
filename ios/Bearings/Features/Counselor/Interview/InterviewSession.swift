@@ -24,6 +24,9 @@ final class InterviewSession {
         let question: String
         var answer: String?
         var feedback: InterviewFeedback?
+        /// Her cards wait until she's said her reply, so they read as what
+        /// she said rather than arriving ahead of her.
+        var cardsShown = false
     }
 
     private(set) var phase: Phase = .choosing
@@ -45,6 +48,9 @@ final class InterviewSession {
     /// Bumped when a sitting ends or the school changes, so an answer or a
     /// spoken line still in flight can't land on the new one.
     private var sitting = 0
+    /// The student tapped stop and the last words are still arriving, so
+    /// recognition ending isn't "ended on its own".
+    private var stopping = false
 
     var current: Exchange? { exchanges.last }
     var schoolName: String? { state?.schools.first { $0.id == schoolId }?.name }
@@ -129,13 +135,22 @@ final class InterviewSession {
         }
     }
 
+    /// Tapping stop means "that's my answer": it goes straight to her.
     func stopRecording() async {
+        guard !stopping else { return }
+        stopping = true
         let heard = await ears.stop()
+        stopping = false
         adopt(heard)
+        if !answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { await submit() }
     }
 
-    /// Recognition ended on its own (a long pause, an interruption).
-    func recordingEnded() { adopt(ears.transcript) }
+    /// Recognition ended on its own (a long pause, an interruption). Not
+    /// sent: they may not have finished, so it waits in the box to edit.
+    func recordingEnded() {
+        guard !stopping else { return }
+        adopt(ears.transcript)
+    }
 
     private func adopt(_ heard: String) {
         let text = heard.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -149,7 +164,11 @@ final class InterviewSession {
     /// Send the answer. On failure the answer stays put and the turn is
     /// still theirs, with the reason shown.
     func submit() async {
-        if ears.recording { await stopRecording() }
+        if ears.recording {
+            stopping = true
+            adopt(await ears.stop())
+            stopping = false
+        }
         let text = answer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard phase == .answering, !text.isEmpty, let question = current?.question else { return }
 
@@ -178,7 +197,12 @@ final class InterviewSession {
             phase = .feedback
             // Fetch the next question's voice while she gives this reply.
             voice.prefetch(nextQuestion)
+            let id = exchanges[exchanges.count - 1].id
             await voice.say(fb.followUp)
+            // Said, stopped, or skipped past: either way, now the cards.
+            if mine == sitting, let i = exchanges.firstIndex(where: { $0.id == id }) {
+                exchanges[i].cardsShown = true
+            }
         } catch {
             guard mine == sitting else { return }
             sent = nil

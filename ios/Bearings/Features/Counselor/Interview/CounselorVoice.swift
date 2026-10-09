@@ -56,10 +56,12 @@ final class CounselorVoice {
     /// Clips fetched ahead of need — the next question, while the student
     /// reads the feedback on the last one.
     private var prefetched: [String: Task<Data?, Never>] = [:]
-    /// After the hosted voice fails once (rate limit, outage, offline), the
-    /// rest of the sitting uses the device voice rather than waiting on a
-    /// request that will likely fail again.
-    private var hostedOff = false
+    /// Hosted lines that failed in a row. The server already falls back to
+    /// a second Gemini model, so one miss is usually a blip; after two in a
+    /// row (rate limit, outage, offline) the rest of the sitting uses the
+    /// device voice rather than waiting on requests that will likely fail.
+    private var hostedFailures = 0
+    private var hostedOff: Bool { hostedFailures >= 2 }
 
     init() {
         synthesizer.delegate = deviceEvents
@@ -150,7 +152,7 @@ final class CounselorVoice {
         let task = prefetched.removeValue(forKey: line) ?? fetchTask(line)
         let data = await task.value
         if mine == generation { preparing = false }
-        if data == nil && !task.isCancelled { hostedOff = true }
+        if data != nil { hostedFailures = 0 } else if !task.isCancelled { hostedFailures += 1 }
         return data
     }
 

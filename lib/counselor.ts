@@ -87,6 +87,8 @@ export interface InterviewFeedback {
   followUp: string;
   /** What she'd ask next. Absent on turns saved before it was structured. */
   nextQuestion?: string;
+  /** The answer was too short or too thin to judge properly. This turn only; not saved. */
+  tooBrief?: boolean;
 }
 
 /** A question already asked and answered in the current practice session. */
@@ -359,6 +361,7 @@ const mockCounselor: CounselorService = {
     await delay(800);
     const short = answer.trim().split(/\s+/).filter(Boolean).length < 40;
     return {
+      tooBrief: short,
       strengths: short
         ? ["You answered directly, without padding — that's rarer than you'd think."]
         : [

@@ -8,7 +8,6 @@ import SwiftUI
 struct InterviewView: View {
     @State private var session = InterviewSession()
     @AppStorage("interviewVoiceMuted") private var muted = false
-    @AppStorage("interviewPrimerHidden") private var primerHidden = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// The student chose the keyboard, or speaking isn't available.
     @State private var typing = false
@@ -50,29 +49,13 @@ struct InterviewView: View {
 
     // MARK: Choosing
 
+    /// Short enough that Start is on screen without scrolling: the three
+    /// steps, the school, the button. The why-interviews talk is one line.
     private var chooser: some View {
         Page(spacing: 22) {
             TwoTone(lead: "Practice the conversation", rest: "before it counts.")
 
-            if !primerHidden {
-                CardView {
-                    HStack(alignment: .firstTextBaseline) {
-                        SectionLabel("What interviews are actually for")
-                        Spacer()
-                        Button("Hide") { primerHidden = true }.font(.system(size: 13)).foregroundStyle(Color.grayMid)
-                    }
-                    Muted("Most students think an interview is an oral exam. It isn't. At nearly every school it's a low-stakes conversation, often with an alum, that answers one question: is this a real person who would be good to have around?")
-                    Muted("A great interview isn't polished — it's specific. One real story about your robotics team beats five rehearsed paragraphs about leadership. Interviews rarely rescue or sink an application; mostly they confirm the person on paper exists. So your job is simple: be that person, out loud.")
-                }
-            }
-
-            Panel(icon: "person.2.wave.2", title: "How this works", tint: .lavender) {
-                Muted("I'll ask you a question out loud. Tap the microphone and answer the way you would in the room — then I'll tell you what's working, what to sharpen, and ask the next one.", size: 14)
-                Muted("Your voice is turned into text on your iPhone. The recording never leaves it.", size: 13)
-                Toggle("Read my questions and replies aloud", isOn: Binding(get: { !muted }, set: { muted = !$0 }))
-                    .font(.system(size: 15))
-                    .tint(Color.ink)
-            }
+            HowItWorks()
 
             if let state = session.state {
                 VStack(alignment: .leading, spacing: 8) {
@@ -94,6 +77,9 @@ struct InterviewView: View {
             if session.state == nil && session.error == nil {
                 ProgressView().frame(maxWidth: .infinity)
             }
+
+            Label("It's a conversation, not an exam — one real story beats a rehearsed speech.", systemImage: "lightbulb")
+                .font(.system(size: 14)).foregroundStyle(Color.grayStrong)
 
             if !session.earlier.isEmpty { earlierPractice }
         }
@@ -122,7 +108,7 @@ struct InterviewView: View {
                         Text(turn.answer).font(.system(size: 15)).foregroundStyle(Color.grayStrong)
                             .padding(.leading, 12)
                             .overlay(alignment: .leading) { Rectangle().fill(Color.hairline).frame(width: 2) }
-                        FeedbackCard(feedback: turn.feedback)
+                        FeedbackCards(feedback: turn.feedback)
                     }
                 }
             }
@@ -210,7 +196,7 @@ struct InterviewView: View {
                     Task { await session.stopRecording() }
                 }
                 .disabled(ears.finishing)
-                Text(ears.finishing ? "Catching your last words…" : "Tap when you're done")
+                Text(ears.finishing ? "Catching your last words…" : "Tap to send your answer")
                     .font(.system(size: 13)).foregroundStyle(Color.grayMid)
             }
             .frame(maxWidth: .infinity)
@@ -284,9 +270,52 @@ private struct ExchangeView: View {
 
             if let fb = exchange.feedback {
                 CounselorLine(line: fb.followUp, voice: session.voice, size: 16, weight: .regular)
-                FeedbackCard(feedback: fb)
+                if exchange.cardsShown {
+                    FeedbackCards(feedback: fb)
+                        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+                }
             }
         }
+        .animation(reduceMotion ? nil : .spring(duration: 0.45), value: exchange.cardsShown)
+    }
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+}
+
+/// The three steps, side by side — what used to be two paragraphs.
+private struct HowItWorks: View {
+    private let steps = [
+        ("waveform", "I ask out loud"),
+        ("mic.fill", "You answer by voice"),
+        ("text.bubble.fill", "Honest feedback"),
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(steps, id: \.1) { icon, label in
+                    VStack(spacing: 8) {
+                        Image(systemName: icon)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(Color.ink)
+                            .frame(width: 44, height: 44)
+                            .background(Color.surface, in: Circle())
+                        Text(label)
+                            .font(.system(size: 13, weight: .medium))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            Label("Your recording never leaves your iPhone.", systemImage: "lock.fill")
+                .font(.system(size: 12)).foregroundStyle(Color.grayStrong)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(16)
+        .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("How it works: I ask out loud, you answer by voice, then honest feedback. Your recording never leaves your iPhone.")
     }
 }
 
@@ -336,21 +365,89 @@ private struct StudentLine: View {
     }
 }
 
-/// What's working and what to work on, as a card.
-private struct FeedbackCard: View {
+/// Her verdict on one answer: a nudge if it was too thin, then what's
+/// working and what to work on, each its own card.
+private struct FeedbackCards: View {
     let feedback: InterviewFeedback
 
     var body: some View {
-        CardView {
+        VStack(spacing: 12) {
+            if feedback.tooBrief == true { TooBriefCard() }
             if !feedback.strengths.isEmpty {
-                SectionLabel("Working", color: .target)
-                ForEach(feedback.strengths, id: \.self) { Text("— \($0)").font(.system(size: 15)).fixedSize(horizontal: false, vertical: true) }
+                FeedbackList(title: "What's working", icon: "hand.thumbsup.fill", bullet: "checkmark",
+                             accent: .target, tint: .targetSoft, items: feedback.strengths)
             }
             if !feedback.toWorkOn.isEmpty {
-                SectionLabel("To work on").padding(.top, 4)
-                ForEach(feedback.toWorkOn, id: \.self) { Text("— \($0)").font(.system(size: 15)).fixedSize(horizontal: false, vertical: true) }
+                FeedbackList(title: "To work on", icon: "scope", bullet: "arrow.up.right",
+                             accent: .likely, tint: .likelySoft, items: feedback.toWorkOn)
             }
         }
+    }
+}
+
+/// One side of the feedback: a tinted card, its icon badge, and each point
+/// marked with a small filled dot of the same colour.
+private struct FeedbackList: View {
+    let title: String
+    let icon: String
+    let bullet: String
+    let accent: Color
+    let tint: Color
+    let items: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 32, height: 32)
+                    .background(accent, in: Circle())
+                Text(title).font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.ink)
+            }
+            ForEach(items, id: \.self) { item in
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: bullet)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(accent)
+                        .frame(width: 22, height: 22)
+                        .background(Color.surface, in: Circle())
+                        .padding(.top, 1)
+                    Text(item)
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// A short or vague answer, called out before anything else: it's the most
+/// useful thing to hear about it.
+private struct TooBriefCard: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "text.badge.plus")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.ink)
+                .frame(width: 32, height: 32)
+                .background(Color.surface, in: Circle())
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Give me more than that").font(.system(size: 17, weight: .semibold)).foregroundStyle(Color.ink)
+                Text("A real answer runs about a minute out loud. Pick one specific moment, say what you did, and why it mattered.")
+                    .font(.system(size: 15)).foregroundStyle(Color.ink.opacity(0.8))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.highlight, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }
 

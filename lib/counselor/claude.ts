@@ -771,8 +771,9 @@ Give observations on structure, specificity, and voice, and questions that would
       const schema = {
         type: "object",
         additionalProperties: false,
-        required: ["strengths", "toWorkOn", "followUp", "nextQuestion"],
+        required: ["tooBrief", "strengths", "toWorkOn", "followUp", "nextQuestion"],
         properties: {
+          tooBrief: { type: "boolean" },
           strengths: { type: "array", items: { type: "string" } },
           toWorkOn: { type: "array", items: { type: "string" } },
           followUp: { type: "string" },
@@ -796,15 +797,29 @@ ${earlier
 `
         : "";
 
-      const { data: turn, usage } = await askJson<InterviewFeedback & { nextQuestion: string }>(
+      // Counted here rather than left to the model: "short" should mean the
+      // same thing every time, and the app shows it.
+      const words = answer.trim().split(/\s+/).filter(Boolean).length;
+
+      const { data: turn, usage } = await askJson<InterviewFeedback & { nextQuestion: string; tooBrief: boolean }>(
         chatSystemPrompt(profile, schoolContextNote(school, profile.homeState)),
         `Mock interview${school ? ` for ${school.name}` : ""}. You are playing the interviewer and coaching at the same time.
 
 ${sofar}Question just asked: ${question}
-Their answer: """${answer}"""
+Their answer (${words} words): """${answer}"""
 
 Give 1–3 genuine strengths and 1–3 concrete things to work on, each one short
 line.
+
+"tooBrief" is true when the answer is too thin to carry a real interview —
+under about 40 words, or a general claim with no specific moment, example or
+reason behind it. A real answer runs about a minute out loud (5–8
+sentences). When it's true, don't treat a thin answer as finished: the FIRST
+"toWorkOn" line names the problem plainly and says what to add (a specific
+moment, what they did, why it mattered), strengths can be a single line or
+none, and followUp tells them directly but kindly that an interviewer would
+want much more than that — this is the most useful thing you can say about
+this answer.
 
 "followUp" is your reply, and it will be READ ALOUD to the student in your
 voice, so write it for the ear: 2–4 sentences, warm and direct, first person
@@ -823,7 +838,7 @@ not contain it, hint at it, or end with any question.`,
         2048,
       );
       meter("interview", usage);
-      return turn;
+      return { ...turn, tooBrief: turn.tooBrief || words < 20 };
     },
 
     async readTranscript(file): Promise<TranscriptReading> {

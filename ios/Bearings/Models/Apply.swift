@@ -81,6 +81,8 @@ struct InterviewFeedback: Decodable {
     let followUp: String
     /// What she'd ask next. Nil on turns saved before the server sent it.
     let nextQuestion: String?
+    /// The answer was too short or thin to judge. Only on a live turn.
+    let tooBrief: Bool?
 }
 
 /// A saved turn from an earlier sitting, as GET /api/v1/interviews returns it.

@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     viewer.userId,
     "speech",
     { input_tokens: result.inputTokens, output_tokens: result.outputTokens },
-    "gemini-3.1-flash-tts-preview",
+    result.model,
     speechCostMillicents(result.inputTokens, result.outputTokens),
   );
 
