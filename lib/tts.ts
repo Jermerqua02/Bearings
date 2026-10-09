@@ -18,24 +18,39 @@
 import "server-only";
 
 /*
-  Best first. The 3.1 preview is often turned away with 503 "high demand"
-  (or 429 on quota), and one failure used to send the iPhone to its own,
-  robotic voice for the rest of the sitting. 2.5 Flash has the same voices
-  and answers in about 2.5s, so a busy 3.1 falls through to it instead.
+  Best first. 3.8 Flash TTS is generally available — not a preview — so it
+  has real rate limits, and it's the fastest: a nine-second reply comes back
+  in about four seconds, where the 3.1 preview took ten or timed out (and
+  one failure used to send the iPhone to its own, robotic voice). Each falls
+  through to the next on any error, including a 429 on that model's quota.
 */
-const MODELS = ["gemini-3.1-flash-tts-preview", "gemini-2.5-flash-preview-tts"];
+const MODELS = ["gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-2.5-flash-preview-tts"];
 const endpoint = (model: string) =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-/** Per attempt: long enough for 3.1 on a slow day, short enough to leave the fallback time inside the app's 12s. */
-const ATTEMPT_MS = 7000;
+/**
+ * The app stops waiting at 12s and uses its own voice, so every attempt
+ * together has to fit inside this.
+ */
+const BUDGET_MS = 11_000;
+/**
+ * One attempt: longer lines take longer to voice (~15 characters a second
+ * of speech, generated at about half real time), so a short question isn't
+ * left hanging on a stuck request and a long reply isn't cut off.
+ */
+const attemptMs = (chars: number) => Math.min(9_000, Math.max(5_000, 2_500 + (chars / 15) * 600));
 
 /*
-  Delivery, in plain words — Gemini's TTS takes direction like this and
-  doesn't read it out (checked: a directed clip is no longer than a plain
-  one). Without it the voice reads like an announcer.
+  Delivery. The models take direction differently, and getting it wrong is
+  loud: 3.8 reads a plain-English instruction out as part of the line (an
+  18-second clip for 5 seconds of text) and refuses a system instruction,
+  but follows an inline audio tag. 2.5 follows the plain sentence and
+  doesn't speak it. Checked by clip length, 2026-10-09.
 */
-const STYLE =
+const STYLE_25 =
   "Read this aloud the way a warm, encouraging college counselor talks to a student across a table: relaxed, natural pace, friendly and sincere, never announcer-like.\n\n";
+function directed(model: string, text: string): string {
+  return model.startsWith("gemini-2.5") ? STYLE_25 + text : `[warmly] ${text}`;
+}
 
 /**
  * Voice. Kore reads as warm and even — it suits reading a student's own
@@ -96,22 +111,25 @@ export async function synthesize(text: string): Promise<SpeechResult | null> {
   const trimmed = text.trim().slice(0, MAX_SPEECH_CHARS);
   if (!trimmed) return null;
 
+  const deadline = Date.now() + BUDGET_MS;
   for (const model of MODELS) {
-    const result = await attempt(model, key, trimmed);
+    const left = deadline - Date.now();
+    if (left < 2_000) break;
+    const result = await attempt(model, key, trimmed, Math.min(attemptMs(trimmed.length), left));
     if (result) return result;
   }
   return null;
 }
 
 /** One model, once. Null on any failure, so the next model gets a turn. */
-async function attempt(model: string, key: string, text: string): Promise<SpeechResult | null> {
+async function attempt(model: string, key: string, text: string, timeoutMs: number): Promise<SpeechResult | null> {
   try {
     const res = await fetch(`${endpoint(model)}?key=${encodeURIComponent(key)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      signal: AbortSignal.timeout(ATTEMPT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
       body: JSON.stringify({
-        contents: [{ parts: [{ text: STYLE + text }] }],
+        contents: [{ parts: [{ text: directed(model, text) }] }],
         generationConfig: {
           responseModalities: ["AUDIO"],
           speechConfig: {

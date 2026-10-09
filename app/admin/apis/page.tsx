@@ -3,7 +3,7 @@ import Card from "@/components/ui/Card";
 import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { formatUsd, usdFromMillicents } from "@/lib/costs";
-import { spendThisMonth } from "@/lib/db/queries/admin";
+import { speechSpendThisMonth, spendThisMonth } from "@/lib/db/queries/admin";
 import { railwayCost } from "@/lib/railway";
 
 export const metadata: Metadata = { title: "APIs · Bearings admin" };
@@ -33,7 +33,11 @@ function statusOf(envVars: string[]): "configured" | "missing" {
 }
 
 export default async function AdminApisPage() {
-  const [railway, monthAi] = await Promise.all([railwayCost(), spendThisMonth()]);
+  const [railway, monthAi, monthSpeech] = await Promise.all([
+    railwayCost(),
+    spendThisMonth(),
+    speechSpendThisMonth(),
+  ]);
 
   const services: Service[] = [
     {
@@ -41,8 +45,17 @@ export default async function AdminApisPage() {
       envVars: ["ANTHROPIC_API_KEY"],
       purpose: "The counselor, essay critique, interview practice, school explanations",
       console: { label: "Anthropic Console", href: "https://console.anthropic.com" },
-      spend: `${formatUsd(usdFromMillicents(monthAi))} MTD`,
+      // ai_usage holds the voice too; that's Gemini's, below.
+      spend: `${formatUsd(usdFromMillicents(monthAi - monthSpeech))} MTD`,
       required: true,
+    },
+    {
+      name: "Google Gemini",
+      envVars: ["GEMINI_API_KEY"],
+      purpose: "The counselor's voice — interview practice and Read aloud. Text-to-speech only",
+      console: { label: "Google AI Studio", href: "https://aistudio.google.com/usage" },
+      spend: `${formatUsd(usdFromMillicents(monthSpeech))} MTD`,
+      required: false,
     },
     {
       name: "Railway",

@@ -488,6 +488,15 @@ export async function spendSummary(days: number): Promise<{
 }
 
 /** Month-to-date AI spend, for the budget gauge. */
+/** This month's spend on the counselor's voice (Gemini), within spendThisMonth. */
+export async function speechSpendThisMonth(): Promise<number> {
+  const [r] = await db.execute<{ millicents: string | null }>(sql`
+    select sum(cost_millicents) as millicents from "ai_usage"
+    where created_at >= date_trunc('month', now()) and feature = 'speech'
+  `);
+  return Number(r?.millicents ?? 0);
+}
+
 export async function spendThisMonth(): Promise<number> {
   const [r] = await db.execute<{ millicents: string | null }>(sql`
     select sum(cost_millicents) as millicents from "ai_usage"

@@ -58,18 +58,26 @@ export const MONTHLY_INFRA_USD = 20;
 export const ACTIVE_WINDOW_DAYS = 30;
 
 /**
- * Gemini TTS, US dollars per million tokens. Text in, audio out — the audio
- * side is what costs, and it is billed per audio token rather than per
- * character or second. Verify against the Google AI pricing page.
+ * Gemini TTS, US dollars per million tokens, standard tier: text in, audio
+ * out (25 audio tokens per second of speech). The audio side is what costs.
+ * From ai.google.dev/gemini-api/docs/pricing, checked 2026-10-09; 3.8's
+ * prices double on 2027-01-01, as Google announced.
  */
-export const SPEECH_INPUT_PER_MTOK = 0.5;
-export const SPEECH_OUTPUT_PER_MTOK = 10;
+const SPEECH_PRICES: Record<string, { input: number; output: number; from2027?: { input: number; output: number } }> = {
+  "gemini-3.8-flash-tts": { input: 0.5, output: 9, from2027: { input: 1, output: 18 } },
+  "gemini-3.8-flash-lite-tts": { input: 0.5, output: 6, from2027: { input: 1, output: 12 } },
+  "gemini-3.1-flash-tts-preview": { input: 1, output: 20 },
+  "gemini-2.5-flash-preview-tts": { input: 0.5, output: 10 },
+  "gemini-2.5-pro-preview-tts": { input: 1, output: 20 },
+};
+/** An unknown model is costed at the dearest rate, so spend is never understated. */
+const SPEECH_FALLBACK = { input: 1, output: 20 };
 
 /** What one speech synthesis cost, in millicents. */
-export function speechCostMillicents(inputTokens: number, outputTokens: number): number {
-  const dollars =
-    (inputTokens / 1e6) * SPEECH_INPUT_PER_MTOK +
-    (outputTokens / 1e6) * SPEECH_OUTPUT_PER_MTOK;
+export function speechCostMillicents(model: string, inputTokens: number, outputTokens: number, at = new Date()): number {
+  const row = SPEECH_PRICES[model];
+  const price = !row ? SPEECH_FALLBACK : row.from2027 && at >= new Date("2027-01-01T00:00:00Z") ? row.from2027 : row;
+  const dollars = (inputTokens / 1e6) * price.input + (outputTokens / 1e6) * price.output;
   return millicentsFromUsd(dollars);
 }
 

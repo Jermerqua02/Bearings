@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     "speech",
     { input_tokens: result.inputTokens, output_tokens: result.outputTokens },
     result.model,
-    speechCostMillicents(result.inputTokens, result.outputTokens),
+    speechCostMillicents(result.model, result.inputTokens, result.outputTokens),
   );
 
   return new NextResponse(new Uint8Array(result.wav), {

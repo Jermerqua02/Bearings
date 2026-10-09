@@ -37,7 +37,7 @@ const FEATURE_LABEL: Record<string, string> = {
   why_school: "Why this school",
   throughline: "Throughline",
   summarize: "Summarize",
-  speech: "Read aloud (Gemini)",
+  speech: "Voice (Gemini) — interviews, read aloud",
   transcript: "Transcript reading",
 };
 
