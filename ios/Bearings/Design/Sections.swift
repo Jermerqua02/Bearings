@@ -213,9 +213,13 @@ extension View {
             .softShadow()
     }
 
-    /// The one shadow every card on the page uses: wide, low, barely there.
-    /// Tinted panels get it too, so every card lifts the same way.
+    /// The one elevation every card on the page uses, so they all float the
+    /// same height above the background. Two layers, the way light falls:
+    /// a tight, faint contact shadow that seats the edge, and a wide, soft
+    /// one below that lifts it. Tinted panels get it too.
     func softShadow(_ on: Bool = true) -> some View {
-        self.shadow(color: .black.opacity(on ? 0.06 : 0), radius: 18, x: 0, y: 6)
+        self
+            .shadow(color: .black.opacity(on ? 0.04 : 0), radius: 2, x: 0, y: 1)
+            .shadow(color: .black.opacity(on ? 0.08 : 0), radius: 22, x: 0, y: 10)
     }
 }

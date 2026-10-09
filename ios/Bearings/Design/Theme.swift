@@ -7,8 +7,12 @@ import CoreText
   than alarm-oriented. Six colours, and every token below is one of them or
   a lighter or darker step of one, so the app reads as a single system:
 
-    Background #F0F3F2   Card   #FFFFFF   Ink  #16201F
+    Background #F5F5F5   Card   #FFFFFF   Ink  #16201F
     Secondary  #76817F   Accent #16897D   Tint #CDEBE6
+
+  The background and the greys built from it are true neutrals: the
+  palette's #F0F3F2 read faintly teal across a whole screen, and the teal
+  belongs to the accent and tint alone.
 
   Type is the system face rather than Inter — on iOS, SF is what reads as
   native, and the editorial feel comes from weight and tracking, not the
@@ -23,13 +27,13 @@ extension Color {
                   blue: Double(hex & 0xFF) / 255)
     }
 
-    static let paper = Color(hex: 0xF0F3F2)       // Background
+    static let paper = Color(hex: 0xF5F5F5)       // Background
     static let surface = Color.white              // Card
     static let ink = Color(hex: 0x16201F)         // Ink
     static let grayStrong = Color(hex: 0x76817F)  // Secondary
     static let grayMid = Color(hex: 0x9AA4A2)     // Secondary, lighter: hints, placeholders
-    static let hairline = Color(hex: 0xDCE3E1)    // Background, darker: rules and borders
-    static let fill = Color(hex: 0xE7ECEA)        // Background, a step darker: wells, bubbles
+    static let hairline = Color(hex: 0xE3E3E3)    // Background, darker: rules and borders
+    static let fill = Color(hex: 0xEDEDED)        // Background, a step darker: wells, bubbles
 
     // `.accent` (#16897D) is generated from AccentColor in the asset catalog.
     // Text and icons sitting on it are white.
@@ -46,8 +50,8 @@ extension Color {
                      itself; used sparingly or it stops meaning anything
       The names are older than the palette; the roles are what they keep.
     */
-    static let mist = Color(hex: 0xE7ECEA)
-    static let mistStrong = Color(hex: 0xC9D3D0)
+    static let mist = Color(hex: 0xEDEDED)
+    static let mistStrong = Color(hex: 0xD4D4D4)
     static let lavender = Color(hex: 0xE3F3F0)
     static let lavenderStrong = Color(hex: 0xCDEBE6)
     static let highlight = Color(hex: 0xCDEBE6)   // Tint
@@ -57,7 +61,7 @@ extension Color {
     // Chance tiers — muted, non-alarming. Never traffic lights: three steps
     // of the palette, from Secondary through a deep teal to Accent.
     static let reach = Color(hex: 0x76817F)
-    static let reachSoft = Color(hex: 0xE7ECEA)
+    static let reachSoft = Color(hex: 0xEDEDED)
     static let target = Color(hex: 0x3E6B66)
     static let targetSoft = Color(hex: 0xDDE8E6)
     static let likely = Color(hex: 0x16897D)
