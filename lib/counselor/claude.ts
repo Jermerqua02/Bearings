@@ -596,7 +596,11 @@ This is self-understanding, not positioning. Never compare them to other applica
         [
           {
             role: "user",
-            content: `In one or two sentences, why might ${school.name} fit this specific student? Be concrete — name something about their profile and something about the school. If it's a stretch financially or academically, say so plainly.`,
+            // Shown under "How it fits you". It used to be asked "why might
+            // this fit", and for a poor fit came back "Honestly? It mostly
+            // doesn't" under a heading that promised the opposite. Now the
+            // verdict leads, whichever way it goes.
+            content: `How well does ${school.name} fit this specific student? Open with a plain verdict of a few words ("A strong fit." / "A good fit with one catch." / "Honestly, a stretch."), then two or three sentences on why — something concrete about their profile and something about the school, including cost at their price and their real chances if either is the catch. One short paragraph, no lists.`,
           },
         ],
         { maxTokens: 700, effort: "low" },

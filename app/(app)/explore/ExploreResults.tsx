@@ -245,7 +245,7 @@ export default function ExploreResults({
       {picks.length > 0 && (
         <section aria-label="Counselor picks" className="mb-10">
           <div className="flex items-baseline justify-between mb-3">
-            <SectionLabel>Counselor picks — underrated for you</SectionLabel>
+            <SectionLabel>Counselor picks — within reach, at your price</SectionLabel>
           </div>
           <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1">
             {picks.map(({ school, reason }, i) => (

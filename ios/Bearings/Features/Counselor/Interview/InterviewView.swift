@@ -53,21 +53,13 @@ struct InterviewView: View {
     // MARK: Choosing
 
     /// Short enough that Start is on screen without scrolling: the three
-    /// steps, the school, the button. The why-interviews talk is one line.
+    /// steps and the button. Practice is general — the questions an
+    /// interviewer anywhere would ask — so there's no school to pick.
     private var chooser: some View {
         Page(spacing: 22) {
             TwoTone(lead: "Practice the conversation", rest: "before it counts.")
 
             HowItWorks()
-
-            if let state = session.state {
-                VStack(alignment: .leading, spacing: 8) {
-                    SectionLabel("Practice for")
-                    SelectBox(options: [("", "General practice")] + state.schools.map { ($0.id, $0.name) },
-                              selection: Binding(get: { session.schoolId },
-                                                 set: { id in Task { await session.choose(id) } }))
-                }
-            }
 
             if let error = session.error { InlineNote(text: error, kind: .problem) }
 

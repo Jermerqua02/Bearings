@@ -3,6 +3,8 @@
 
      - tuition and fees, in-state and out-of-state (school_cost)
      - the on-time, four-year graduation rate (school_outcome)
+     - religious affiliation (school), where a school has none on file —
+       the curated schools' own wording is kept
      - Scorecard's own weighted under-$48k net price, replacing our plain
        average of its two lowest bands (imported schools only)
 
@@ -22,6 +24,7 @@ import "./_env";
 import { and, eq, isNotNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { schoolCosts, schoolOutcomes, schools } from "@/lib/db/schema";
+import { religiousAffiliationLabel } from "@/lib/data/religious-affiliations";
 import { CURRENT_CYCLE } from "@/lib/schools";
 
 const API = "https://api.data.gov/ed/collegescorecard/v1/schools";
@@ -35,6 +38,7 @@ const FIELDS = [
   "latest.cost.net_price.public.by_income_level.0-48000",
   "latest.cost.net_price.private.by_income_level.0-48000",
   "latest.completion.completion_rate_4yr_100nt",
+  "school.religious_affiliation",
 ] as const;
 
 type Row = { [K in (typeof FIELDS)[number]]: number | null } & { id: number };
@@ -56,13 +60,13 @@ async function main() {
   if (!key) throw new Error("Set COLLEGE_SCORECARD_KEY.");
 
   const ours = await db
-    .select({ id: schools.id, ipedsId: schools.ipedsId, curated: schools.curated })
+    .select({ id: schools.id, ipedsId: schools.ipedsId, curated: schools.curated, religiousAffiliation: schools.religiousAffiliation })
     .from(schools)
     .where(isNotNull(schools.ipedsId));
   const byIpeds = new Map(ours.map((s) => [s.ipedsId!, s]));
   console.log(`${ours.length} schools with an IPEDS id`);
 
-  let costs = 0, outcomes = 0, seen = 0;
+  let costs = 0, outcomes = 0, affiliations = 0, seen = 0;
   for (let page = 0; ; page++) {
     const { rows, total } = await fetchPage(key, page);
     for (const r of rows) {
@@ -81,10 +85,16 @@ async function main() {
         updatedAt: new Date(),
       };
       const grad4 = r["latest.completion.completion_rate_4yr_100nt"];
+      const affiliation = school.religiousAffiliation ? undefined : religiousAffiliationLabel(r["school.religious_affiliation"]);
       if (dry) {
         costs++;
         if (grad4 != null) outcomes++;
+        if (affiliation) affiliations++;
         continue;
+      }
+      if (affiliation) {
+        await db.update(schools).set({ religiousAffiliation: affiliation, updatedAt: new Date() }).where(eq(schools.id, school.id));
+        affiliations++;
       }
       const c = await db
         .update(schoolCosts)
@@ -104,7 +114,7 @@ async function main() {
     process.stdout.write(`\r  page ${page + 1}/${Math.ceil(total / PER_PAGE)} — ${seen} matched`);
     if ((page + 1) * PER_PAGE >= total) break;
   }
-  console.log(`\n${dry ? "Would update" : "Updated"} ${costs} cost rows and ${outcomes} outcome rows.`);
+  console.log(`\n${dry ? "Would update" : "Updated"} ${costs} cost rows, ${outcomes} outcome rows and ${affiliations} religious affiliations.`);
   process.exit(0);
 }
 

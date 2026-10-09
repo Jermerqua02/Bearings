@@ -414,7 +414,8 @@ export const schools = pgTable("school", {
   internshipMarket: text("internship_market").notNull().default(""),
   thingsToDo: text("things_to_do").notNull().default(""),
 
-  // Gates counselorPicks() in lib/match.ts — only schools with this are eligible.
+  // An editor's note on who this school is underrated for. A nudge in
+  // lib/picks.ts when the school already clears the bar for a student.
   underratedFor: text("underrated_for"),
 
   ...timestamps,

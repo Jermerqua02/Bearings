@@ -30,7 +30,8 @@ final class InterviewSession {
     }
 
     private(set) var phase: Phase = .choosing
-    /// "" is general practice.
+    /// "" is general practice — the only kind the screen offers now. The
+    /// server still keeps practice per school, for when it comes back.
     private(set) var schoolId = ""
     private(set) var state: InterviewState?
     private(set) var exchanges: [Exchange] = []
@@ -76,13 +77,6 @@ final class InterviewSession {
         }
     }
 
-    /// Pick a school. Changing it ends any sitting in progress.
-    func choose(_ id: String) async {
-        guard id != schoolId else { return }
-        end()
-        schoolId = id
-        await load()
-    }
 
     // MARK: The turn
 

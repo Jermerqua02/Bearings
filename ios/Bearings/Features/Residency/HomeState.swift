@@ -155,7 +155,7 @@ struct ResidencyPanel: View {
                 .sheet(isPresented: $picking) { HomeStatePicker().presentationBackground(Color.paper) }
             }
         case .outOfState:
-            Muted("You live in \(residency.homeStateName ?? "another state"), so you'd pay out-of-state tuition here" + (residency.extraPerYear.map { " — about \(Format.thousands($0)) more a year than the in-state figures below." } ?? ". The figures below are in-state."), size: 14)
+            Muted("You live in \(residency.homeStateName ?? "another state"), so you'd pay out-of-state tuition here" + (residency.extraPerYear.map { " — about \(Format.thousands($0)) more a year than in-state students, already added to the figures below." } ?? ". The figures below are in-state; out-of-state costs more."), size: 14)
             maybePrograms
         case .exchange:
             if let p = residency.program {
@@ -186,7 +186,7 @@ struct ResidencyPanel: View {
         ForEach(residency.maybe ?? [], id: \.name) { p in
             VStack(alignment: .leading, spacing: 6) {
                 Text("You might also qualify for \(p.shortName)").font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.ink)
-                Muted("\(p.terms) It depends on your major or county, so I haven't counted it above." + (p.restrictions.map { " \($0)" } ?? ""), size: 13)
+                Muted("\(p.terms) It depends on your major or county, so it isn't in the figures below." + (p.restrictions.map { " \($0)" } ?? ""), size: 13)
                 if let link = p.url.flatMap(URL.init(string:)) {
                     Link(destination: link) { Label("Check \(p.shortName)", systemImage: "arrow.up.right") }
                         .buttonStyle(LinkButtonStyle(color: .accent))

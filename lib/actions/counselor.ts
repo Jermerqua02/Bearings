@@ -436,7 +436,9 @@ export async function whyThisSchoolAction(schoolId: string): Promise<string> {
   const school = await getSchoolById(schoolId);
   if (!school) return "";
 
-  const hash = profileHash(profile);
+  // The suffix is the prompt's version: a cached explanation written for
+  // the old "why might it fit" prompt is regenerated, not reused.
+  const hash = `${profileHash(profile)}:fit-v2`;
 
   const [cached] = await db
     .select()

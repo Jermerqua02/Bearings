@@ -269,21 +269,6 @@ function settingLabel(s: School["setting"]): string {
     : s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/* ————— Counselor picks ————— */
-
-export function counselorPicks(
-  profile: StudentProfile,
-  schools: School[],
-  excludeIds: Set<string>
-): { school: School; reason: string }[] {
-  return schools
-    .filter((s) => s.underratedFor && !excludeIds.has(s.id))
-    .map((s) => ({ school: s, f: fit(profile, s) }))
-    .sort((a, b) => b.f._sort - a.f._sort)
-    .slice(0, 4)
-    .map(({ school }) => ({ school, reason: school.underratedFor! }));
-}
-
 /* ————— Deadlines ————— */
 
 export interface DeadlineInfo {

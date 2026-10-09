@@ -16,11 +16,11 @@ import SectionLabel from "@/components/ui/SectionLabel";
 import TwoTone from "@/components/ui/TwoTone";
 import { getViewer } from "@/lib/auth/policy";
 import {
-  getCounselorPickCandidates,
   searchSchools,
 } from "@/lib/db/queries/schools";
 import { loadProfileOnly } from "@/lib/db/queries/snapshot";
-import { chanceRead, counselorPicks, fit } from "@/lib/match";
+import { chanceRead, fit } from "@/lib/match";
+import { counselorPicksFor } from "@/lib/picks";
 import { PAGE_SIZE, parseExploreParams } from "@/lib/schools";
 import ExploreResults, { type ResultRow } from "./ExploreResults";
 
@@ -83,7 +83,7 @@ export default async function ExplorePage({
 
   const params = parseExploreParams(await searchParams);
 
-  const [result, pickCandidates] = await Promise.all([
+  const [result, picks] = await Promise.all([
     searchSchools(student, {
       tiers: params.tiers,
       regions: params.regions,
@@ -97,7 +97,7 @@ export default async function ExplorePage({
       page: params.page,
       perPage: PAGE_SIZE,
     }),
-    getCounselorPickCandidates(12),
+    counselorPicksFor(student),
   ]);
 
   /* fit() weighs editorial fields the database can't sort on, so it runs
@@ -112,8 +112,6 @@ export default async function ExplorePage({
     const score = new Map(result.schools.map((s) => [s.id, fit(student, s)._sort]));
     rows = [...rows].sort((a, b) => (score.get(b.school.id) ?? 0) - (score.get(a.school.id) ?? 0));
   }
-
-  const picks = counselorPicks(student, pickCandidates, new Set()).slice(0, 4);
 
   return (
     <div className="animate-fade-up">

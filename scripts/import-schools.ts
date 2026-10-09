@@ -34,6 +34,7 @@ import {
   schoolOutcomes,
   schools,
 } from "@/lib/db/schema";
+import { religiousAffiliationLabel } from "@/lib/data/religious-affiliations";
 import { CURRENT_CYCLE } from "@/lib/schools";
 
 const API = "https://api.data.gov/ed/collegescorecard/v1/schools";
@@ -131,6 +132,7 @@ interface ScorecardRow {
   "school.locale": number | null;
   "school.ownership": number;
   "school.minority_serving.historically_black": number | null;
+  "school.religious_affiliation": number | null;
   "latest.student.size": number | null;
   "latest.admissions.admission_rate.overall": number | null;
   "latest.admissions.test_requirements": number | null;
@@ -171,6 +173,7 @@ const FIELDS = [
   "school.locale",
   "school.ownership",
   "school.minority_serving.historically_black",
+  "school.religious_affiliation",
   "latest.student.size",
   "latest.admissions.admission_rate.overall",
   "latest.admissions.test_requirements",
@@ -683,6 +686,7 @@ async function main() {
           size: sizeFor(enrollment) as never,
           undergradEnrollment: enrollment,
           website: hostname(r["school.school_url"]),
+          religiousAffiliation: religiousAffiliationLabel(r["school.religious_affiliation"]),
         };
       });
 

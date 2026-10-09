@@ -1,7 +1,7 @@
 "use client";
 
 /* School detail — editorial, profile-specific.
-   "Why this might be right for you" leads. The city is first-class.
+   "How it fits you" leads. The city is first-class.
    Net price, not sticker, is the headline number.
 
    The school is resolved in page.tsx (a server component) and handed down,
@@ -179,11 +179,11 @@ export default function SchoolDetail({ school }: { school: School }) {
         </div>
       </div>
 
-      {/* Why this might be right for you */}
+      {/* How it fits you */}
       {student && (
         <Card className="p-6 md:p-8 mb-10 border-accent/30 bg-accent-soft">
           <SectionLabel className="mb-3 !text-accent">
-            Why this might be right for you
+            How it fits you
           </SectionLabel>
           <p className="text-[1.1rem] leading-relaxed">
             {why ?? "Reading your profile…"}

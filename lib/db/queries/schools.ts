@@ -19,7 +19,7 @@
 
 import "server-only";
 
-import { and, asc, count, desc, eq, gt, inArray, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, inArray, isNotNull, lte, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   schoolAdmissions,
@@ -495,16 +495,6 @@ export async function searchSchools(
  * the reason shown to the student *is* that column, so a school without one
  * has nothing to say.
  */
-export async function getCounselorPickCandidates(limit = 12): Promise<SchoolRecord[]> {
-  const rows = await db
-    .select({ id: schools.id })
-    .from(schools)
-    .where(and(isNotNull(schools.underratedFor), gt(schools.undergradEnrollment, 0)))
-    .orderBy(asc(schools.id))
-    .limit(limit);
-  return getSchoolsByIds(rows.map((r) => r.id));
-}
-
 /** Every school id, for validating ids the model produced. */
 export async function allSchoolIds(): Promise<Set<string>> {
   const rows = await db.select({ id: schools.id }).from(schools);

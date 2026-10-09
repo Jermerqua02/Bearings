@@ -197,7 +197,7 @@ struct ExploreView: View {
 
     private var picks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(icon: "sparkles", title: "Counselor picks", subtitle: "Underrated for you", iconBackground: .lavender)
+            SectionHeader(icon: "sparkles", title: "Counselor picks", subtitle: "Within reach, at your price", iconBackground: .lavender)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(Array(store.picks.enumerated()), id: \.element.id) { i, pick in

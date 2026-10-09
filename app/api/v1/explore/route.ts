@@ -11,9 +11,10 @@
    ———————————————————————————————————————— */
 
 import { requireViewer } from "@/lib/auth/policy";
-import { getCounselorPickCandidates, searchSchools } from "@/lib/db/queries/schools";
+import { searchSchools } from "@/lib/db/queries/schools";
 import { loadProfileOnly } from "@/lib/db/queries/snapshot";
-import { chanceRead, counselorPicks, fit } from "@/lib/match";
+import { chanceRead, fit } from "@/lib/match";
+import { counselorPicksFor } from "@/lib/picks";
 import {
   COST_CAPS,
   PAGE_SIZE,
@@ -52,10 +53,10 @@ export const GET = route("explore", "We couldn't load schools just now.", async 
   const raw = Object.fromEntries(new URL(request.url).searchParams.entries());
   const params = parseExploreParams(raw);
 
-  const [result, pickCandidates] = await Promise.all([
+  const [result, picks] = await Promise.all([
     searchSchools(profile, { ...params, perPage: PAGE_SIZE }),
     // Picks are only shown on an unfiltered first page, so skip the query otherwise.
-    params.page === 1 ? getCounselorPickCandidates(12) : Promise.resolve([]),
+    params.page === 1 ? counselorPicksFor(profile) : Promise.resolve([]),
   ]);
 
   let rows = result.schools.map((school) => {
@@ -82,7 +83,7 @@ export const GET = route("explore", "We couldn't load schools just now.", async 
     page: result.page,
     pageCount: result.pageCount,
     rows: rows.map(({ _sort, ...r }) => r),
-    picks: counselorPicks(profile, pickCandidates, new Set()).slice(0, 4),
+    picks,
     options: OPTIONS,
   };
 });

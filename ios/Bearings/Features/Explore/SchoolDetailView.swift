@@ -154,7 +154,7 @@ struct SchoolDetailView: View {
     }
 
     private func whyPanel(_ fit: SchoolDetailResponse.Fit) -> some View {
-        Panel(icon: "sparkles", title: "Why this might fit you", subtitle: "From your counselor", tint: .lavender) {
+        Panel(icon: "sparkles", title: "How it fits you", subtitle: "From your counselor", tint: .lavender) {
             if let why, !why.isEmpty {
                 Text(why).font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
             } else if why == nil {
@@ -190,24 +190,34 @@ struct SchoolDetailView: View {
 
     private func cost(_ d: SchoolDetailResponse) -> some View {
         let c = d.school.cost
+        let r = d.residency
+        let isPublic = r != nil && r?.status != .private
+        // The published figures are in-state. Out of state, every one of them
+        // carries what residency adds, so the numbers are this student's —
+        // not in-state ones with a "plus $19k" to do in their head.
+        let extra: Double? = (r?.status == .outOfState || r?.status == .exchange) ? r?.extraPerYear : nil
+        // Rounded once the extra is added: "$9,240" claims a precision two
+        // averages added together don't have.
+        let yours = { (v: Double?) in v.map { extra == nil ? $0 : (($0 + extra!) / 100).rounded() * 100 } }
+        let whose = extra == nil ? (isPublic ? ", in-state" : "")
+            : r?.status == .exchange ? ", for you with \(r?.program?.shortName ?? "the exchange")" : ", for you (out-of-state)"
         let bands: [(String, String)] = [
             ("Under $48k", c.netPriceByIncome?.under48k), ("$48k – $75k", c.netPriceByIncome?.k48to75),
             ("$75k – $110k", c.netPriceByIncome?.k75to110), ("Over $110k", c.netPriceByIncome?.over110k),
-        ].compactMap { label, v in v.map { (label, "\(Format.dollars($0)) / yr") } }
+        ].compactMap { label, v in yours(v).map { (label, "\(Format.dollars($0)) / yr") } }
         let hasCost = c.avgNetPrice != nil || c.stickerPrice != nil || !bands.isEmpty
 
-        let r = d.residency
-        let isPublic = r != nil && r?.status != .private
         return Panel(icon: "dollarsign.circle", title: "Cost — honestly", subtitle: "Net price, not sticker, is the real number") {
             if let r { ResidencyPanel(residency: r, school: d.school) }
             if hasCost {
                 TileRow {
-                    StatTile(label: isPublic ? "Average net price, in-state" : "Average net price",
-                             value: c.avgNetPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
-                    StatTile(label: "Sticker price", value: c.stickerPrice.map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
+                    StatTile(label: "Average net price\(whose)",
+                             value: yours(c.avgNetPrice).map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
+                    StatTile(label: "Sticker price\(extra == nil ? "" : whose)",
+                             value: yours(c.stickerPrice).map { Format.thousands($0) } ?? "—", tint: .mist, elevated: false)
                 }
                 if !bands.isEmpty {
-                    Text(isPublic ? "By family income, in-state" : "By family income").font(.system(size: 14, weight: .semibold)).padding(.top, 4)
+                    Text("By family income\(whose)").font(.system(size: 14, weight: .semibold)).padding(.top, 4)
                     FactRows(rows: bands)
                     if let note = flatAidNote(d.school) { Muted(note, size: 13) }
                 }
