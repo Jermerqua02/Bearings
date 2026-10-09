@@ -457,11 +457,11 @@ private struct FeedbackCards: View {
             if feedback.tooBrief == true { TooBriefCard() }
             if !feedback.strengths.isEmpty {
                 FeedbackList(title: "What's working", icon: "hand.thumbsup.fill", bullet: "checkmark",
-                             accent: .target, tint: .targetSoft, items: feedback.strengths)
+                             accent: .accent, tint: .accentSoft, items: feedback.strengths)
             }
             if !feedback.toWorkOn.isEmpty {
                 FeedbackList(title: "To work on", icon: "scope", bullet: "arrow.up.right",
-                             accent: .likely, tint: .likelySoft, items: feedback.toWorkOn)
+                             accent: .ink, tint: .mist, items: feedback.toWorkOn)
             }
         }
     }

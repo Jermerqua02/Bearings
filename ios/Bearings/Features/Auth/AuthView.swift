@@ -17,7 +17,9 @@ struct AuthView: View {
             VStack(alignment: .leading, spacing: 28) {
                 VStack(alignment: .leading, spacing: 10) {
                     Image("Wordmark")
+                        .renderingMode(.template)
                         .resizable().scaledToFit()
+                        .foregroundStyle(Color.ink)
                         .frame(height: 30)
                         .padding(.bottom, 12)
                         .accessibilityLabel("Lumni")

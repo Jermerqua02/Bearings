@@ -258,7 +258,7 @@ private struct ApplicationCardView: View {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Image(systemName: line.mandatory ? (line.done == true ? "checkmark.circle.fill" : "circle") : "minus")
                             .font(.system(size: 12))
-                            .foregroundStyle(line.done == true ? Color.target : (line.mandatory ? Color.ink : Color.grayMid))
+                            .foregroundStyle(line.done == true ? Color.accent : (line.mandatory ? Color.ink : Color.grayMid))
                             .frame(width: 14)
                         (Text(line.label).fontWeight(.medium).foregroundStyle(line.done == true ? Color.grayMid : Color.ink)
                             + Text(" — \(line.status)\(line.detail.map { " (\($0))" } ?? "")")

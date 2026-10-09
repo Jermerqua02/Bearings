@@ -179,9 +179,9 @@ struct MainNav: View {
                 Button { model.counselorOpen = true } label: {
                     Image(systemName: "bubble.fill")
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(Color.ink)
+                        .foregroundStyle(.white)
                         .frame(width: 60, height: 60)
-                        .background(Color.highlight, in: Circle())
+                        .background(Color.accent, in: Circle())
                         .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
                 }
                 .buttonStyle(.plain)

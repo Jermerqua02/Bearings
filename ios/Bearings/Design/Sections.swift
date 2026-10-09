@@ -158,14 +158,14 @@ struct HighlightButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: compact ? 14 : 16, weight: .semibold))
-            .foregroundStyle(Color.ink)
+            .foregroundStyle(.white)
             .padding(.horizontal, compact ? 16 : 20)
             .padding(.vertical, compact ? 9 : 13)
-            .background(Color.highlight.opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4), in: Capsule())
+            .background(Color.accent.opacity(isEnabled ? (configuration.isPressed ? 0.7 : 1) : 0.4), in: Capsule())
     }
 }
 
-/// A ring, filled in highlighter — the reference's donut, for progress.
+/// A ring, filled in the accent — the reference's donut, for progress.
 struct ProgressRing: View {
     let progress: Double
     var size: CGFloat = 64
@@ -175,7 +175,7 @@ struct ProgressRing: View {
         ZStack {
             Circle().stroke(Color.mist, lineWidth: line)
             Circle().trim(from: 0, to: max(0.001, progress))
-                .stroke(Color.highlight, style: StrokeStyle(lineWidth: line, lineCap: .round))
+                .stroke(Color.accent, style: StrokeStyle(lineWidth: line, lineCap: .round))
                 .rotationEffect(.degrees(-90))
             Text("\(Int((progress * 100).rounded()))%").font(.system(size: size * 0.24, weight: .semibold))
         }

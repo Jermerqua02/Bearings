@@ -401,7 +401,7 @@ struct RangePlot: View {
                         .frame(width: max(4, (pct(high) - pct(low)) * w), height: 8)
                         .offset(x: pct(low) * w)
                     if let value {
-                        Circle().fill(Color.highlight).overlay(Circle().stroke(Color.ink, lineWidth: 2))
+                        Circle().fill(Color.accent).overlay(Circle().stroke(Color.surface, lineWidth: 2))
                             .frame(width: 16, height: 16)
                             .offset(x: pct(value) * w - 8)
                     }

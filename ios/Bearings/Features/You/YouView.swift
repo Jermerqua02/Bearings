@@ -483,7 +483,7 @@ private struct OpportunitiesSection: View {
                         Spacer()
                         Text(o.cost == "stipend" ? "PAYS YOU" : o.cost.replacingOccurrences(of: "-", with: " ").uppercased())
                             .font(.system(size: 10, weight: .semibold)).tracking(0.8)
-                            .foregroundStyle(o.cost == "free" || o.cost == "stipend" ? Color.target : Color.grayMid)
+                            .foregroundStyle(o.cost == "free" || o.cost == "stipend" ? Color.accent : Color.grayMid)
                     }
                     SectionLabel("\(o.org) · \(o.location)\(o.selective ? " · selective" : "")")
                     Muted(o.description)

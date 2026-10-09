@@ -314,7 +314,7 @@ struct InlineNote: View {
     var body: some View {
         Text(text)
             .font(.system(size: 14))
-            .foregroundStyle(kind == .ok ? Color.target : Color.reach)
+            .foregroundStyle(kind == .ok ? Color.accent : Color.reach)
             .fixedSize(horizontal: false, vertical: true)
     }
 }
