@@ -84,6 +84,7 @@ struct SchoolDetailView: View {
             }
             Text(s.name).font(.display(30)).tracking(-0.3)
                 .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("school.name")
             if !model.isParent {
                 if onList {
                     Button { model.removeFromList(s.id) } label: { Label("On your list", systemImage: "checkmark") }

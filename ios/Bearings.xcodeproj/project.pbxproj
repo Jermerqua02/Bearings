@@ -6,16 +6,43 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXContainerItemProxy section */
+		B7A100000000000000000024 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = B7A10000000000000000000A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B7A100000000000000000006;
+			remoteInfo = Bearings;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		B7A100000000000000000025 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B7A100000000000000000006 /* Bearings */;
+			targetProxy = B7A100000000000000000024 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin PBXFileReference section */
 		B7A100000000000000000001 /* Bearings.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Bearings.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B7A100000000000000000011 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		B7A100000000000000000021 /* BearingsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = BearingsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		B7A100000000000000000002 /* Bearings */ = {isa = PBXFileSystemSynchronizedRootGroup; path = Bearings; sourceTree = "<group>"; };
+		B7A100000000000000000022 /* BearingsUITests */ = {isa = PBXFileSystemSynchronizedRootGroup; path = BearingsUITests; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		B7A100000000000000000023 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B7A100000000000000000003 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -30,6 +57,7 @@
 			isa = PBXGroup;
 			children = (
 				B7A100000000000000000002 /* Bearings */,
+				B7A100000000000000000022 /* BearingsUITests */,
 				B7A100000000000000000012 /* Config */,
 				B7A100000000000000000005 /* Products */,
 			);
@@ -39,6 +67,7 @@
 			isa = PBXGroup;
 			children = (
 				B7A100000000000000000001 /* Bearings.app */,
+				B7A100000000000000000021 /* BearingsUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -54,6 +83,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		B7A100000000000000000026 /* BearingsUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B7A100000000000000000027 /* Build configuration list for PBXNativeTarget "BearingsUITests" */;
+			buildPhases = (
+				B7A100000000000000000028 /* Sources */,
+				B7A100000000000000000023 /* Frameworks */,
+				B7A100000000000000000029 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B7A100000000000000000025 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B7A100000000000000000022 /* BearingsUITests */,
+			);
+			name = BearingsUITests;
+			packageProductDependencies = (
+			);
+			productName = BearingsUITests;
+			productReference = B7A100000000000000000021 /* BearingsUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 		B7A100000000000000000006 /* Bearings */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = B7A100000000000000000007 /* Build configuration list for PBXNativeTarget "Bearings" */;
@@ -89,6 +141,10 @@
 					B7A100000000000000000006 = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					B7A100000000000000000026 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = B7A100000000000000000006;
+					};
 				};
 			};
 			buildConfigurationList = B7A10000000000000000000B /* Build configuration list for PBXProject "Bearings" */;
@@ -106,11 +162,19 @@
 			projectRoot = "";
 			targets = (
 				B7A100000000000000000006 /* Bearings */,
+				B7A100000000000000000026 /* BearingsUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		B7A100000000000000000029 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B7A100000000000000000009 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -121,6 +185,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		B7A100000000000000000028 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		B7A100000000000000000008 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -131,6 +202,42 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		B7A10000000000000000002A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3AM9B6VP52;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.promptllc.bearings.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Bearings;
+			};
+			name = Debug;
+		};
+		B7A10000000000000000002B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 3AM9B6VP52;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.promptllc.bearings.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Bearings;
+			};
+			name = Release;
+		};
 		B7A10000000000000000000C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -242,6 +349,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		B7A100000000000000000027 /* Build configuration list for PBXNativeTarget "BearingsUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B7A10000000000000000002A /* Debug */,
+				B7A10000000000000000002B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		B7A100000000000000000007 /* Build configuration list for PBXNativeTarget "Bearings" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

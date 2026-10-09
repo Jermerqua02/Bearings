@@ -28,11 +28,15 @@ struct Page<Content: View>: View {
         .collapsesMainNav()
     }
 
-    /// DEBUG: BEARINGS_DEV_SCROLL=0.5 opens every page scrolled halfway, so
-    /// a screenshot script can see below the fold. Always .top in Release.
+    /// DEBUG: BEARINGS_DEV_SCROLL=0.5 opens the FIRST page scrolled halfway,
+    /// so a screenshot script can see below the fold. Only the first: it
+    /// used to apply to every page for the life of the process, so anyone
+    /// using the simulator afterwards found each school page opening
+    /// partway down. Always .top in Release.
     private static var devAnchor: UnitPoint {
         #if DEBUG
-        if let raw = ProcessInfo.processInfo.environment["BEARINGS_DEV_SCROLL"], let y = Double(raw) {
+        if !DevScroll.used, let raw = ProcessInfo.processInfo.environment["BEARINGS_DEV_SCROLL"], let y = Double(raw) {
+            DevScroll.used = true
             return UnitPoint(x: 0, y: y)
         }
         #endif
@@ -393,3 +397,7 @@ extension View {
             .paperChrome()
     }
 }
+
+#if DEBUG
+private enum DevScroll { static var used = false }
+#endif

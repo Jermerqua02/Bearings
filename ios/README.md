@@ -46,3 +46,18 @@ server first if the build needs new API routes.
 
 The app icon is a placeholder (a compass needle on the accent blue),
 generated rather than designed. Replace `AppIcon.png` before launch.
+
+## UI tests
+
+`BearingsUITests` taps through the app like a person — the navigation
+bugs they cover were invisible in screenshots. They run against the local
+dev server as a seeded student:
+
+    TOKEN=$(curl -s -D - -o /dev/null -X POST localhost:3000/api/auth/sign-in/email \
+      -H 'content-type: application/json' \
+      -d '{"email":"maya@example.com","password":"correct-horse-battery"}' \
+      | awk -F': ' 'tolower($1)=="set-auth-token"{print $2}' | tr -d '\r')
+    TEST_RUNNER_BEARINGS_UITEST_TOKEN=$TOKEN xcodebuild test -project ios/Bearings.xcodeproj \
+      -scheme Bearings -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BearingsUITests
+
+Without a token the tests skip rather than fail.

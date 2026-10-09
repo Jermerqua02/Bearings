@@ -76,19 +76,40 @@ extension View {
     func collapsesMainNav() -> some View { modifier(NavScrollReporter()) }
 }
 
+/// Collapses and expands the main nav — but only while the student's
+/// finger is actually dragging the page.
+///
+/// It used to react to any movement, including the coast after a flick.
+/// Tap the menu button mid-coast and it would expand, then the still-moving
+/// page would collapse it again a moment later, so the tap seemed to do
+/// nothing — or the menu shrank out from under the finger and the touch
+/// landed on the school card behind it. Momentum now never moves the menu;
+/// only a drag does, and the nav stays open after a tap until the next one.
 struct NavScrollReporter: ViewModifier {
     @Environment(AppModel.self) private var model
+    @State private var dragging = false
 
     func body(content: Content) -> some View {
-        content.onScrollGeometryChange(for: CGFloat.self) { geo in
-            geo.contentOffset.y + geo.contentInsets.top
-        } action: { old, new in
-            let delta = new - old
-            let collapse: Bool? = new < 24 ? false : delta > 6 ? true : delta < -6 ? false : nil
-            if let collapse, collapse != model.navCollapsed {
-                withAnimation(.snappy(duration: 0.3)) { model.navCollapsed = collapse }
+        content
+            .onScrollPhaseChange { _, phase in
+                dragging = phase == .interacting
             }
-        }
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y + geo.contentInsets.top
+            } action: { old, new in
+                let collapse: Bool?
+                if new < 24 {
+                    collapse = false // back at the top: always show it
+                } else if dragging {
+                    let delta = new - old
+                    collapse = delta > 6 ? true : delta < -6 ? false : nil
+                } else {
+                    collapse = nil
+                }
+                if let collapse, collapse != model.navCollapsed {
+                    withAnimation(.snappy(duration: 0.3)) { model.navCollapsed = collapse }
+                }
+            }
     }
 }
 
@@ -107,6 +128,10 @@ struct MainNav: View {
     var body: some View {
         HStack(alignment: .center) {
             if model.navCollapsed {
+                // The glass sits behind the button, not inside its label:
+                // interactive glass inside a label took the tap for itself,
+                // so the menu never opened and the touch could land on the
+                // row underneath instead.
                 Button {
                     withAnimation(.snappy(duration: 0.3)) { model.navCollapsed = false }
                 } label: {
@@ -114,16 +139,21 @@ struct MainNav: View {
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundStyle(Color.ink)
                         .frame(width: 56, height: 56)
-                        .navSurface(Circle())
-                        .matchedGeometryEffect(id: "nav", in: morph)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
+                .navSurface(Circle())
+                .matchedGeometryEffect(id: "nav", in: morph)
                 .accessibilityLabel("Show menu")
+                .accessibilityIdentifier("nav.expand")
             } else {
                 HStack(spacing: 2) {
                     ForEach(Self.items, id: \.0) { tab, label, icon in
                         let active = model.tab == tab
-                        Button { model.tab = tab } label: {
+                        Button {
+                            model.tab = tab
+                            withAnimation(.snappy(duration: 0.3)) { model.navCollapsed = false }
+                        } label: {
                             VStack(spacing: 3) {
                                 Image(systemName: icon).font(.system(size: 17, weight: active ? .semibold : .regular))
                                 Text(label).font(.system(size: 11, weight: active ? .semibold : .medium))
@@ -135,6 +165,7 @@ struct MainNav: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(active ? .isSelected : [])
+                        .accessibilityIdentifier("nav.\(label.lowercased())")
                     }
                 }
                 .padding(4)
@@ -155,6 +186,7 @@ struct MainNav: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Ask your counselor")
+                .accessibilityIdentifier("nav.counselor")
             }
         }
         .padding(.horizontal, 20)
@@ -167,7 +199,9 @@ extension View {
     @ViewBuilder
     func navSurface<S: Shape>(_ shape: S) -> some View {
         if #available(iOS 26.0, *) {
-            self.glassEffect(.regular.interactive(), in: shape)
+            // Not .interactive(): interactive glass handles touches itself,
+            // which is what swallowed the menu button's tap.
+            self.glassEffect(.regular, in: shape)
         } else {
             self.background(.ultraThinMaterial, in: shape)
                 .overlay(shape.stroke(Color.black.opacity(0.06)))

@@ -288,6 +288,7 @@ private struct ResultCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("explore.result")
 
             if !model.isParent {
                 Button { model.toggleList(s, tier: row.tier) } label: {
