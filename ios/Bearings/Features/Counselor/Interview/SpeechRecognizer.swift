@@ -28,6 +28,19 @@ final class SpeechRecognizer {
     /// Bumped per recording, so a late result from the last one is ignored.
     private var take = 0
     private var gotFinal = false
+    /// The answer is built up here rather than read off the latest result.
+    /// After a pause, iOS starts a new segment whose text holds only what
+    /// came since — taking each result as the whole answer kept only the
+    /// last sentence of a minute-long one. And on a long answer it can end
+    /// the recognition task outright while the student is still talking.
+    private var committed = ""
+    /// The current segment's latest text.
+    private var segment = ""
+    /// Where the microphone's audio goes; swapped when a task ends early.
+    private var feed: Feed?
+    /// New tasks started this recording, capped so a recognizer that keeps
+    /// ending at once can't spin.
+    private var restarts = 0
 
     /// Ask for the microphone and speech recognition, once. False — with
     /// `unavailable` set — if either is refused or this phone can't
@@ -71,18 +84,18 @@ final class SpeechRecognizer {
             throw RecognizerError("I can't hear a microphone on this device. Type your answer instead.")
         }
 
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.requiresOnDeviceRecognition = true
-        request.shouldReportPartialResults = true
-        request.addsPunctuation = true
-        request.taskHint = .dictation
+        let request = Self.makeRequest()
+        let feed = Feed(request)
 
         take += 1
         let mine = take
         transcript = ""
+        committed = ""
+        segment = ""
+        restarts = 0
         gotFinal = false
 
-        Self.installTap(on: input, format: format, feeding: request) { [weak self] level in
+        Self.installTap(on: input, format: format, feeding: feed) { [weak self] level in
             Task { @MainActor in
                 guard let self, self.take == mine, self.recording else { return }
                 // Smoothed, so the ring breathes rather than flickers.
@@ -99,14 +112,76 @@ final class SpeechRecognizer {
 
         self.engine = engine
         self.request = request
+        self.feed = feed
+        listen(to: request, take: mine)
+        recording = true
+    }
+
+    private static func makeRequest() -> SFSpeechAudioBufferRecognitionRequest {
+        let request = SFSpeechAudioBufferRecognitionRequest()
+        request.requiresOnDeviceRecognition = true
+        request.shouldReportPartialResults = true
+        request.addsPunctuation = true
+        request.taskHint = .dictation
+        return request
+    }
+
+    private func listen(to request: SFSpeechAudioBufferRecognitionRequest, take mine: Int) {
+        guard let recognizer else { return }
+        // An id, not the request: the handler runs off the main actor, and
+        // the request isn't Sendable. A result from a replaced task is ignored.
+        let id = ObjectIdentifier(request)
         task = Self.recognize(with: recognizer, request) { [weak self] text, final, failed in
             Task { @MainActor in
-                guard let self, self.take == mine else { return }
-                if let text { self.transcript = text }
-                if final || failed { self.gotFinal = true; self.stopEngine() }
+                guard let self, self.take == mine, let current = self.request, ObjectIdentifier(current) == id else { return }
+                if let text { self.absorb(text) }
+                guard final || failed else { return }
+                // Ended while they're still talking (not by Stop): carry on
+                // in a new task, keeping everything heard so far.
+                if final, self.recording, !self.finishing, self.restarts < 20 {
+                    self.restarts += 1
+                    self.committed = Self.join(self.committed, self.segment)
+                    self.segment = ""
+                    let next = Self.makeRequest()
+                    self.request = next
+                    self.feed?.swap(to: next)
+                    self.listen(to: next, take: mine)
+                } else {
+                    self.gotFinal = true
+                    self.stopEngine()
+                }
             }
         }
-        recording = true
+    }
+
+    /// One result from the current segment. A new segment after a pause
+    /// replaces the text rather than extending it, so it's caught here and
+    /// the last one kept: either the result is suddenly much shorter
+    /// (revisions change words, they don't drop half of them), or it opens
+    /// with different words (revisions settle the ending, not the start).
+    /// Both wait for a few words, since the very first word can be revised.
+    private func absorb(_ text: String) {
+        if segment.count >= 12, text.count * 2 < segment.count || !Self.sameOpening(segment, text) {
+            committed = Self.join(committed, segment)
+        }
+        segment = text
+        transcript = Self.join(committed, segment)
+    }
+
+    /// Whether two results begin with the same words — two of them, or as
+    /// many as the newer one has so far.
+    private static func sameOpening(_ a: String, _ b: String) -> Bool {
+        func opening(_ s: String) -> [String] {
+            s.lowercased().split(whereSeparator: { !$0.isLetter && !$0.isNumber && $0 != "'" }).prefix(2).map(String.init)
+        }
+        let x = opening(a), y = opening(b)
+        guard !y.isEmpty else { return true }
+        return Array(x.prefix(y.count)) == y
+    }
+
+    private static func join(_ a: String, _ b: String) -> String {
+        let a = a.trimmingCharacters(in: .whitespaces), b = b.trimmingCharacters(in: .whitespaces)
+        return a.isEmpty ? b : b.isEmpty ? a : "\(a) \(b)"
     }
 
     /// Stop listening and wait briefly for the last words to land.
@@ -136,7 +211,10 @@ final class SpeechRecognizer {
         task?.cancel()
         task = nil
         request = nil
+        feed = nil
         transcript = ""
+        committed = ""
+        segment = ""
         finishing = false
     }
 
@@ -169,9 +247,8 @@ final class SpeechRecognizer {
     }
 
     nonisolated private static func installTap(on input: AVAudioInputNode, format: AVAudioFormat,
-                                               feeding request: SFSpeechAudioBufferRecognitionRequest,
+                                               feeding feed: Feed,
                                                level: @escaping @Sendable (Double) -> Void) {
-        let feed = Feed(request)
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in
             feed.request.append(buffer)
             guard let samples = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return }
@@ -194,9 +271,14 @@ final class SpeechRecognizer {
 
 /// Carries the request into the audio tap. The request is documented as
 /// safe to append to from the audio thread; it just isn't marked Sendable.
+/// It's swapped when a recognition task ends mid-answer, so the read and
+/// the swap are locked against each other.
 nonisolated private final class Feed: @unchecked Sendable {
-    let request: SFSpeechAudioBufferRecognitionRequest
-    init(_ request: SFSpeechAudioBufferRecognitionRequest) { self.request = request }
+    private let lock = NSLock()
+    private var current: SFSpeechAudioBufferRecognitionRequest
+    init(_ request: SFSpeechAudioBufferRecognitionRequest) { current = request }
+    var request: SFSpeechAudioBufferRecognitionRequest { lock.withLock { current } }
+    func swap(to request: SFSpeechAudioBufferRecognitionRequest) { lock.withLock { current = request } }
 }
 
 struct RecognizerError: LocalizedError {

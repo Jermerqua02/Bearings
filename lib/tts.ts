@@ -78,6 +78,30 @@ export interface SpeechResult {
 }
 
 /** Wrap raw little-endian PCM in a minimal RIFF/WAVE container. */
+/**
+ * Gemini's audio, as one clean WAV. Models differ: 2.5 sends raw PCM
+ * (`audio/l16; rate=24000`), 3.8 sends a whole WAV of its own with a
+ * provenance metadata chunk after the samples. Wrapping 3.8's file in a
+ * second header played its header and that metadata as sound — a click at
+ * the start and a sharp burst of static at the end of every line. So a WAV
+ * is unpacked to just its samples first.
+ */
+function toWav(audio: Buffer): Buffer {
+  return pcmToWav(audio.subarray(0, 4).toString("latin1") === "RIFF" ? samplesOf(audio) : audio);
+}
+
+/** The `data` chunk of a WAV, walking the chunks rather than assuming a 44-byte header. */
+function samplesOf(wav: Buffer): Buffer {
+  let at = 12; // "RIFF", size, "WAVE"
+  while (at + 8 <= wav.length) {
+    const id = wav.subarray(at, at + 4).toString("latin1");
+    const size = wav.readUInt32LE(at + 4);
+    if (id === "data") return wav.subarray(at + 8, Math.min(wav.length, at + 8 + size));
+    at += 8 + size + (size % 2); // chunks are padded to an even length
+  }
+  return Buffer.alloc(0);
+}
+
 function pcmToWav(pcm: Buffer): Buffer {
   const blockAlign = (CHANNELS * BITS_PER_SAMPLE) / 8;
   const byteRate = SAMPLE_RATE * blockAlign;
@@ -157,7 +181,7 @@ async function attempt(model: string, key: string, text: string, timeoutMs: numb
     }
 
     return {
-      wav: pcmToWav(Buffer.from(base64, "base64")),
+      wav: toWav(Buffer.from(base64, "base64")),
       model,
       inputTokens: json.usageMetadata?.promptTokenCount ?? 0,
       outputTokens: json.usageMetadata?.candidatesTokenCount ?? 0,
