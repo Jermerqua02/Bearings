@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// The account's photo in a circle — the graduate until they add their own.
+/// The account's photo in a circle — the app icon's face until they add their own.
 struct AvatarView: View {
     @Environment(AppModel.self) private var model
     var size: CGFloat = 36
@@ -11,7 +11,8 @@ struct AvatarView: View {
             if let image = model.avatar {
                 Image(uiImage: image).resizable().scaledToFill()
             } else if let graduate = Self.defaultImage {
-                // Until they add their own: the graduate from Home.
+                // Until they add their own: the face on the app icon
+                // (ios/scripts/make-face.swift).
                 Image(uiImage: graduate).resizable().scaledToFill()
                     .background(Color.mist)
             } else {

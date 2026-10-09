@@ -6,7 +6,7 @@
 //
 // Writes graduate-1.png, graduate-2.png, … in the order given. Every clip
 // is cropped to ONE shared box — the union of where the character goes in
-// all of them — so he stands in the same place whichever clip plays next.
+// all of them — so the character stands in the same place whichever clip plays next.
 //
 // Uses Vision's subject mask per frame (macOS 14+). The cast shadow on the
 // floor is kept: Vision drops it with the background, so it's recovered
@@ -39,7 +39,7 @@ func rgba(_ img: CGImage, _ w: Int, _ h: Int) -> [UInt8] {
     return data
 }
 
-/// The cut-out character laid over the shadow he casts in the original.
+/// The cut-out character laid over the shadow they cast in the original.
 func withShadow(subject: CGImage, original: CGImage) -> CGImage {
     let w = subject.width, h = subject.height
     let sub = rgba(subject, w, h), org = rgba(original, w, h)
@@ -56,6 +56,9 @@ func withShadow(subject: CGImage, original: CGImage) -> CGImage {
     // the strip has no visible top edge.
     let floorTop = Int(Double(h) * 0.84)
     let fade = 14.0
+    // A long shadow can run off the side of the frame; fading it out over
+    // the outer columns keeps it from ending in a straight line.
+    let sideFade = Double(w) * 0.12
     for y in floorTop..<h {
         var sum = 0.0
         for x in Array(0..<edge) + Array((w - edge)..<w) { sum += lum(org, (y * w + x) * 4) }
@@ -64,7 +67,7 @@ func withShadow(subject: CGImage, original: CGImage) -> CGImage {
             let i = y * w + x
             let darker = bg - lum(org, i * 4)
             // Under ~5 levels is GIF dither, not shadow.
-            let ramp = min(1, Double(y - floorTop) / fade)
+            let ramp = min(1, Double(y - floorTop) / fade) * min(1, Double(min(x, w - 1 - x)) / sideFade)
             shadow[i] = darker > 5 ? min(0.6, darker / bg * 1.15) * ramp : 0
         }
     }
@@ -121,7 +124,9 @@ func opaqueBounds(_ img: CGImage) -> CGRect {
     c.draw(img, in: CGRect(x: 0, y: 0, width: w, height: h))
     var minX = w, minY = h, maxX = 0, maxY = 0
     // The buffer's first row is the top of the image.
-    for y in 0..<h { for x in 0..<w where data[(y * w + x) * 4 + 3] > 20 {
+    // Low enough to take in the faint end of the shadow, so the crop
+    // doesn't cut it off.
+    for y in 0..<h { for x in 0..<w where data[(y * w + x) * 4 + 3] > 3 {
         minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
     } }
     return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)

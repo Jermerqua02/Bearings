@@ -44,8 +44,9 @@ within MARKETING_VERSION by asking App Store Connect for the last one
 Store Connect API key in `~/.appstoreconnect/private_keys/`. Deploy the
 server first if the build needs new API routes.
 
-The app icon is a placeholder (a compass needle on the accent blue),
-generated rather than designed. Replace `AppIcon.png` before launch.
+The app icon and the default profile photo are the same face, both made
+from `Assets/graduate-avatar-source.png` by `scripts/make-face.swift` (run
+instructions at the top of the script).
 
 ## UI tests
 

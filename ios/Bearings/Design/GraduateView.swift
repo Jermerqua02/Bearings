@@ -1,17 +1,18 @@
 import SwiftUI
 import ImageIO
 
-/// The graduate on Home: dances, rests on his standing pose for a beat,
-/// then dances again — a different dance each time, picked at random from
-/// the clips bundled as Resources/graduate-1.png, graduate-2.png, …
+/// The graduate on Home: dances, rests on her standing pose for a beat,
+/// then dances again — a different dance each time when there's more than
+/// one, picked at random from the clips bundled as Resources/graduate-1.png,
+/// graduate-2.png, …
 ///
 /// The clips are transparent animated PNGs, cut out of the original GIFs'
-/// white background with Vision so he stands on the app's own paper, and
-/// cropped to one shared box so he never shifts between dances (see
+/// white background with Vision so she stands on the app's own paper, and
+/// cropped to one shared box so she never shifts between dances (see
 /// ios/scripts/cutout-character.swift). Frames are decoded one at a time
 /// as they're shown — holding a clip's 121 frames decoded would be ~45 MB.
 struct GraduateView: View {
-    /// How long he holds still between dances.
+    /// How long she holds still between dances.
     var rest: Duration = .milliseconds(2500)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
