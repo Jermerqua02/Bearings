@@ -103,16 +103,16 @@ struct CounselorView: View {
             NavigationLink(value: InterviewRoute()) {
                 HStack(spacing: 14) {
                     Image(systemName: "person.2.wave.2").font(.system(size: 18)).foregroundStyle(Color.ink)
-                        .frame(width: 44, height: 44).background(Color.surface, in: Circle())
+                        .frame(width: 44, height: 44).background(Color.mist, in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Practice an interview").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
                         Text("I'll ask out loud, you answer by voice — then honest feedback, one question at a time.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
                     }
                     Spacer()
-                    RoundIcon(icon: "arrow.up.right", fill: .surface)
+                    RoundIcon(icon: "arrow.up.right", fill: .mist)
                 }
                 .padding(16)
-                .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+                .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
                 .softShadow()
             }
             .buttonStyle(.plain)

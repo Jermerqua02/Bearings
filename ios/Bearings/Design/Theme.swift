@@ -39,24 +39,24 @@ extension Color {
     // Text and icons sitting on it are white.
 
     /*
-      Surfaces that say what kind of content sits on them. Sections are told
-      apart by tint, not by hairlines:
-        lavender   — the counselor speaking (why it fits, nudges, picks):
-                     a light step of Tint
-        mist       — facts and figures about a school or the student: a
-                     neutral step of Background
-        surface    — something to act on (an application, a course)
-        highlight  — the one thing that matters most on a screen: Tint
-                     itself; used sparingly or it stops meaning anything
+      A card on the background is white or Tint — nothing in between. The
+      lighter teal and the near-grey that used to tint cards all but
+      vanished against the grey page; anything paler than Tint belongs
+      inside a card, never on the page:
+        lavender   — the counselor speaking (why it fits, nudges, picks): Tint
+        surface    — everything else on the page: facts, things to act on
+        highlight  — the one thing that matters most on a screen: Tint,
+                     used sparingly or it stops meaning anything
+        mist       — inside a card: tiles, wells, icon circles
       The names are older than the palette; the roles are what they keep.
     */
     static let mist = Color(hex: 0xEDEDED)
     static let mistStrong = Color(hex: 0xD4D4D4)
-    static let lavender = Color(hex: 0xE3F3F0)
-    static let lavenderStrong = Color(hex: 0xCDEBE6)
+    static let lavender = Color(hex: 0xCDEBE6)    // Tint
+    static let lavenderStrong = Color(hex: 0xA9DAD1)
     static let highlight = Color(hex: 0xCDEBE6)   // Tint
-    static let highlightSoft = Color(hex: 0xE3F3F0)
-    static let accentSoft = Color(hex: 0xE3F3F0)
+    static let highlightSoft = Color(hex: 0xCDEBE6)
+    static let accentSoft = Color(hex: 0xCDEBE6)
 
     // Chance tiers — muted, non-alarming. Never traffic lights: three steps
     // of the palette, from Secondary through a deep teal to Accent.

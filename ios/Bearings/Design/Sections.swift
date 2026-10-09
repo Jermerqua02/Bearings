@@ -98,14 +98,16 @@ struct StatTile: View {
             }
         }
         .padding(14)
-        .frame(maxWidth: .infinity, alignment: .topLeading)
+        // Fills the row's height: TileRow sizes the row to its tallest tile,
+        // and a neighbour that stopped at its own content looked broken.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(tint, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
         .softShadow(elevated)
         .accessibilityElement(children: .combine)
     }
 }
 
-/// Two tiles side by side, wrapping their heights together.
+/// Tiles side by side, always the same height — the tallest one's.
 struct TileRow<Content: View>: View {
     @ViewBuilder let content: Content
     var body: some View {

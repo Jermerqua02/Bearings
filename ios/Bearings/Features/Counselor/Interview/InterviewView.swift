@@ -453,7 +453,7 @@ private struct FeedbackCards: View {
             }
             if !feedback.toWorkOn.isEmpty {
                 FeedbackList(title: "To work on", icon: "scope", bullet: "arrow.up.right",
-                             accent: .ink, tint: .mist, items: feedback.toWorkOn)
+                             accent: .ink, tint: .surface, items: feedback.toWorkOn)
             }
         }
     }
@@ -485,7 +485,7 @@ private struct FeedbackList: View {
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(accent)
                         .frame(width: 22, height: 22)
-                        .background(Color.surface, in: Circle())
+                        .background(tint == .surface ? Color.mist : Color.surface, in: Circle())
                         .padding(.top, 1)
                     Text(item)
                         .font(.system(size: 15))

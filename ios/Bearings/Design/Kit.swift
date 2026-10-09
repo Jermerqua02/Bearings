@@ -160,13 +160,15 @@ struct Chip: View {
 /// A static pill, for fit reasons and evidence chips.
 struct Pill: View {
     let text: String
+    /// White on a tinted card; `.mist` on a white one, or it disappears.
+    var fill: Color = Color.surface.opacity(0.8)
     var body: some View {
         Text(text)
             .font(.system(size: 13))
             .foregroundStyle(Color.grayStrong)
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(Color.surface.opacity(0.8), in: Capsule())
+            .background(fill, in: Capsule())
     }
 }
 

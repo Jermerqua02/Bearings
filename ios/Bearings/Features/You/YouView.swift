@@ -132,7 +132,7 @@ private struct CoursesSection: View {
                 if let r = reported?.unweighted, let c = computed.unweighted, abs(r - c) >= 0.05 {
                     Muted("Averaging the courses below gives \(Format.gpa(c)) — schools count credits and exclude pass/fail work, so the two rarely match exactly.", size: 13)
                 }
-                Panel(icon: "chart.line.uptrend.xyaxis", title: "Rigor read", subtitle: "\(summary.rigor.advanced) AP/IB · \(summary.rigor.ahead) still ahead", tint: .mist) {
+                Panel(icon: "chart.line.uptrend.xyaxis", title: "Rigor read", subtitle: "\(summary.rigor.advanced) AP/IB · \(summary.rigor.ahead) still ahead", tint: .surface) {
                     let n = summary.rigor.advanced
                     Text(n >= 6 ? "That's competitive for most selective schools."
                          : n >= 3 ? "A solid arc — depth in your strong subjects matters more than count."

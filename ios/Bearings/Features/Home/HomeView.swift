@@ -130,7 +130,7 @@ private struct StudentHome: View {
             Muted("None on the clock. \(early ? "Exactly right for where you are." : "Check your list's plans.")", size: 14)
         }
 
-        Panel(icon: "chart.pie", title: "List balance", subtitle: "\(counts.reach) reach · \(counts.target) target · \(counts.likely) likely", tint: .mist) {
+        Panel(icon: "chart.pie", title: "List balance", subtitle: "\(counts.reach) reach · \(counts.target) target · \(counts.likely) likely", tint: .surface) {
             BalanceBar(reach: counts.reach, target: counts.target, likely: counts.likely)
             HStack(spacing: 12) {
                 ForEach(ChanceTier.allCases, id: \.self) { tier in TierBadge(tier: tier) }
@@ -242,7 +242,7 @@ private struct ParentHome: View {
             StatTile(label: "Applications submitted", value: "\(submitted)", tint: submitted > 0 ? .highlight : .surface, icon: "paperplane")
         }
 
-        Panel(icon: "lock", title: "What you can see", tint: .mist) {
+        Panel(icon: "lock", title: "What you can see", tint: .surface) {
             Text("You're seeing the shared view: the list, statuses, and deadlines. Your student's counselor conversations and essay drafts stay private unless they choose to share — that boundary is deliberate, and it's part of why this works.")
                 .font(.system(size: 14)).foregroundStyle(Color.grayMid)
         }

@@ -24,7 +24,7 @@ struct TranscriptPanel: View {
     }
 
     var body: some View {
-        Panel(icon: "doc.viewfinder", title: "Your transcript", subtitle: "Read your courses in, instead of typing them", tint: .mist) {
+        Panel(icon: "doc.viewfinder", title: "Your transcript", subtitle: "Read your courses in, instead of typing them", tint: .surface) {
             Muted("Upload it and we'll read the coursework onto this page, so you aren't typing four years of classes by hand. The file stays here — yours to download whenever you need it, and never shown to a linked parent.", size: 14)
 
             HStack(spacing: 10) {

@@ -31,7 +31,7 @@ struct MemorySection: View {
                 ForEach(topics) { topic in
                     let mine = facts.filter { $0.category == topic.id }
                     Panel(icon: topic.icon, title: topic.label, subtitle: topic.description,
-                          tint: mine.isEmpty ? .surface : .mist) {
+                          tint: .surface) {
                         if mine.isEmpty {
                             Muted("Nothing yet — mention it in a chat, or add it yourself.", size: 14)
                         } else {
@@ -112,7 +112,7 @@ private struct FactRow: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

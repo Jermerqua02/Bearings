@@ -169,7 +169,7 @@ struct SchoolDetailView: View {
     private func admissions(_ d: SchoolDetailResponse) -> some View {
         let a = d.school.admissions
         let hasRanges = (a.gpaMid50?.count == 2) || (a.satMid50?.count == 2)
-        return Panel(icon: "chart.bar.xaxis", title: "Admissions", subtitle: hasRanges ? "You against the middle 50%" : nil, tint: .mist) {
+        return Panel(icon: "chart.bar.xaxis", title: "Admissions", subtitle: hasRanges ? "You against the middle 50%" : nil, tint: .surface) {
             // A range plots only where the school published one — a missing
             // range drawn against the student's real number would be invented.
             if let g = a.gpaMid50, g.count == 2 {
@@ -256,13 +256,13 @@ struct SchoolDetailView: View {
             let majors = a.topMajors ?? []
             let notable = a.notablePrograms ?? []
             if !tiles.isEmpty || !majors.isEmpty || !notable.isEmpty {
-                Panel(icon: "books.vertical", title: "Academics", tint: .mist) {
+                Panel(icon: "books.vertical", title: "Academics", tint: .surface) {
                     if !tiles.isEmpty {
-                        TileRow { ForEach(tiles, id: \.0) { StatTile(label: $0.0, value: $0.1, elevated: false) } }
+                        TileRow { ForEach(tiles, id: \.0) { StatTile(label: $0.0, value: $0.1, tint: .mist, elevated: false) } }
                     }
                     if !majors.isEmpty {
                         Text("Popular majors").font(.system(size: 14, weight: .semibold))
-                        FlowLayout { ForEach(majors, id: \.self) { Pill(text: $0) } }
+                        FlowLayout { ForEach(majors, id: \.self) { Pill(text: $0, fill: .mist) } }
                     }
                     if !notable.isEmpty {
                         Text("Worth knowing").font(.system(size: 14, weight: .semibold))
@@ -313,7 +313,7 @@ struct SchoolDetailView: View {
                 c.internshipMarket.map { ("briefcase", "Jobs & internships", $0) },
             ].compactMap { $0 }.filter { !$0.2.isEmpty }
             if !facts.isEmpty {
-                Panel(icon: "building.2", title: "The city", subtitle: "You're choosing a place to live, not just a school", tint: .mist) {
+                Panel(icon: "building.2", title: "The city", subtitle: "You're choosing a place to live, not just a school", tint: .surface) {
                     VStack(spacing: 10) {
                         ForEach(facts, id: \.1) { icon, label, value in
                             HStack(alignment: .top, spacing: 12) {
@@ -327,7 +327,7 @@ struct SchoolDetailView: View {
                             }
                             .padding(12)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+                            .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
                         }
                     }
                     if let todo = c.thingsToDo, !todo.isEmpty { Muted(todo + ".", size: 14) }
@@ -406,7 +406,7 @@ struct RangePlot: View {
             GeometryReader { geo in
                 let w = geo.size.width
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Color.surface).frame(height: 8)
+                    Capsule().fill(Color.mist).frame(height: 8)
                     Capsule().fill(Color.mistStrong)
                         .frame(width: max(4, (pct(high) - pct(low)) * w), height: 8)
                         .offset(x: pct(low) * w)
