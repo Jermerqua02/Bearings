@@ -77,12 +77,19 @@ function PlanPanel({ row, onDone }: { row: Row; onDone: () => void }) {
 
   const input =
     "px-3 py-1.5 border border-hairline rounded-lg bg-surface text-[0.85rem] focus:outline-none focus:border-ink";
+  // Both actions need a reason — it's what the history shows later — so
+  // neither button works until there is one, rather than refusing after.
+  const hasReason = reason.trim().length > 0;
+  const staff = row.plan.label.includes("staff");
+  // Bought through Apple: Lumni can't cancel or refund it, so no button
+  // that can only refuse.
+  const apple = row.plan.label.includes("App Store");
 
   return (
     <div className="px-4 py-4 bg-paper border-t border-hairline space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-[0.8rem] text-gray-mid">
-          Reason
+          Reason <span className="text-ink">(required to grant or revoke)</span>
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
@@ -97,16 +104,24 @@ function PlanPanel({ row, onDone }: { row: Row; onDone: () => void }) {
         </label>
         <button
           type="button"
-          disabled={pending}
+          disabled={pending || !hasReason}
+          title={hasReason ? undefined : "Give a reason first"}
           onClick={() => act(() => grantPro(row.userId, { until: until || null, reason }), "Pro granted.")}
           className="px-3.5 py-1.5 rounded-lg bg-ink text-paper text-[0.85rem] disabled:opacity-50"
         >
           Grant Pro
         </button>
-        {row.plan.tier === "pro" && (
+        {staff ? (
+          <span className="text-[0.8rem] text-gray-mid pb-1.5">Admins have Pro by role — there&apos;s nothing to revoke.</span>
+        ) : apple ? (
+          <span className="text-[0.8rem] text-gray-mid pb-1.5 max-w-xs">
+            Paid through Apple — only Apple or the family can cancel or refund it (App Store Connect).
+          </span>
+        ) : row.plan.tier === "pro" && (
           <button
             type="button"
-            disabled={pending}
+            disabled={pending || !hasReason}
+            title={hasReason ? undefined : "Give a reason first"}
             onClick={() => act(() => revokePro(row.userId, { reason }), "Pro revoked.")}
             className="px-3.5 py-1.5 rounded-lg border border-hairline text-[0.85rem] disabled:opacity-50"
           >
