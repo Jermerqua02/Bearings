@@ -491,6 +491,10 @@ private struct OutOfMessages: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // The same margins as the page above it, not edge to edge.
+        .padding(.horizontal, 20)
+        .padding(.top, 10)
+        .padding(.bottom, 10)
         .accessibilityLabel("Upgrade to Lumni Pro to keep talking")
     }
 }

@@ -76,3 +76,8 @@ with Pro (Pro is shared across the link): their token in
 `TEST_RUNNER_BEARINGS_UITEST_STUDENT_NAME`. Link them with
 `POST /api/v1/links/code` as the student, then `POST /api/v1/links/redeem`
 as the parent.
+
+`PlanTests` needs a Free student who has onboarded and used both sample
+counselor messages, in `TEST_RUNNER_BEARINGS_UITEST_FREE_TOKEN`. It loads the
+plans from `BearingsUITests/Lumni.storekit` (a copy of `Config/Lumni.storekit`)
+through `SKTestSession`, so nothing reaches the App Store.

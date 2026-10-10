@@ -312,10 +312,14 @@ private struct ParentHome: View {
 struct SettingsRoute: Hashable {}
 
 extension HomeView {
+    /// The photo, and beside it where the account stands: Pro, or a way to it.
     var profileButton: some View {
-        NavigationLink(value: SettingsRoute()) { AvatarView(size: 38) }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Your profile and settings")
+        HStack(spacing: 10) {
+            NavigationLink(value: SettingsRoute()) { AvatarView(size: 38) }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Your profile and settings")
+            PlanPill()
+        }
     }
 }
 
@@ -376,5 +380,46 @@ struct BalanceBar: View {
         .frame(height: 8)
         .accessibilityElement()
         .accessibilityLabel("\(reach) reach, \(target) target, \(likely) likely")
+    }
+}
+
+/// The account's plan, at a glance, next to the profile photo. Free reads
+/// as the way to Pro and opens the paywall; Pro says so, and how.
+///
+/// An icon and a Text rather than a Label: in a toolbar a Label is drawn as
+/// its icon alone, whatever labelStyle says.
+struct PlanPill: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        if model.viewer?.plan == nil {
+            EmptyView() // a server from before Pro: nothing to say
+        } else if model.isPro {
+            let plan = model.viewer?.plan
+            pill(plan?.inTrial == true ? "Pro · trial" : plan?.via == "family" ? "Pro · family" : "Pro",
+                 icon: "checkmark.seal.fill", ink: .white, fill: .accent)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(plan?.inTrial == true ? "Lumni Pro, free trial" : "Lumni Pro")
+                .accessibilityIdentifier("plan.pill")
+        } else if !model.proRemoved {
+            Button { model.showPaywall() } label: {
+                pill("Upgrade to Pro", icon: "sparkles", ink: .accent, fill: .lavender)
+                    .overlay(Capsule().stroke(Color.accent.opacity(0.35)))
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Free plan. Upgrade to Lumni Pro")
+            .accessibilityIdentifier("plan.pill")
+        }
+    }
+
+    private func pill(_ text: String, icon: String, ink: Color, fill: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+            Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+        }
+        .foregroundStyle(ink)
+        .padding(.horizontal, 12).padding(.vertical, 7)
+        .background(fill, in: Capsule())
+        .fixedSize()
     }
 }

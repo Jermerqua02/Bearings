@@ -72,8 +72,6 @@ struct ProPaywall: View {
                     if model.proRemoved {
                         InlineNote(text: "Pro isn't available on this account. If you think that's a mistake, write to support@promptllc.com.", kind: .problem)
                     } else {
-                        purchase
-
                         VStack(alignment: .leading, spacing: 10) {
                             Button("Have a school code?") { schoolCode = true }
                             Button("Can't afford it? Ask for free access") { asking = true }
@@ -88,6 +86,18 @@ struct ProPaywall: View {
                 .padding(20)
             }
             .background(Color.paper)
+            // The plans and the button to buy stay on screen, below the
+            // reasons — under six benefits they were a scroll away, and
+            // read as a paywall with nothing to pay with.
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                if !model.proRemoved {
+                    purchase
+                        .padding(.horizontal, 20)
+                        .padding(.top, 14)
+                        .padding(.bottom, 8)
+                        .background(Color.paper.shadow(.drop(color: .black.opacity(0.06), radius: 10, y: -4)))
+                }
+            }
             .task { await store.load() }
             .sheet(isPresented: $asking) { FreeAccessSheet().presentationBackground(Color.paper) }
             .sheet(isPresented: $schoolCode) { SchoolCodeSheet().presentationBackground(Color.paper) }
@@ -104,39 +114,66 @@ struct ProPaywall: View {
 }
 
 extension ProPaywall {
+    /// The plan they'd buy: the one picked, or whichever the store has.
+    private var chosen: Product? {
+        plan == .season ? (store.season ?? store.monthly) : (store.monthly ?? store.season)
+    }
+
     @ViewBuilder
     var purchase: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let monthly = store.monthly, let season = store.season {
-                // Two plans, side by side, picked like a radio; one button
-                // buys the one picked.
+            if store.monthly != nil || store.season != nil {
+                // The plans the App Store returned, side by side, picked like
+                // a radio; one button buys the one picked. Each shows on its
+                // own — one missing product used to hide both.
                 HStack(alignment: .top, spacing: 10) {
-                    PlanCard(title: "Monthly", price: monthly.displayPrice, per: "a month",
-                             detail: store.trialEligible ? "7 days free, cancel anytime" : "Cancel anytime",
-                             badge: nil, selected: plan == .monthly) { plan = .monthly }
-                    PlanCard(title: "Season Pass", price: season.displayPrice, per: "for 12 months",
-                             detail: "One payment, junior spring through Decision Day",
-                             badge: savings(monthly, season).map { "SAVE \($0)%" } ?? "BEST VALUE",
-                             selected: plan == .season) { plan = .season }
+                    if let monthly = store.monthly {
+                        PlanCard(title: "Monthly", price: monthly.displayPrice, per: "a month",
+                                 detail: store.trialEligible ? "7 days free, cancel anytime" : "Cancel anytime",
+                                 badge: nil, selected: chosen?.id == monthly.id) { plan = .monthly }
+                    }
+                    if let season = store.season {
+                        PlanCard(title: "Season Pass", price: season.displayPrice, per: "for 12 months",
+                                 detail: "One payment, junior spring through Decision Day",
+                                 badge: store.monthly.flatMap { savings($0, season) }.map { "SAVE \($0)%" } ?? "BEST VALUE",
+                                 selected: chosen?.id == season.id) { plan = .season }
+                    }
                 }
-                Button { Task { await store.buy(plan == .season ? season : monthly) } } label: {
-                    if store.purchasing { ProgressView().tint(.white) }
-                    else if plan == .season { Text("Get the Season Pass — \(season.displayPrice)") }
-                    else { Text(store.trialEligible ? "Start your 7-day free trial" : "Subscribe — \(monthly.displayPrice) a month") }
+                // The cards match the taller one's height, and no more —
+                // pinned under the page they'd otherwise fill the screen.
+                .fixedSize(horizontal: false, vertical: true)
+                if let product = chosen {
+                    let isSeason = product.id == store.season?.id
+                    Button { Task { await store.buy(product) } } label: {
+                        if store.purchasing { ProgressView().tint(.white) }
+                        else if isSeason { Text("Get the Season Pass — \(product.displayPrice)") }
+                        else { Text(store.trialEligible ? "Start your 7-day free trial" : "Subscribe — \(product.displayPrice) a month") }
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
+                    .accessibilityIdentifier("paywall.buy")
+                    Text(isSeason
+                         ? "\(product.displayPrice) once for 12 months of Pro. It doesn't renew."
+                         : store.trialEligible
+                            ? "Free for 7 days, then \(product.displayPrice) a month. Cancel anytime in Settings."
+                            : "\(product.displayPrice) a month. Cancel anytime in Settings.")
+                        .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                Text(plan == .season
-                     ? "\(season.displayPrice) once for 12 months of Pro. It doesn't renew."
-                     : store.trialEligible
-                        ? "Free for 7 days, then \(monthly.displayPrice) a month. Cancel anytime in Settings."
-                        : "\(monthly.displayPrice) a month. Cancel anytime in Settings.")
-                    .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
             } else if store.loading {
-                ProgressView().frame(maxWidth: .infinity)
+                HStack(spacing: 10) { ProgressView(); Muted("Loading plans…", size: 14) }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
             } else {
-                Muted("Pro isn't available to buy just yet. Check back soon.", size: 14)
+                // Nothing came back from the App Store — offline, or the
+                // plans aren't live for this build yet. Say so, and retry.
+                VStack(alignment: .leading, spacing: 10) {
+                    Muted("We couldn't load the plans from the App Store just now.", size: 14)
+                    Button("Try again") { Task { await store.load() } }
+                        .buttonStyle(InkButtonStyle(compact: true))
+                }
             }
-            if let error = store.error { InlineNote(text: error, kind: .problem) }
+            if let error = store.error, store.monthly != nil || store.season != nil {
+                InlineNote(text: error, kind: .problem)
+            }
             if reason.intro {
                 Button("Not now") { dismiss() }
                     .buttonStyle(LinkButtonStyle(color: .grayStrong))
