@@ -21,7 +21,7 @@ export default function PrivacyPage() {
       <Section n={1} title="Who this covers">
         <p>
           This policy explains how {COMPANY.legalName} (“we,” “us,” “our”)
-          handles personal information in {COMPANY.productName} (the “Service”).
+          handles personal information in {COMPANY.productName} (the “Service”).{" "}
           {COMPANY.legalName} is the controller of that information. Our mailing
           address is {COMPANY.address}, and privacy questions go to{" "}
           {COMPANY.privacyEmail}.

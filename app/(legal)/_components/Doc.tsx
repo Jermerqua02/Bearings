@@ -70,8 +70,8 @@ export function Bullets({ items }: { items: React.ReactNode[] }) {
 /** For clauses that carry real legal weight and should not be skimmed past. */
 export function Emphasis({ children }: { children: React.ReactNode }) {
   return (
-    <p className="border border-hairline rounded-lg bg-surface px-4 py-3 text-[0.95rem]">
+    <div className="border border-hairline rounded-lg bg-surface px-4 py-3 text-[0.95rem]">
       {children}
-    </p>
+    </div>
   );
 }

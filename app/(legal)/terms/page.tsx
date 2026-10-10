@@ -20,7 +20,7 @@ export default function TermsPage() {
 
       <Section n={1} title="Who we are and what this covers">
         <p>
-          {COMPANY.productName} (the “Service”) is operated by {COMPANY.legalName}
+          {COMPANY.productName} (the “Service”) is operated by {COMPANY.legalName}{" "}
           (“we,” “us,” “our”), a limited liability company with a mailing address
           at {COMPANY.address}. These Terms of Service (“Terms”) govern your
           access to and use of the Service.
