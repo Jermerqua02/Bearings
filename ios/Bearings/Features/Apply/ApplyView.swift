@@ -8,6 +8,7 @@ struct ApplyView: View {
     @Environment(AppModel.self) private var model
     @State private var cards: [String: ApplicationCard] = [:]
     @State private var loadError: String?
+    @State private var path = NavigationPath()
 
     /// The web's pipeline. "applying" is a legacy status that reads as
     /// "Not started", as it does there.
@@ -20,7 +21,7 @@ struct ApplyView: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             Page(spacing: 20) {
                 TwoTone(lead: model.isParent ? "Where things stand," : "Your applications,", rest: "one school at a time.")
                 UpgradeBanner()
@@ -48,6 +49,7 @@ struct ApplyView: View {
             .schoolDestination()
             .refreshable { try? await model.refresh(); await load() }
         }
+        .tabRoot(.apply, path: $path)
         // Reload when the list changes shape — a school saved in Explore
         // needs its requirements fetched.
         // Again when the plan changes: the requirements are Pro.

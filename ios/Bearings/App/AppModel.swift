@@ -31,8 +31,17 @@ final class AppModel {
     var tab: AppTab = .home {
         didSet { if tab != oldValue { navCollapsed = false } }
     }
+    /// Bumped when the showing tab's button is tapped again: back to its top.
+    var tabReselected = 0
     /// The counselor sheet, opened from the chat button on any screen.
     var counselorOpen = false
+    /// The first meeting — the welcome tour and the questions — over
+    /// everything else. Opens by itself once per launch for an account
+    /// with no profile; after that, from the prompts that ask for one.
+    var onboardingOpen = false
+    /// Where the meeting got to, kept across a close and reopen.
+    var onboardingDraft = OnboardingDraft()
+    private var onboardingOffered = false
     /// The main nav shrinks to a menu button while the student scrolls
     /// down, and comes back on scroll up or a tap.
     var navCollapsed = false
@@ -113,6 +122,9 @@ final class AppModel {
         snapshot = nil
         avatar = nil
         avatarVersion = nil
+        onboardingOpen = false
+        onboardingDraft = OnboardingDraft()
+        onboardingOffered = false
         phase = .signedOut
     }
 
@@ -137,8 +149,46 @@ final class AppModel {
         viewer = res.viewer
         snapshot = res.snapshot
         startStore()
+        offerOnboardingOnce()
         offerProOnce()
         await syncAvatar()
+    }
+
+    // MARK: Onboarding
+
+    /// No profile yet: start the first meeting rather than leave them on a
+    /// Home with nothing in it. Once per launch, so closing it sticks.
+    private func offerOnboardingOnce() {
+        guard snapshot != nil, snapshot?.profile == nil, !onboardingOffered else { return }
+        onboardingOffered = true
+        onboardingOpen = true
+    }
+
+    func startOnboarding() {
+        onboardingOpen = true
+    }
+
+    /// Whether this account has seen the welcome tour on this device.
+    var welcomeTourSeen: Bool {
+        get { viewer.map { UserDefaults.standard.bool(forKey: "welcomeTourSeen-\($0.id)") } ?? false }
+        set { if let viewer { UserDefaults.standard.set(newValue, forKey: "welcomeTourSeen-\(viewer.id)") } }
+    }
+
+    /// Save the answers as the profile; returns the summary to show back.
+    /// Runs again on a second pass — the save is an upsert.
+    func completeOnboarding(_ answers: OnboardingAnswers) async throws -> String {
+        let role: Role = viewer?.role == .admin ? (answers.role ?? .student) : (viewer?.role ?? .student)
+        struct Saved: Decodable { let summary: String }
+        let saved: Saved = try await api.post("/api/v1/onboarding", answers.body(as: role))
+        return saved.summary
+    }
+
+    /// "That's me": close the meeting. The reload that makes Home personal
+    /// (and offers the trial) runs once the cover is gone — a sheet
+    /// presented under a full-screen cover is never shown.
+    func finishOnboarding() {
+        onboardingDraft = OnboardingDraft()
+        onboardingOpen = false
     }
 
     // MARK: Home state

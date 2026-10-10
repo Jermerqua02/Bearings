@@ -66,6 +66,13 @@ struct MainTabView: View {
                 .presentationDragIndicator(.visible)
                 .presentationBackground(Color.paper)
         }
+        // The first meeting. Home reloads once it's gone, which makes it
+        // personal and — for a new Free account — offers the trial.
+        .fullScreenCover(isPresented: $model.onboardingOpen, onDismiss: {
+            Task { try? await model.refresh() }
+        }) {
+            OnboardingView()
+        }
     }
 }
 
@@ -157,6 +164,7 @@ struct MainNav: View {
                     ForEach(Self.items, id: \.0) { tab, label, icon in
                         let active = model.tab == tab
                         Button {
+                            if active { model.tabReselected += 1 }
                             model.tab = tab
                             withAnimation(.snappy(duration: 0.3)) { model.navCollapsed = false }
                         } label: {
@@ -213,5 +221,27 @@ extension View {
                 .overlay(shape.stroke(Color.black.opacity(0.06)))
                 .shadow(color: .black.opacity(0.1), radius: 16, y: 6)
         }
+    }
+}
+
+extension View {
+    /// A tab opens on its own first screen. Leaving it pops whatever was
+    /// pushed — a school, Settings — while it's out of sight, so coming back
+    /// lands on the tab, not wherever it was left; tapping the tab it's
+    /// already on does the same, as in every iOS app.
+    func tabRoot(_ tab: AppTab, path: Binding<NavigationPath>) -> some View {
+        modifier(TabRoot(tab: tab, path: path))
+    }
+}
+
+private struct TabRoot: ViewModifier {
+    @Environment(AppModel.self) private var model
+    let tab: AppTab
+    @Binding var path: NavigationPath
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: model.tab) { old, _ in if old == tab { path = NavigationPath() } }
+            .onChange(of: model.tabReselected) { if model.tab == tab { path = NavigationPath() } }
     }
 }

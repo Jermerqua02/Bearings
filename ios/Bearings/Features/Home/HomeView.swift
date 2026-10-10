@@ -48,6 +48,7 @@ struct HomeView: View {
                 }
             }
         }
+        .tabRoot(.home, path: $path)
     }
 }
 
@@ -297,15 +298,20 @@ extension HomeView {
 
 // MARK: Shared
 
+/// Shown when they closed the first meeting before finishing it.
 private struct OnboardingPrompt: View {
+    @Environment(AppModel.self) private var model
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
+            GraduateView().frame(height: 200).frame(maxWidth: .infinity)
             (Text("Welcome. ").foregroundStyle(Color.ink) + Text("Let's get acquainted.").foregroundStyle(Color.grayMid))
                 .font(.headline1)
-            Text("Fifteen minutes of honest questions, and everything in here becomes personal to you.")
-            // Onboarding isn't native yet; the website's flow writes the same profile.
-            Link("Start onboarding on the web", destination: Config.apiBaseURL.appending(path: "onboarding"))
-                .foregroundStyle(Color.accent)
+            Text("A few minutes of honest questions, and everything in here becomes personal to you.")
+            Button(model.onboardingDraft.index > 0 ? "Pick up where you left off" : "Start your first meeting") {
+                model.startOnboarding()
+            }
+            .buttonStyle(PrimaryButtonStyle())
         }
     }
 }

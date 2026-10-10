@@ -65,4 +65,53 @@ final class NavigationTests: XCTestCase {
         expand.tap()
         XCTAssertTrue(app.buttons["nav.explore"].waitForExistence(timeout: 3), "Menu didn't expand on the school page")
     }
+
+    /// A school opened in Explore, then Apply, then back to Explore: the
+    /// results, not the school left open.
+    func testLeavingATabReturnsToItsRoot() throws {
+        let first = app.buttons.matching(identifier: "explore.result").firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 20))
+        first.tap()
+        XCTAssertTrue(app.staticTexts["school.name"].waitForExistence(timeout: 15))
+
+        tapTab("apply")
+        tapTab("explore")
+        XCTAssertTrue(first.waitForExistence(timeout: 10), "Explore came back on the school instead of its results")
+        XCTAssertFalse(app.staticTexts["school.name"].exists)
+    }
+
+    /// Settings opened from Home, then Apply, then Home: Home itself.
+    func testHomeReturnsToHomeAfterSettings() throws {
+        tapTab("home")
+        let profile = app.buttons["Your profile and settings"]
+        XCTAssertTrue(profile.waitForExistence(timeout: 10))
+        profile.tap()
+        XCTAssertTrue(app.navigationBars.buttons.element(boundBy: 0).waitForExistence(timeout: 10))
+        XCTAssertFalse(profile.isHittable, "Settings didn't open")
+
+        tapTab("apply")
+        tapTab("home")
+        XCTAssertTrue(profile.waitForExistence(timeout: 10))
+        XCTAssertTrue(profile.isHittable, "Home came back on Settings instead of Home")
+    }
+
+    /// Tapping the tab you're on goes back to its top.
+    func testRetappingATabPopsToRoot() throws {
+        let first = app.buttons.matching(identifier: "explore.result").firstMatch
+        XCTAssertTrue(first.waitForExistence(timeout: 20))
+        first.tap()
+        XCTAssertTrue(app.staticTexts["school.name"].waitForExistence(timeout: 15))
+        tapTab("explore")
+        XCTAssertTrue(first.waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["school.name"].exists, "Tapping Explore again didn't go back to the results")
+    }
+
+    /// The nav may have collapsed to its menu button on scroll.
+    private func tapTab(_ name: String) {
+        let expand = app.buttons["nav.expand"]
+        if expand.exists { expand.tap() }
+        let tab = app.buttons["nav.\(name)"]
+        XCTAssertTrue(tab.waitForExistence(timeout: 5), "No \(name) tab")
+        tab.tap()
+    }
 }

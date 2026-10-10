@@ -62,3 +62,8 @@ dev server as a seeded student:
       -scheme Bearings -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:BearingsUITests
 
 Without a token the tests skip rather than fail.
+
+`OnboardingTests` walks a brand-new student from the welcome tour to a
+saved profile, so it needs an account with no profile yet. Sign one up
+(`POST /api/v1/auth/sign-up`), sign in as above, and pass that token as
+`TEST_RUNNER_BEARINGS_UITEST_NEW_TOKEN`. Each run uses the account up.

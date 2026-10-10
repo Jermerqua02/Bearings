@@ -24,8 +24,12 @@ struct CounselorView: View {
                 if model.snapshot != nil && model.snapshot?.profile == nil {
                     Page {
                         TwoTone(lead: "Finish onboarding first.", rest: "I read your profile before I say anything.")
-                        Link("Start onboarding on the web →", destination: Config.apiBaseURL.appending(path: "onboarding"))
-                            .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
+                        // The cover can't open over this sheet; close it first.
+                        Button("Start your first meeting →") {
+                            model.counselorOpen = false
+                            Task { try? await Task.sleep(for: .milliseconds(400)); model.startOnboarding() }
+                        }
+                        .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
                     }
                 } else {
                     composerHome

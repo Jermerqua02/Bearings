@@ -98,6 +98,7 @@ struct ExploreView: View {
                 }
             }
         }
+        .tabRoot(.explore, path: $path)
         .task {
             #if DEBUG
             if let id = model.devSchool { model.devSchool = nil; path.append(SchoolRoute(id: id)) }
@@ -270,7 +271,7 @@ struct ExploreView: View {
             } else {
                 TwoTone(lead: "Set up your profile", rest: "and this gets personal.")
                 Muted("It takes about ten minutes, and everything here — chances, fit, what you'd actually pay — becomes specific to you.")
-                Link("Start onboarding on the web →", destination: Config.apiBaseURL.appending(path: "onboarding"))
+                Button("Start your first meeting →") { model.startOnboarding() }
                     .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
             }
         }
