@@ -1426,3 +1426,107 @@ export const appStoreAccounts = pgTable("app_store_account", {
   appAccountToken: uuid("app_account_token").notNull().unique().defaultRandom(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/* ————————————————————————————————————————
+   Free access: "Can't afford Pro?" (docs/plans/lumni-pro.md, step 4).
+
+   A student — or a parent, for their family — asks in a sentence or two;
+   the request waits in the admin portal; approving grants 12 months of Pro
+   with source "free_access". Judgment, not verification, until there's
+   volume enough to need more.
+   ———————————————————————————————————————— */
+
+export const requestStatusEnum = pgEnum("request_status", ["pending", "approved", "declined"]);
+
+export const freeAccessRequests = pgTable(
+  "free_access_request",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    message: text("message").notNull(),
+    schoolName: text("school_name"),
+    status: requestStatusEnum("status").notNull().default("pending"),
+    decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    /** The admin's note on the decision; shown to the requester when declined. */
+    decisionNote: text("decision_note"),
+    ...timestamps,
+  },
+  (t) => [index("free_access_user_idx").on(t.userId), index("free_access_status_idx").on(t.status)],
+);
+
+/* ————————————————————————————————————————
+   Schools (docs/plans/lumni-pro.md, step 5).
+
+   A school or nonprofit buys seats — Pro for its students — invoiced
+   directly (App Store guideline 3.1.3(c), Enterprise Services). Leads come
+   from "For schools" forms on the marketing site and in the app. A license
+   has one code; each student who enters it uses a seat and gets Pro until
+   the license ends.
+   ———————————————————————————————————————— */
+
+export const leadStatusEnum = pgEnum("lead_status", ["new", "contacted", "piloting", "customer", "closed"]);
+
+export const schoolLeads = pgTable(
+  "school_lead",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schoolName: text("school_name").notNull(),
+    contactName: text("contact_name").notNull(),
+    /** Their role: counselor, principal, nonprofit staff… */
+    role: text("role"),
+    email: text("email").notNull(),
+    /** Roughly how many students. */
+    students: integer("students"),
+    message: text("message"),
+    /** "site" (the marketing site) or "app". */
+    source: text("source").notNull(),
+    /** Set when it came from a signed-in account in the app. */
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    status: leadStatusEnum("status").notNull().default("new"),
+    notes: text("notes"),
+    ...timestamps,
+  },
+  (t) => [index("school_lead_status_idx").on(t.status)],
+);
+
+export const schoolLicenses = pgTable(
+  "school_license",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgName: text("org_name").notNull(),
+    contactEmail: text("contact_email"),
+    seats: integer("seats").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    /** As shown: "LINCOLN-7Q2K". Stored upper-case, dash kept. */
+    code: text("code").notNull().unique(),
+    /** Per seat per year, in cents; null for a free pilot. */
+    priceCents: integer("price_cents"),
+    /** "pilot", "invoiced", "paid", "overdue". */
+    invoiceStatus: text("invoice_status").notNull().default("pilot"),
+    leadId: uuid("lead_id").references(() => schoolLeads.id, { onDelete: "set null" }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    notes: text("notes"),
+    createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps,
+  },
+);
+
+export const seatRedemptions = pgTable(
+  "seat_redemption",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    licenseId: uuid("license_id")
+      .notNull()
+      .references(() => schoolLicenses.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    entitlementId: uuid("entitlement_id").references(() => entitlements.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("seat_redemption_once").on(t.licenseId, t.userId), index("seat_redemption_license_idx").on(t.licenseId)],
+);

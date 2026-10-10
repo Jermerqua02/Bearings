@@ -17,6 +17,8 @@ const NAV = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/telemetry", label: "Telemetry" },
   { href: "/admin/users", label: "Users" },
+  { href: "/admin/access", label: "Free access" },
+  { href: "/admin/schools", label: "Schools" },
   { href: "/admin/feedback", label: "Feedback" },
   { href: "/admin/usage", label: "Costs" },
   { href: "/admin/apis", label: "APIs" },

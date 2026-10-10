@@ -162,6 +162,13 @@
       "when": 1791593899436,
       "tag": "0022_typical_scarlet_witch",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1791600164583,
+      "tag": "0023_polite_vision",
+      "breakpoints": true
     }
   ]
 }

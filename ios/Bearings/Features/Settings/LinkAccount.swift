@@ -201,3 +201,41 @@ struct PlanRow: View {
         return nil
     }
 }
+
+
+/// Settings: the ways to Pro that aren't a purchase, and the way to tell a
+/// school about Lumni — which anyone can use.
+struct ProWaysSection: View {
+    @Environment(AppModel.self) private var model
+    @State private var asking = false
+    @State private var schoolCode = false
+    @State private var lead = false
+
+    var body: some View {
+        CardView {
+            if !model.isPro {
+                row("I have a school code", "ticket") { schoolCode = true }
+                Divider().overlay(Color.hairline)
+                row("Request free access", "heart") { asking = true }
+                Divider().overlay(Color.hairline)
+            }
+            row("Bring Lumni to your school", "building.columns") { lead = true }
+        }
+        .sheet(isPresented: $asking) { FreeAccessSheet().presentationBackground(Color.paper) }
+        .sheet(isPresented: $schoolCode) { SchoolCodeSheet().presentationBackground(Color.paper) }
+        .sheet(isPresented: $lead) { SchoolLeadSheet().presentationBackground(Color.paper) }
+    }
+
+    private func row(_ title: String, _ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Label(title, systemImage: icon).foregroundStyle(Color.ink)
+                Spacer()
+                Image(systemName: "chevron.right").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.grayMid)
+            }
+            .font(.system(size: 15))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}

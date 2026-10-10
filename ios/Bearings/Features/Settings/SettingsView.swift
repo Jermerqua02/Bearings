@@ -72,7 +72,10 @@ struct SettingsView: View {
                     PlanRow()
                 }
 
-                if viewer.role != .admin { LinkAccountSection() }
+                if viewer.role != .admin {
+                    LinkAccountSection()
+                    ProWaysSection()
+                }
             }
 
             CardView {

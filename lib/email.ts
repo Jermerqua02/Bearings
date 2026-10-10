@@ -176,3 +176,55 @@ export function budgetAlertEmail(input: {
       </p>`),
   };
 }
+
+/* ————— Pro: free access and schools ————— */
+
+const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+
+/** To admins: someone asked for free access. */
+export function freeAccessRequestedEmail(input: { email: string; message: string; schoolName?: string | null; adminUrl: string }) {
+  const school = input.schoolName ? ` (${input.schoolName})` : "";
+  return {
+    subject: `Free access request from ${input.email}`,
+    text: `${input.email}${school} asked for free access to Lumni Pro:\n\n${input.message}\n\nDecide in the admin portal: ${input.adminUrl}`,
+    html: SHELL(`
+      <p><strong>${esc(input.email)}</strong>${esc(school)} asked for free access to Lumni Pro:</p>
+      <blockquote style="margin:16px 0;padding:12px 16px;background:#f5f5f5;border-radius:8px">${esc(input.message)}</blockquote>
+      <p><a href="${input.adminUrl}" style="color:#16897D">Decide in the admin portal</a></p>`),
+  };
+}
+
+/** To the requester: the decision. */
+export function freeAccessDecisionEmail(input: { approved: boolean; until?: string; note?: string | null }) {
+  const subject = input.approved ? "You have Lumni Pro, free" : "About your Lumni Pro request";
+  const body = input.approved
+    ? `Your request for free access was approved. You have Lumni Pro until ${input.until}. Open the app to see your chances, your real costs, and your counselor.`
+    : `We weren't able to approve your request for free access this time.${input.note ? ` ${input.note}` : ""} If your school works with Lumni, ask your counselor for a school code.`;
+  return { subject, text: body, html: SHELL(`<p>${esc(body)}</p>`) };
+}
+
+/** To admins: a school asked about Lumni. */
+export function schoolLeadEmail(input: {
+  schoolName: string;
+  contactName: string;
+  role?: string | null;
+  email: string;
+  students?: number | null;
+  message?: string | null;
+  source: string;
+  adminUrl: string;
+}) {
+  const lines = [
+    `${input.contactName}${input.role ? `, ${input.role}` : ""} — ${input.email}`,
+    input.students ? `About ${input.students} students` : null,
+    input.message ? `\n${input.message}` : null,
+  ].filter(Boolean);
+  return {
+    subject: `School inquiry: ${input.schoolName}`,
+    text: `${input.schoolName} asked about Lumni (from the ${input.source}).\n\n${lines.join("\n")}\n\n${input.adminUrl}`,
+    html: SHELL(`
+      <p><strong>${esc(input.schoolName)}</strong> asked about Lumni (from the ${esc(input.source)}).</p>
+      <p>${lines.map((l) => esc(String(l))).join("<br/>")}</p>
+      <p><a href="${input.adminUrl}" style="color:#16897D">Open in the admin portal</a></p>`),
+  };
+}

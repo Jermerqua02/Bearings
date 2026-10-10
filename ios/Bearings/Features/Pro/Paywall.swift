@@ -17,6 +17,8 @@ struct ProPaywall: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(AppModel.self) private var model
     @State private var store = ProStore.shared
+    @State private var asking = false
+    @State private var schoolCode = false
 
     private let benefits: [(String, String, String)] = [
         ("chart.bar.xaxis", "Your chances", "Reach, target or likely at every school — and where you stand against the middle 50%."),
@@ -65,6 +67,12 @@ struct ProPaywall: View {
 
                     purchase
 
+                    VStack(alignment: .leading, spacing: 10) {
+                        Button("Have a school code?") { schoolCode = true }
+                        Button("Can't afford it? Ask for free access") { asking = true }
+                    }
+                    .buttonStyle(LinkButtonStyle(color: .accent))
+
                     Muted("Pro is shared with a linked parent or student. If yours has it, link your accounts in Settings and you'll have it too.", size: 14)
 
                     terms
@@ -73,6 +81,8 @@ struct ProPaywall: View {
             }
             .background(Color.paper)
             .task { await store.load() }
+            .sheet(isPresented: $asking) { FreeAccessSheet().presentationBackground(Color.paper) }
+            .sheet(isPresented: $schoolCode) { SchoolCodeSheet().presentationBackground(Color.paper) }
             // Bought, restored, or arrived through the link: done here.
             .onChange(of: model.isPro) { _, pro in if pro { dismiss() } }
             .toolbar {

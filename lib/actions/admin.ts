@@ -15,7 +15,9 @@
 import { desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { accountEvents, adminSettings, entitlements, feedback, users } from "@/lib/db/schema";
+import { accountEvents, adminSettings, entitlements, feedback, schoolLeads, users } from "@/lib/db/schema";
+import { decideFreeAccess } from "@/lib/free-access";
+import { createSchoolLicense, revokeSchoolLicense } from "@/lib/school-licenses";
 import { ownActiveEntitlements, proStatus } from "@/lib/entitlements";
 import { AuthzError, requireViewer } from "@/lib/auth/policy";
 import { safeError } from "@/lib/actions/_error";
@@ -227,6 +229,70 @@ export async function accountHistory(
     };
   } catch (err) {
     return { ok: false, error: safeError("admin", err, "Could not load the history.") };
+  }
+}
+
+/* ————————————— Free access and schools ————————————— */
+
+export async function decideFreeAccessAction(requestId: string, input: { approve: boolean; note?: string }): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin();
+    await decideFreeAccess(admin.userId, requestId, input);
+    revalidatePath("/admin/access");
+    revalidatePath("/admin/users");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not record the decision.") };
+  }
+}
+
+export async function setLeadStatusAction(leadId: string, status: string, notes?: string): Promise<ActionResult> {
+  try {
+    await requireAdmin();
+    const allowed = ["new", "contacted", "piloting", "customer", "closed"] as const;
+    if (!allowed.includes(status as (typeof allowed)[number])) return { ok: false, error: "Unknown status." };
+    await db
+      .update(schoolLeads)
+      .set({ status: status as (typeof allowed)[number], ...(notes !== undefined ? { notes: notes.slice(0, 2000) } : {}), updatedAt: new Date() })
+      .where(eq(schoolLeads.id, leadId));
+    revalidatePath("/admin/schools");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not update the inquiry.") };
+  }
+}
+
+export async function createLicenseAction(input: {
+  orgName: string;
+  contactEmail?: string;
+  seats: number;
+  endsAt: string;
+  priceDollars?: string;
+  invoiceStatus?: string;
+  leadId?: string | null;
+  notes?: string;
+}): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  try {
+    const admin = await requireAdmin();
+    const price = input.priceDollars?.trim() ? Math.round(Number(input.priceDollars) * 100) : null;
+    if (price !== null && (!Number.isFinite(price) || price < 0)) return { ok: false, error: "Price per seat must be a number." };
+    const { code } = await createSchoolLicense(admin.userId, { ...input, priceCents: price });
+    revalidatePath("/admin/schools");
+    return { ok: true, code };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not create the license.") };
+  }
+}
+
+export async function revokeLicenseAction(licenseId: string): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin();
+    await revokeSchoolLicense(admin.userId, licenseId);
+    revalidatePath("/admin/schools");
+    revalidatePath("/admin/users");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not end the license.") };
   }
 }
 
