@@ -13,6 +13,7 @@ import { loadProfileOnly } from "@/lib/db/queries/snapshot";
 import { chanceRead, fit, nextDeadline } from "@/lib/match";
 import { NotFound, route } from "@/lib/api/v1";
 import { adjustForResidency, residencyAt, US_STATES } from "@/lib/residency";
+import { isPro, proStatus } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
@@ -24,7 +25,12 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
   ]);
   if (!school) throw new NotFound();
 
-  const student = profile?.role === "student" ? profile : null;
+  // What this school means for *this* student — chances, fit, their price,
+  // where they stand against the middle 50% — is Pro. A Free account gets
+  // the published facts only; the personal half isn't computed, so no
+  // client can show it (docs/plans/lumni-pro.md).
+  const pro = isPro(await proStatus(viewer.userId, viewer.role));
+  const student = pro && profile?.role === "student" ? profile : null;
   const read = student ? chanceRead(student, school) : null;
   // Those figures are in-state at a public school; where the student lives
   // decides what's added on top (lib/residency.ts), budget fit included.
@@ -52,8 +58,9 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
     school,
     chance: read,
     fit: f ? { label: f.label, reasons: f.reasons } : null,
-    estimate: estimate ?? null,
-    residency: {
+    estimate: pro ? (estimate ?? null) : null,
+    locked: !pro,
+    residency: !pro ? null : {
       status: residency.status,
       homeState: homeState ?? null,
       homeStateName: homeState ? (US_STATES[homeState] ?? homeState) : null,

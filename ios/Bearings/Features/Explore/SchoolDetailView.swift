@@ -49,7 +49,12 @@ struct SchoolDetailView: View {
         Page(spacing: 18) {
             header(d)
             glance(d)
-            if let fit = d.fit { whyPanel(fit) }
+            if let fit = d.fit {
+                whyPanel(fit)
+            } else if d.locked == true {
+                LockedCard(icon: "sparkles", title: "How \(s.shortName) fits you",
+                           teaser: "Your chances here, what it would really cost you, and your counselor's take.")
+            }
             admissions(d)
             cost(d)
             academics(s)
@@ -104,8 +109,14 @@ struct SchoolDetailView: View {
         let a = d.school.admissions
         return VStack(spacing: 10) {
             TileRow {
-                StatTile(label: "What you'd likely pay / yr", value: d.estimate.map { Format.thousands($0) } ?? "—",
-                         note: residencyNote(d.residency), tint: .highlight, icon: "dollarsign")
+                if d.locked == true {
+                    // Free sees the published average; their own price is Pro.
+                    StatTile(label: "Average net price / yr", value: d.school.cost.avgNetPrice.map { Format.thousands($0) } ?? "—",
+                             note: "Published average", tint: .surface, icon: "dollarsign")
+                } else {
+                    StatTile(label: "What you'd likely pay / yr", value: d.estimate.map { Format.thousands($0) } ?? "—",
+                             note: residencyNote(d.residency), tint: .highlight, icon: "dollarsign")
+                }
                 StatTile(label: "Acceptance rate", value: a.acceptanceRate == nil ? "—" : Format.rate(a.acceptanceRate),
                          tint: .surface, icon: "checkmark.seal")
             }
@@ -169,7 +180,7 @@ struct SchoolDetailView: View {
     private func admissions(_ d: SchoolDetailResponse) -> some View {
         let a = d.school.admissions
         let hasRanges = (a.gpaMid50?.count == 2) || (a.satMid50?.count == 2)
-        return Panel(icon: "chart.bar.xaxis", title: "Admissions", subtitle: hasRanges ? "You against the middle 50%" : nil, tint: .surface) {
+        return Panel(icon: "chart.bar.xaxis", title: "Admissions", subtitle: hasRanges && d.locked != true ? "You against the middle 50%" : nil, tint: .surface) {
             // A range plots only where the school published one — a missing
             // range drawn against the student's real number would be invented.
             if let g = a.gpaMid50, g.count == 2 {
@@ -184,6 +195,9 @@ struct SchoolDetailView: View {
             }
             if !hasRanges && d.chance?.caveat == nil && d.chance?.tier != .reach {
                 Muted("This school hasn't published grade or test ranges.", size: 14)
+            }
+            if d.locked == true {
+                ProRow(text: "Your chances here, and where you stand against the middle 50%")
             }
         }
     }
@@ -208,7 +222,11 @@ struct SchoolDetailView: View {
         let hasCost = c.avgNetPrice != nil || c.stickerPrice != nil || !bands.isEmpty
 
         return Panel(icon: "dollarsign.circle", title: "Cost — honestly", subtitle: "Net price, not sticker, is the real number") {
-            if let r { ResidencyPanel(residency: r, school: d.school) }
+            if let r {
+                ResidencyPanel(residency: r, school: d.school)
+            } else if d.locked == true {
+                ProRow(text: "What \(d.school.shortName) would cost you — out-of-state, WUE, your family's income")
+            }
             if hasCost {
                 TileRow {
                     StatTile(label: "Average net price\(whose)",

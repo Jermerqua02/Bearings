@@ -28,8 +28,10 @@ struct ExploreOptions: Decodable {
 struct ExploreRow: Decodable, Identifiable {
     var id: String { school.id }
     let school: School
+    /// Nil on Free, where chances are Pro.
     let tier: ChanceTier?
-    let fitLabel: String
+    /// Empty on Free; optional for safety.
+    let fitLabel: String?
     /// The average net price for this student — out-of-state tuition added
     /// at a public school in another state. Older servers don't send it.
     let netForYou: Double?
@@ -43,6 +45,8 @@ struct CounselorPick: Decodable, Identifiable {
 
 struct ExploreResponse: Decodable {
     let needsProfile: Bool
+    /// Free: the public directory only — no chances, fit, picks or "your price".
+    let locked: Bool?
     let isParent: Bool?
     let total: Int?
     let page: Int?
@@ -92,6 +96,8 @@ struct ExploreQuery: Equatable {
 
 /// GET /api/v1/schools/:id
 struct SchoolDetailResponse: Decodable {
+    /// Free: published facts only — no chances, fit, or "your price".
+    let locked: Bool?
     let school: School
     let chance: Chance?
     let fit: Fit?

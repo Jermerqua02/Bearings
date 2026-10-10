@@ -12,6 +12,18 @@ struct MemorySection: View {
     @State private var editing: MemoryEdit?
 
     var body: some View {
+        // The counselor's memory is Pro. Free still sets where they live —
+        // that's their data, not her insight.
+        if model.isPro { full } else {
+            VStack(alignment: .leading, spacing: 16) {
+                LockedCard(icon: "sparkles", title: "What I know about you",
+                           teaser: "Everything you tell your counselor, remembered — so you never have to repeat yourself.")
+                HomeStateRow()
+            }
+        }
+    }
+
+    private var full: some View {
         VStack(alignment: .leading, spacing: 16) {
             Panel(icon: "sparkles", title: "What I know about you",
                   subtitle: facts.isEmpty ? "Nothing yet" : "\(facts.count) thing\(facts.count == 1 ? "" : "s") you've shared",

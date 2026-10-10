@@ -19,7 +19,7 @@ import "server-only";
 
 import { NextResponse } from "next/server";
 import { AuthzError } from "@/lib/auth/policy";
-import { UserFacingError, safeError } from "@/lib/actions/_error";
+import { UserFacingError, safeError, ProRequired } from "@/lib/actions/_error";
 
 /** Thrown by a handler to answer 400 with a message written for the user. */
 export class BadRequest extends UserFacingError {}
@@ -67,6 +67,7 @@ export function errorResponse(tag: string, err: unknown, userMessage: string) {
 function errorStatus(err: unknown) {
   if (err instanceof AuthzError) return err.message === "Not signed in" ? 401 : 403;
   if (err instanceof NotFound) return 404;
+  if (err instanceof ProRequired) return 402;
   if (err instanceof UserFacingError) return 400;
   return 500;
 }

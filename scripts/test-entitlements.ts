@@ -2,8 +2,9 @@
 import "./_env";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { entitlements, parentStudentLinks, users } from "@/lib/db/schema";
-import { proStatus, proStatuses } from "@/lib/entitlements";
+import { aiUsage, entitlements, parentStudentLinks, users } from "@/lib/db/schema";
+import { FREE_SAMPLE, assertFeature, proStatus, proStatuses, sampleLeft } from "@/lib/entitlements";
+import { ProRequired } from "@/lib/actions/_error";
 
 let failures = 0;
 const check = (l: string, ok: boolean, d?: string) => {
@@ -64,6 +65,18 @@ async function main() {
   const all = await proStatuses([{ userId: S, role: "student" }, { userId: P, role: "parent" }, { userId: A, role: "admin" }, { userId: O, role: "student" }]);
   check("matches the one-at-a-time answers",
     all.get(S)?.tier === "free" && all.get(P)?.tier === "pro" && all.get(A)?.tier === "pro" && all.get(O)?.tier === "free");
+
+  console.log("\nWhat Free can do");
+  const refused = async (f: () => Promise<void>) => { try { await f(); return false; } catch (e) { return e instanceof ProRequired; } };
+  check("Free starts with the whole sample", JSON.stringify(await sampleLeft(O)) === JSON.stringify(FREE_SAMPLE));
+  check("Free can use a chat message from the sample", !(await refused(() => assertFeature(O, "chat"))));
+  await db.insert(aiUsage).values(Array.from({ length: FREE_SAMPLE.chat }, () => ({ userId: O, feature: "chat" as const, model: "test", inputTokens: 0, outputTokens: 0, costMillicents: 1 })));
+  check("…and is refused once it's used", await refused(() => assertFeature(O, "chat")));
+  check("the interview sample is counted separately", !(await refused(() => assertFeature(O, "interview"))));
+  check("Pro-only features are refused for Free", await refused(() => assertFeature(O, "why_school")) && await refused(() => assertFeature(O, "transcript")));
+  await db.insert(entitlements).values({ userId: O, source: "admin" });
+  check("Pro has no sample limit", !(await refused(() => assertFeature(O, "chat"))) && !(await refused(() => assertFeature(O, "why_school"))));
+  check("an admin is never refused", !(await refused(() => assertFeature(A, "why_school"))));
 
   await cleanup();
   console.log(failures === 0 ? "\nAll checks passed.\n" : `\n${failures} failed.\n`);

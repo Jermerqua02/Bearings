@@ -68,7 +68,11 @@ struct SettingsView: View {
                     row("Email", viewer.email)
                     Divider().overlay(Color.hairline)
                     row("Account", viewer.role.rawValue.capitalized)
+                    Divider().overlay(Color.hairline)
+                    PlanRow()
                 }
+
+                if viewer.role != .admin { LinkAccountSection() }
             }
 
             CardView {

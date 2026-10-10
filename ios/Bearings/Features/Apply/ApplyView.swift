@@ -23,6 +23,7 @@ struct ApplyView: View {
         NavigationStack {
             Page(spacing: 20) {
                 TwoTone(lead: model.isParent ? "Where things stand," : "Your applications,", rest: "one school at a time.")
+                UpgradeBanner()
 
                 let list = model.snapshot?.list ?? []
                 if list.isEmpty {
@@ -121,7 +122,11 @@ private struct ApplicationCardView: View {
             .padding(14)
             .background(Color.mist, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
 
-            if let card {
+            if !model.isPro {
+                // The full tracker — what each school asks for, fees, where
+                // to file — is Pro. The status and deadline above stay free.
+                ProRow(text: "Everything \(school.shortName) asks for, the fee, and where to file")
+            } else if let card {
                 VStack(alignment: .leading, spacing: 12) {
                     SectionHeader(icon: "doc.text", title: "What they ask for", iconBackground: .mist)
                     requirements(card)

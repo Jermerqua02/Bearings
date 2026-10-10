@@ -9,7 +9,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { essayShares, essays, parentStudentLinks, users } from "@/lib/db/schema";
@@ -35,6 +35,15 @@ export async function inviteParent(
     const student = await requireStudent();
     const email = parentEmail.trim().toLowerCase();
     if (!email.includes("@")) return { ok: false, error: "Enter a valid email address." };
+
+    // One parent per student (lib/link-codes.ts): Pro is shared across the
+    // link, so a second one would share it twice.
+    const [linked] = await db
+      .select({ id: parentStudentLinks.id })
+      .from(parentStudentLinks)
+      .where(and(eq(parentStudentLinks.studentId, student.userId), eq(parentStudentLinks.status, "active")))
+      .limit(1);
+    if (linked) return { ok: false, error: "You already have a linked parent. Unlink them first to invite someone else." };
 
     const token = randomBytes(32).toString("base64url");
 
@@ -121,6 +130,19 @@ export async function acceptParentInvite(token: string): Promise<ActionResult> {
     if (link.parentEmail.toLowerCase() !== viewer.email.toLowerCase()) {
       return { ok: false, error: "This invitation was sent to a different email address." };
     }
+
+    // One to one, from both sides (lib/link-codes.ts).
+    const [taken] = await db
+      .select({ id: parentStudentLinks.id })
+      .from(parentStudentLinks)
+      .where(
+        and(
+          eq(parentStudentLinks.status, "active"),
+          or(eq(parentStudentLinks.studentId, link.studentId), eq(parentStudentLinks.parentId, viewer.userId)),
+        ),
+      )
+      .limit(1);
+    if (taken) return { ok: false, error: "One of you is already linked to someone else. Unlink first in Settings." };
 
     await db
       .update(parentStudentLinks)

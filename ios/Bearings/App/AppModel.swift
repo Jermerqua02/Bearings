@@ -194,6 +194,44 @@ final class AppModel {
 
     var isParent: Bool { viewer?.role == .parent }
 
+    // MARK: Pro
+
+    /// Pro — or a server from before Pro, where everything was open.
+    var isPro: Bool { viewer?.plan?.isPro ?? true }
+
+    /// What's left of the Free sample of the counselor.
+    var sample: Plan.Sample? { isPro ? nil : viewer?.plan?.sample }
+
+    /// The paywall, when it's showing, and what sent them there.
+    var paywall: PaywallReason?
+
+    func showPaywall(_ message: String? = nil) {
+        paywall = PaywallReason(message: message)
+    }
+
+    /// A sample message or practice question was used; keep the count true
+    /// without refetching the whole account.
+    func usedSample(_ kind: SampleKind) {
+        guard var plan = viewer?.plan, var s = plan.sample else { return }
+        switch kind {
+        case .chat: s.chat = max(0, s.chat - 1)
+        case .interview: s.interview = max(0, s.interview - 1)
+        }
+        plan.sample = s
+        viewer?.plan = plan
+    }
+
+    enum SampleKind { case chat, interview }
+
+    /// The server said Pro (402): show the paywall instead of an error.
+    /// True when that's what happened.
+    @discardableResult
+    func handlePro(_ error: Error) -> Bool {
+        guard let e = error as? APIError, e.status == 402 else { return false }
+        showPaywall(e.message)
+        return true
+    }
+
     // MARK: List
 
     func updateEntry(_ schoolId: String, _ change: (inout ListEntry) -> Void) {
@@ -278,7 +316,7 @@ final class AppModel {
                 try await request()
             } catch {
                 if snapshot != nil { rollback(&snapshot!) }
-                self.error = error.localizedDescription
+                if !handlePro(error) { self.error = error.localizedDescription }
             }
         }
     }

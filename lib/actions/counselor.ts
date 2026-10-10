@@ -30,6 +30,7 @@ import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
 import { addMemories, rawMemories, updateMemory } from "@/lib/db/queries/memory";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { assertFeature, isPro, proStatus } from "@/lib/entitlements";
 import { UserFacingError } from "@/lib/actions/_error";
 import { createClaudeCounselor } from "@/lib/counselor/claude";
 import { localTitle } from "@/lib/counselor";
@@ -97,6 +98,9 @@ async function guardedServiceFor(userId: string, feature: string) {
       `You've reached the limit for this feature (${rate.limit} an hour). Try again in about ${minutes} minute${minutes === 1 ? "" : "s"}.`,
     );
   }
+  // Free gets the counselor once, as a sample; the rest is Pro. One check,
+  // here, because every AI call already comes through.
+  await assertFeature(userId, feature);
   return serviceFor(userId);
 }
 
@@ -124,6 +128,8 @@ async function sessionProfile() {
  */
 async function rememberFromTurn(userId: string, threadId: string, studentMessage: string, counselorReply: string) {
   try {
+    // The counselor's memory is Pro: a Free sample conversation isn't filed.
+    if (!isPro(await proStatus(userId))) return;
     const known = (await rawMemories(userId)).map((m) => ({ id: m.id, category: m.category, fact: m.fact }));
     const changes = await serviceFor(userId).extractMemories({ studentMessage, counselorReply, known });
     if (changes.add.length) await addMemories(userId, changes.add, "chat", threadId);

@@ -21,6 +21,30 @@ struct Viewer: Codable, Equatable {
     let role: Role
     /// When the profile photo last changed; nil if there isn't one.
     let avatarUpdatedAt: String?
+    /// Free or Pro. Nil from a server older than Pro, where everything was open.
+    var plan: Plan?
+}
+
+/// Free or Pro, and why (docs/plans/lumni-pro.md). Free is the public
+/// directory and a one-time sample of the counselor; everything about the
+/// student is Pro.
+struct Plan: Codable, Equatable {
+    let tier: String
+    /// "app_store", "admin", "free_access", "school" or "staff".
+    let source: String?
+    let endsAt: String?
+    let inTrial: Bool?
+    /// "own", or "family" when it's shared from a linked parent or student.
+    let via: String?
+    /// What's left of the Free sample; nil on Pro.
+    var sample: Sample?
+
+    struct Sample: Codable, Equatable {
+        var chat: Int
+        var interview: Int
+    }
+
+    var isPro: Bool { tier == "pro" }
 }
 
 enum GradeMode: String, Codable {

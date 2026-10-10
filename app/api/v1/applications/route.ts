@@ -9,6 +9,7 @@
    ———————————————————————————————————————— */
 
 import { requireViewer } from "@/lib/auth/policy";
+import { isPro, proStatus } from "@/lib/entitlements";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
 import { applyRoutes, attribution, emptyReason, feeLabel, requirementLines } from "@/lib/requirements";
 import { ALL_APPLICATION_PLANS, planLabel, planPrompt, planWhy } from "@/lib/schools";
@@ -19,6 +20,9 @@ export const runtime = "nodejs";
 
 export const GET = route("applications", "We couldn't load your applications.", async () => {
   const viewer = await requireViewer();
+  // What each school asks for, its fee, where to file: the full tracker is
+  // Pro. Status and deadlines live in the snapshot and stay free.
+  if (!isPro(await proStatus(viewer.userId, viewer.role))) return { cards: [], locked: true };
   const snap = await loadSnapshot(viewer);
   const byId = new Map(snap.schools.map((s) => [s.id, s]));
 

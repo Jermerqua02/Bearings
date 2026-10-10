@@ -15,6 +15,7 @@ import { searchSchools } from "@/lib/db/queries/schools";
 import { loadProfileOnly } from "@/lib/db/queries/snapshot";
 import { chanceRead, fit } from "@/lib/match";
 import { counselorPicksFor } from "@/lib/picks";
+import { isPro, proStatus } from "@/lib/entitlements";
 import {
   COST_CAPS,
   PAGE_SIZE,
@@ -53,11 +54,36 @@ export const GET = route("explore", "We couldn't load schools just now.", async 
   const raw = Object.fromEntries(new URL(request.url).searchParams.entries());
   const params = parseExploreParams(raw);
 
+  // Free is the public directory: what a college's own site would say.
+  // Everything relative to this student — chances, fit, their price,
+  // picks, and the sort and filter built on them — is Pro, and isn't even
+  // computed for a Free account, so no client can show it.
+  const pro = isPro(await proStatus(viewer.userId, viewer.role));
+  if (!pro) {
+    if (params.sort === "fit") params.sort = "name";
+    params.tiers = [];
+  }
+
   const [result, picks] = await Promise.all([
     searchSchools(profile, { ...params, perPage: PAGE_SIZE }),
     // Picks are only shown on an unfiltered first page, so skip the query otherwise.
-    params.page === 1 ? counselorPicksFor(profile) : Promise.resolve([]),
+    pro && params.page === 1 ? counselorPicksFor(profile) : Promise.resolve([]),
   ]);
+
+  if (!pro) {
+    return {
+      needsProfile: false,
+      locked: true,
+      total: result.total,
+      page: result.page,
+      pageCount: result.pageCount,
+      // fitLabel "" rather than null: builds before Pro decode it as a string.
+      rows: result.schools.map((school) => ({ school, tier: null, fitLabel: "", netForYou: null, residency: null })),
+      picks: [],
+      // "Best fit" and the chance filter are built on them: Pro.
+      options: { ...OPTIONS, sorts: OPTIONS.sorts.filter((s) => s.id !== "fit"), tiers: [] },
+    };
+  }
 
   let rows = result.schools.map((school) => {
     // The average net price is in-state at a public school; this is theirs,
@@ -79,6 +105,7 @@ export const GET = route("explore", "We couldn't load schools just now.", async 
 
   return {
     needsProfile: false,
+    locked: false,
     total: result.total,
     page: result.page,
     pageCount: result.pageCount,

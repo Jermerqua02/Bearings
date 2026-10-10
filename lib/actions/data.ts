@@ -12,7 +12,7 @@
 
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import {
@@ -34,6 +34,8 @@ import {
   weeklyCheckIns,
 } from "@/lib/db/schema";
 import { requireStudent, requireViewer } from "@/lib/auth/policy";
+import { FREE_LIST_LIMIT, isPro, proStatus } from "@/lib/entitlements";
+import { ProRequired } from "@/lib/actions/_error";
 import type {
   Activity,
   AidOffer,
@@ -51,6 +53,14 @@ const touch = { updatedAt: new Date() };
 
 export async function addToListAction(entry: ListEntry) {
   const s = await requireStudent();
+  // Free lists hold five schools; Pro saves as many as they like. Schools
+  // already saved stay saved whatever the plan.
+  if (!isPro(await proStatus(s.userId, s.role))) {
+    const [{ n }] = await db.select({ n: count() }).from(listEntries).where(eq(listEntries.studentId, s.userId));
+    if (n >= FREE_LIST_LIMIT) {
+      throw new ProRequired(`Your free list holds ${FREE_LIST_LIMIT} schools. Pro lets you save as many as you like.`);
+    }
+  }
   await db
     .insert(listEntries)
     .values({

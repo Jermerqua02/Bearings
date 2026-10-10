@@ -6,6 +6,7 @@ import SwiftUI
 /// with what worked, what to work on, and the next question. One turn at a
 /// time, the way the real thing goes. See InterviewSession for the phases.
 struct InterviewView: View {
+    @Environment(AppModel.self) private var model
     @State private var session = InterviewSession()
     @AppStorage("interviewVoiceMuted") private var muted = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -38,7 +39,10 @@ struct InterviewView: View {
                 }
             }
         }
-        .task { if session.state == nil { await session.load() } }
+        .task {
+            session.model = model
+            if session.state == nil { await session.load() }
+        }
         .onChange(of: muted, initial: true) { session.voice.muted = muted }
         .onChange(of: reduceMotion, initial: true) { session.voice.reduceMotion = reduceMotion }
         // Recognition can end on its own — a long pause, a phone call.
@@ -60,6 +64,14 @@ struct InterviewView: View {
             TwoTone(lead: "Practice the conversation", rest: "before it counts.")
 
             HowItWorks()
+
+            if let left = model.sample?.interview {
+                Label(left > 0
+                      ? "\(left) free practice question\(left == 1 ? "" : "s") — about one session. Pro is unlimited."
+                      : "You've used your free practice. Pro lets you keep going.",
+                      systemImage: left > 0 ? "mic" : "lock.fill")
+                    .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.grayStrong)
+            }
 
             if let error = session.error { InlineNote(text: error, kind: .problem) }
 

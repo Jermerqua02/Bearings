@@ -12,12 +12,13 @@ import { userAvatars } from "@/lib/db/schema";
 import { requireViewer } from "@/lib/auth/policy";
 import { loadSnapshot } from "@/lib/db/queries/snapshot";
 import { route } from "@/lib/api/v1";
+import { planFor } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 
 export const GET = route("snapshot", "We couldn't load your account just now.", async () => {
   const viewer = await requireViewer();
-  const [snapshot, [avatar]] = await Promise.all([
+  const [snapshot, [avatar], plan] = await Promise.all([
     loadSnapshot(viewer),
     // Only when it last changed — the app fetches the bytes itself, and
     // uses this to know when its copy is stale.
@@ -26,6 +27,7 @@ export const GET = route("snapshot", "We couldn't load your account just now.", 
       .from(userAvatars)
       .where(eq(userAvatars.userId, viewer.userId))
       .limit(1),
+    planFor(viewer.userId, viewer.role),
   ]);
   return {
     viewer: {
@@ -34,7 +36,10 @@ export const GET = route("snapshot", "We couldn't load your account just now.", 
       email: viewer.email,
       role: viewer.role,
       avatarUpdatedAt: avatar?.updatedAt.toISOString() ?? null,
+      // Free or Pro, where Pro came from, and what's left of the Free sample.
+      plan,
     },
-    snapshot,
+    // "This week" is the counselor's plan for them: Pro.
+    snapshot: plan.tier === "pro" ? snapshot : { ...snapshot, checkIns: [] },
   };
 });

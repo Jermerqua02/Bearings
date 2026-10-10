@@ -22,8 +22,17 @@ final class CounselorStore {
     /// Schools named in cards that the snapshot didn't carry.
     private(set) var schools: [String: School] = [:]
     var error: String?
+    /// For Pro: the Free sample's count, and the paywall when it's spent.
+    weak var model: AppModel?
 
     private let api = APIClient.shared
+
+    /// Free with no sample left: the paywall, not a message that will be refused.
+    func sampleSpent() -> Bool {
+        guard let model, !model.isPro, (model.sample?.chat ?? 0) <= 0 else { return false }
+        model.showPaywall("That's the end of your free messages with the counselor. Pro lets you keep talking.")
+        return true
+    }
 
     func load() async {
         do {
@@ -56,7 +65,7 @@ final class CounselorStore {
 
     func send(_ text: String, in threadId: String) async {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, !sampleSpent() else { return }
 
         struct Context: Encodable { let schoolId: String }
         struct Body: Encodable { let message: String; let context: Context? }
@@ -90,6 +99,7 @@ final class CounselorStore {
                         inProgress[threadId] = nil
                         append(r.message, to: threadId)
                         replied = true
+                        model?.usedSample(.chat)
                     }
                 case "done":
                     if let title = event.decode(Done.self)?.title, let i = index(threadId) { threads[i].title = title }
@@ -109,6 +119,8 @@ final class CounselorStore {
             // Losing the connection after the answer arrived only costs the
             // title, which the next load picks up — not worth an alert.
             if replied { return }
+            // Out of the Free sample: the paywall says so, not an alert.
+            if model?.handlePro(error) == true { return }
             // The student's message stays on screen — the server persists it
             // before calling the model, so it's in the thread either way.
             self.error = error.localizedDescription

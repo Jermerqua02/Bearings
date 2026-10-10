@@ -16,9 +16,10 @@
 
 import "server-only";
 
-import { and, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, count, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { entitlements, parentStudentLinks } from "@/lib/db/schema";
+import { aiUsage, entitlements, parentStudentLinks, users } from "@/lib/db/schema";
+import { ProRequired } from "@/lib/actions/_error";
 
 export type ProSource = "app_store" | "admin" | "free_access" | "school" | "staff";
 
@@ -98,10 +99,74 @@ function statusFrom(row: Row | undefined, ownerId: string): ProStatus {
   };
 }
 
-/** Pro status for one account. Pass the role when it's known, to skip a lookup for admins. */
+/** Pro status for one account. Pass the role when it's known, to skip a lookup. */
 export async function proStatus(userId: string, role?: string): Promise<ProStatus> {
+  if (role === undefined) {
+    const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, userId)).limit(1);
+    role = u?.role ?? "student";
+  }
   if (role === "admin") return { tier: "pro", source: "staff", endsAt: null, inTrial: false, via: "own" };
-  return (await proStatuses([{ userId, role: role ?? "student" }])).get(userId) ?? { tier: "free" };
+  return (await proStatuses([{ userId, role }])).get(userId) ?? { tier: "free" };
+}
+
+export const isPro = (s: ProStatus) => s.tier === "pro";
+
+/* ————— What Free can do ————— */
+
+/**
+ * The counselor, once: enough to meet her, not to rely on her. Counted
+ * over the account's lifetime from ai_usage, the way rate limits count —
+ * no separate counter to drift. Interview is counted in questions; five
+ * is about one sitting.
+ */
+export const FREE_SAMPLE = { chat: 3, interview: 5 } as const;
+
+/** Free lists hold this many schools. */
+export const FREE_LIST_LIMIT = 5;
+
+/** AI features a Free account can't use at all — everything but the sample. */
+const PRO_ONLY = new Set(["greet", "why_school", "essay_feedback", "throughline", "summarize", "transcript", "memory"]);
+
+export async function sampleLeft(userId: string): Promise<{ chat: number; interview: number }> {
+  const rows = await db
+    .select({ feature: aiUsage.feature, n: count() })
+    .from(aiUsage)
+    .where(and(eq(aiUsage.userId, userId), inArray(aiUsage.feature, ["chat", "interview"])))
+    .groupBy(aiUsage.feature);
+  const used = Object.fromEntries(rows.map((r) => [r.feature, r.n]));
+  return {
+    chat: Math.max(0, FREE_SAMPLE.chat - (used.chat ?? 0)),
+    interview: Math.max(0, FREE_SAMPLE.interview - (used.interview ?? 0)),
+  };
+}
+
+/**
+ * Throw ProRequired unless this account may use this AI feature now: Pro
+ * may use anything; Free only the sample, while it lasts. Features not
+ * named here (titles, speech for the sample's interview) are allowed.
+ */
+export async function assertFeature(userId: string, feature: string): Promise<void> {
+  if (isPro(await proStatus(userId))) return;
+  if (PRO_ONLY.has(feature)) throw new ProRequired();
+  if (feature === "chat" || feature === "interview") {
+    const left = await sampleLeft(userId);
+    if (left[feature] > 0) return;
+    throw new ProRequired(
+      feature === "chat"
+        ? "That's the end of your free messages with the counselor. Pro lets you keep talking."
+        : "That's the end of your free interview practice. Pro lets you keep going.",
+    );
+  }
+}
+
+/** What the app needs to know about an account's plan. */
+export async function planFor(userId: string, role: string) {
+  const status = await proStatus(userId, role);
+  if (isPro(status)) {
+    const s = status as Extract<ProStatus, { tier: "pro" }>;
+    return { tier: "pro" as const, source: s.source, endsAt: s.endsAt?.toISOString() ?? null, inTrial: s.inTrial, via: s.via, sample: null };
+  }
+  return { tier: "free" as const, source: null, endsAt: null, inTrial: false, via: null, sample: await sampleLeft(userId) };
 }
 
 /** Pro status for many accounts at once — the admin roster — in two queries. */

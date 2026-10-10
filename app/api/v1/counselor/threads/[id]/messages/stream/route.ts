@@ -20,6 +20,8 @@ import { chatAction } from "@/lib/actions/counselor";
 import { safeError } from "@/lib/actions/_error";
 import { BadRequest, body, errorResponse, str } from "@/lib/api/v1";
 import { requireOwnThread } from "@/lib/api/threads";
+import { requireViewer } from "@/lib/auth/policy";
+import { assertFeature } from "@/lib/entitlements";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -30,6 +32,10 @@ export async function POST(request: Request, ctx: { params: Promise<{ id: string
   let input: Parameters<typeof chatAction>[0];
   try {
     const threadId = await requireOwnThread((await ctx.params).id);
+    // Checked before the stream opens, so running out of the Free sample is
+    // a 402 the app can turn into the paywall — not an error mid-stream.
+    const viewer = await requireViewer();
+    await assertFeature(viewer.userId, "chat");
     const b = await body(request);
     const message = str(b.message, "message", 8_000).trim();
     if (!message) throw new BadRequest("Write something first.");

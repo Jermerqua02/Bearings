@@ -29,6 +29,9 @@ struct RootView: View {
             }
         }
         .task { await model.launch() }
+        .sheet(item: $model.paywall) { reason in
+            ProPaywall(reason: reason).presentationBackground(Color.paper)
+        }
         .alert("Something went wrong",
                isPresented: Binding(get: { model.error != nil && model.phase == .signedIn },
                                     set: { if !$0 { model.error = nil } })) {

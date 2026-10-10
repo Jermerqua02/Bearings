@@ -39,6 +39,18 @@ export class UserFacingError extends Error {
 }
 
 /**
+ * A Free account reached for something Pro. The message is for them, and
+ * the API answers 402 so the app knows to show the paywall rather than an
+ * error (docs/plans/lumni-pro.md).
+ */
+export class ProRequired extends UserFacingError {
+  constructor(message = "That's part of Lumni Pro.") {
+    super(message);
+    this.name = "ProRequired";
+  }
+}
+
+/**
  * Log `err` server-side and return the message the user should see.
  *
  * @param tag    Log prefix identifying the call site, e.g. "onboarding".

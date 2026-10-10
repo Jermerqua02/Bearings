@@ -336,9 +336,12 @@ private struct ActivitiesSection: View {
         let ordered = model.orderedActivities
         let slots = limits?.activitySlots ?? 10
         VStack(alignment: .leading, spacing: 14) {
-            CardView(tint: .lavender) {
-                Text("Depth beats breadth — I'll say it every time. Three activities with growth and responsibility read better than nine memberships. This log feeds your applications automatically senior year.")
-                    .font(.system(size: 15))
+            // Her advice, so Pro; the log itself is theirs.
+            if model.isPro {
+                CardView(tint: .lavender) {
+                    Text("Depth beats breadth — I'll say it every time. Three activities with growth and responsibility read better than nine memberships. This log feeds your applications automatically senior year.")
+                        .font(.system(size: 15))
+                }
             }
             if ordered.count > 1 {
                 Muted("Applications ask for these in order of importance to you, and only the first \(slots) fit. Put the one you'd talk about first at the top.", size: 14)

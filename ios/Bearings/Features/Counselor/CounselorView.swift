@@ -50,7 +50,10 @@ struct CounselorView: View {
             .navigationDestination(for: YouRoute.self) { _ in YouView() }
             .schoolDestination()
         }
-        .task { if !store.loaded && model.snapshot?.profile != nil { await store.load() } }
+        .task {
+            store.model = model
+            if !store.loaded && model.snapshot?.profile != nil { await store.load() }
+        }
         // "Ask the counselor" on a school page lands here, with that school
         // attached to the next message.
         .task(id: model.askAbout?.id) {
@@ -70,6 +73,14 @@ struct CounselorView: View {
     private var composerHome: some View {
         Page(spacing: 24) {
             TwoTone(lead: "Ask me anything.", rest: "I've read your profile.")
+
+            if let left = model.sample?.chat {
+                Label(left > 0
+                      ? "\(left) free message\(left == 1 ? "" : "s") with me. Pro is unlimited."
+                      : "You've used your free messages. Pro lets us keep talking.",
+                      systemImage: left > 0 ? "bubble.left" : "lock.fill")
+                    .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.grayStrong)
+            }
 
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel("Start with")
@@ -135,7 +146,7 @@ struct CounselorView: View {
     /// Start a conversation with this message, then open it.
     private func begin(_ text: String) {
         let message = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !message.isEmpty, !starting else { return }
+        guard !message.isEmpty, !starting, !store.sampleSpent() else { return }
         starting = true
         let school = about
         Task {

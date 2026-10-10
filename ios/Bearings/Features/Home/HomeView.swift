@@ -103,9 +103,16 @@ private struct StudentHome: View {
         Greeting(name: profile.firstName, rest: "Here's where things stand.",
                  label: "\(GradeMode.forGrade(profile.gradeLevel).label) mode")
 
+        UpgradeBanner()
+
         if profile.homeState == nil { HomeStateCard() }
 
-        CheckInCard(checkIns: snapshot.checkIns)
+        if model.isPro {
+            CheckInCard(checkIns: snapshot.checkIns)
+        } else {
+            LockedCard(icon: "list.bullet.clipboard", title: "This week",
+                       teaser: "Three things your counselor would have you do this week — no more.")
+        }
 
         let deadlines = Match.deadlines(for: snapshot.list, schools: model.school, limit: 3)
         let next = deadlines.first
@@ -130,6 +137,10 @@ private struct StudentHome: View {
             Muted("None on the clock. \(early ? "Exactly right for where you are." : "Check your list's plans.")", size: 14)
         }
 
+        if !model.isPro {
+            LockedCard(icon: "chart.pie", title: "List balance",
+                       teaser: "How many of your schools are reaches, targets and likelies — and whether that's a list that works.")
+        } else {
         Panel(icon: "chart.pie", title: "List balance", subtitle: "\(counts.reach) reach · \(counts.target) target · \(counts.likely) likely", tint: .surface) {
             BalanceBar(reach: counts.reach, target: counts.target, likely: counts.likely)
             HStack(spacing: 12) {
@@ -137,6 +148,7 @@ private struct StudentHome: View {
             }
             Button { model.tab = .apply } label: { Label("Open your applications", systemImage: "arrow.up.right") }
                 .buttonStyle(OutlineButtonStyle(compact: true))
+        }
         }
 
         Panel(icon: "checklist", title: "Application progress") {
@@ -150,11 +162,16 @@ private struct StudentHome: View {
             }
         }
 
+        if !model.isPro {
+            LockedCard(icon: "sparkles", title: "From your counselor",
+                       teaser: "Her honest read on your list, and what she'd change.")
+        } else {
         Panel(icon: "sparkles", title: "From your counselor", tint: .lavender) {
             Text(Match.balanceMessage(reach: counts.reach, target: counts.target, likely: counts.likely))
                 .font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
             Button { model.counselorOpen = true } label: { Label("Talk it through", systemImage: "arrow.up.right") }
                 .buttonStyle(InkButtonStyle(compact: true))
+        }
         }
 
         if !snapshot.recentlyViewed.isEmpty {
@@ -233,8 +250,15 @@ private struct ParentHome: View {
         Greeting(name: profile.firstName, rest: "Here's the honest picture.",
                  label: "\(mode.label) mode · parent view")
 
-        Panel(icon: "sparkles", title: "What's normally happening now", tint: .lavender) {
-            Text(Self.seasonContext[mode] ?? "").font(.system(size: 16)).fixedSize(horizontal: false, vertical: true)
+        UpgradeBanner()
+
+        if model.isPro {
+            Panel(icon: "sparkles", title: "What's normally happening now", tint: .lavender) {
+                Text(Self.seasonContext[mode] ?? "").font(.system(size: 16)).fixedSize(horizontal: false, vertical: true)
+            }
+        } else {
+            LockedCard(icon: "sparkles", title: "What's normally happening now",
+                       teaser: "Where your student should be this season, and how to help.")
         }
 
         TileRow {

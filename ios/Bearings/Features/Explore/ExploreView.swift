@@ -14,6 +14,8 @@ final class ExploreStore {
     private(set) var pageCount = 0
     private(set) var needsProfile = false
     private(set) var isParent = false
+    /// Free: published facts only (docs/plans/lumni-pro.md).
+    private(set) var locked = false
     private(set) var loading = false
     var error: String?
 
@@ -54,6 +56,9 @@ final class ExploreStore {
         options = res.options
         needsProfile = res.needsProfile
         isParent = res.isParent ?? false
+        locked = res.locked ?? false
+        // "Best fit" is Pro; the server sorts A–Z instead, and so says the picker.
+        if locked, query.sort == "fit" { query.sort = "name" }
         total = res.total ?? 0
         pageCount = res.pageCount ?? 0
         rows = append ? rows + (res.rows ?? []) : (res.rows ?? [])
@@ -113,10 +118,18 @@ struct ExploreView: View {
                 TwoTone(lead: "\(store.total.formatted()) school\(store.total == 1 ? "" : "s")", rest: "worth your attention.")
                     .padding(.bottom, 20)
 
+                if store.locked { UpgradeBanner().padding(.bottom, 16) }
+
                 toolbar.padding(.bottom, 16)
 
-                if !store.picks.isEmpty && store.query.filterCount == 0 && store.query.q.isEmpty {
-                    picks.padding(.bottom, 28)
+                if store.query.filterCount == 0 && store.query.q.isEmpty {
+                    if store.locked {
+                        LockedCard(icon: "sparkles", title: "Counselor picks",
+                                   teaser: "Schools within reach for you, at your price — and why each one fits.")
+                            .padding(.bottom, 28)
+                    } else if !store.picks.isEmpty {
+                        picks.padding(.bottom, 28)
+                    }
                 }
 
                 if store.total > store.rows.count && !store.rows.isEmpty {
@@ -277,11 +290,15 @@ private struct ResultCard: View {
                             s.admissions.acceptanceRate.map { "\(Format.rate($0)) admit" },
                         ].compactMap { $0 }.joined(separator: " · "))
                         .font(.system(size: 13)).foregroundStyle(Color.grayMid)
-                        HStack(spacing: 8) {
-                            if let tier = row.tier { TierBadge(tier: tier) }
-                            Text(row.fitLabel).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accent)
+                        if row.tier != nil || !(row.fitLabel ?? "").isEmpty {
+                            HStack(spacing: 8) {
+                                if let tier = row.tier { TierBadge(tier: tier) }
+                                if let fit = row.fitLabel, !fit.isEmpty {
+                                    Text(fit).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accent)
+                                }
+                            }
+                            .padding(.top, 2)
                         }
-                        .padding(.top, 2)
                     }
                     Spacer(minLength: 0)
                 }

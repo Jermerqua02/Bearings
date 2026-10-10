@@ -43,6 +43,15 @@ final class InterviewSession {
     private(set) var loading = false
 
     let voice = CounselorVoice()
+    /// For Pro: the Free sample's count, and the paywall when it's spent.
+    weak var model: AppModel?
+
+    /// Free with no practice left: the paywall rather than a refused answer.
+    private func sampleSpent() -> Bool {
+        guard let model, !model.isPro, (model.sample?.interview ?? 0) <= 0 else { return false }
+        model.showPaywall("That's the end of your free interview practice. Pro lets you keep going.")
+        return true
+    }
     let ears = SpeechRecognizer()
 
     private let api = APIClient.shared
@@ -81,7 +90,7 @@ final class InterviewSession {
     // MARK: The turn
 
     func start() async {
-        guard phase == .choosing else { return }
+        guard phase == .choosing, !sampleSpent() else { return }
         sitting += 1
         exchanges = []
         error = nil
@@ -188,6 +197,7 @@ final class InterviewSession {
             guard mine == sitting else { return }
             exchanges[exchanges.count - 1].answer = text
             exchanges[exchanges.count - 1].feedback = fb
+            model?.usedSample(.interview)
             answer = ""
             sent = nil
             phase = .feedback
@@ -205,6 +215,8 @@ final class InterviewSession {
             guard mine == sitting else { return }
             sent = nil
             phase = .answering
+            // Out of the Free sample: the paywall; their answer stays put.
+            if model?.handlePro(error) == true { return }
             self.error = error.localizedDescription
         }
     }

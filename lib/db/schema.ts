@@ -1381,3 +1381,30 @@ export const accountEvents = pgTable(
   },
   (t) => [index("account_event_user_idx").on(t.userId, t.createdAt)],
 );
+
+/* ————————————————————————————————————————
+   Link codes: how a student and a parent link from the app.
+
+   Either side makes one (Settings › Link an account) and sends it however
+   they like; the other side enters it. A code is short enough to read
+   aloud, works once, for the opposite role only, and for seven days. The
+   link it makes is an ordinary parent_student_link — and since Pro is shared
+   across that link, a purchase by either side covers the pair.
+   ———————————————————————————————————————— */
+
+export const linkCodes = pgTable(
+  "link_code",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** As shown: "7Q2-K9M". Stored without the dash. */
+    code: text("code").notNull().unique(),
+    createdBy: text("created_by")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    usedBy: text("used_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("link_code_creator_idx").on(t.createdBy)],
+);

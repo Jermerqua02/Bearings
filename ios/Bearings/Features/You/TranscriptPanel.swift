@@ -23,7 +23,18 @@ struct TranscriptPanel: View {
         let notes: [String]
     }
 
+    @ViewBuilder
     var body: some View {
+        // Reading a transcript in is the counselor's work: Pro.
+        if !model.isPro {
+            LockedCard(icon: "doc.viewfinder", title: "Read your transcript in",
+                       teaser: "Upload it and your courses fill themselves in — no typing four years of classes.")
+        } else {
+            panel
+        }
+    }
+
+    private var panel: some View {
         Panel(icon: "doc.viewfinder", title: "Your transcript", subtitle: "Read your courses in, instead of typing them", tint: .surface) {
             Muted("Upload it and we'll read the coursework onto this page, so you aren't typing four years of classes by hand. The file stays here — yours to download whenever you need it, and never shown to a linked parent.", size: 14)
 
