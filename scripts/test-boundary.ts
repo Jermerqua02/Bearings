@@ -15,6 +15,7 @@ import "./_env";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  counselorMemories,
   counselorThreads,
   essayShares,
   essayVersions,
@@ -215,6 +216,23 @@ async function main() {
   );
   const studentVersions = await getEssayVersions(student, sharedEssay.id);
   check("student sees all revisions", studentVersions.length, 2);
+
+  console.log("\n\x1b[1mA parent's own counselor and list\x1b[0m");
+  // Parents have their own conversations, notes and list, keyed by their
+  // own id — private to them, the same way the student's are to the student.
+  await db.insert(counselorThreads).values({ studentId: PID, title: "Parent's thread" });
+  await db.insert(counselorMemories).values({ studentId: PID, category: "money", fact: "PARENT_PRIVATE_NOTE" });
+  await db.insert(listEntries).values({ studentId: PID, schoolId: "test-school-boundary", tier: "reach", status: "considering" });
+  check("parent reads own threads", await canRead(parent, "counselorThreads", PID), true);
+  check("parent reads own memory", await canRead(parent, "counselorMemory", PID), true);
+  check("parent reads own list", await canRead(parent, "listEntries", PID), true);
+  check("parent writes own rows", await assertCanWrite(parent, PID).then(() => true).catch(() => false), true);
+  check("parent still can't read student's threads", await canRead(parent, "counselorThreads", SID), false);
+  check("parent still can't read student's memory", await canRead(parent, "counselorMemory", SID), false);
+  check("parent can't write student's rows", await assertCanWrite(parent, SID).then(() => true).catch(() => false), false);
+  check("student can't read parent's threads", await canRead(student, "counselorThreads", PID), false);
+  check("student can't read parent's memory", await canRead(student, "counselorMemory", PID), false);
+  check("another parent can't read them", await canRead(other, "counselorThreads", PID), false);
 
   console.log("\n\x1b[1mRevocation\x1b[0m");
   await db

@@ -66,9 +66,56 @@ enum Starters {
         "How do I talk to my parents about where I want to go?",
     ]
 
+    /// A parent's questions. Their counselor is their own, and they come
+    /// with the parent's side of it: money, the calendar, and how to help
+    /// without taking over.
+    static let parent = [
+        // Money and aid
+        "How do we figure out what we'd really pay?",
+        "What's the difference between sticker price and net price?",
+        "When should we fill out the FAFSA, and what do we need?",
+        "What's the CSS Profile, and do we need it?",
+        "How does having two kids in college at once change aid?",
+        "Is a more expensive school ever worth it?",
+        "How much should we borrow, if anything?",
+        "How do merit scholarships work?",
+        "Can we appeal a financial aid offer?",
+        "What does in-state tuition mean for us?",
+        // The calendar
+        "What should we be doing this season?",
+        "When should we start visiting colleges?",
+        "What deadlines should be on our family calendar?",
+        "What happens between applying and decision day?",
+        // Helping without taking over
+        "How can I help without taking over?",
+        "How involved should I be in the essays?",
+        "My student seems stressed. What's normal?",
+        "How do I bring up money without crushing their hopes?",
+        "We disagree about where they should apply. Now what?",
+        "My student doesn't know what they want to study. Should I worry?",
+        "How do I talk about schools that are far from home?",
+        // The list and the choice
+        "Is my student's list realistic?",
+        "What makes a good safety school?",
+        "Explain early decision vs. early action for parents",
+        "What should we look for on a campus visit?",
+        "How do we compare offers when they come in?",
+        "Does it matter where they go to college?",
+        "Is community college then transferring a good path?",
+        "What's a gap year, and is it a good idea?",
+    ]
+
     /// Questions about one school, for arriving from its page.
-    static func about(_ school: School) -> [String] {
+    static func about(_ school: School, parent: Bool = false) -> [String] {
         let name = school.shortName
+        if parent {
+            return [
+                "What would \(name) really cost us?",
+                "Is \(name) a realistic choice for my student?",
+                "Is \(name) worth the money?",
+                "What should we ask on a visit to \(name)?",
+            ]
+        }
         return [
             "What are my chances at \(name)?",
             "Is \(name) worth the money for me?",
@@ -77,8 +124,8 @@ enum Starters {
         ]
     }
 
-    /// `count` general starters, a different draw each call.
-    static func draw(_ count: Int = 4) -> [String] {
-        Array(general.shuffled().prefix(count))
+    /// `count` starters, a different draw each call — a parent's set for a parent.
+    static func draw(_ count: Int = 4, parent: Bool = false) -> [String] {
+        Array((parent ? Self.parent : general).shuffled().prefix(count))
     }
 }

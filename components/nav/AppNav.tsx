@@ -9,11 +9,11 @@ import Wordmark from "@/components/Wordmark";
 
 /* Primary nav — desktop header + mobile bottom tab bar.
    Mobile tabs: Home · Explore · Counselor · List · Apply (per spec).
-   Parents see a reduced set: the counselor and interview routes are
-   student-private, so the nav must not link to them. */
+   Parents see a reduced set: interview practice is the student's, so the
+   nav must not link to it. The counselor they have — their own. */
 
 /** Kept in sync with STUDENT_ONLY_ROUTES in lib/auth/policy.ts. */
-const STUDENT_ONLY_HREFS = new Set(["/counselor", "/interviews"]);
+const STUDENT_ONLY_HREFS = new Set(["/interviews"]);
 
 const tabs = [
   { href: "/dashboard", label: "Home" },

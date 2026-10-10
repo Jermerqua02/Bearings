@@ -186,6 +186,8 @@ export interface CounselorService {
     studentMessage: string;
     counselorReply: string;
     known: { id: string; category: string; fact: string }[];
+    /** Whose notes these are; a parent's are about their family, in their own topics. */
+    role?: "student" | "parent";
   }): Promise<MemoryChanges>;
   /**
    * Read an uploaded transcript into course rows.

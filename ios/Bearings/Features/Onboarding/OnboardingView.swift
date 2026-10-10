@@ -208,7 +208,7 @@ private struct OnboardingQuestions: View {
                                                    text: a.activities, minLines: 4)
                                 .accessibilityIdentifier("onboarding.activities")))
         case .homeState:
-            return Question(prompt: "What state do you live in?",
+            return Question(prompt: role == .parent ? "What state does your family live in?" : "What state do you live in?",
                             note: "Public colleges charge much less if you live in their state, and some give students from nearby states a discount (like WUE in the West). This is how I work out what you'd really pay.",
                             valid: v.homeState != nil,
                             body: AnyView(StateChooser(selection: a.homeState)))
@@ -256,7 +256,8 @@ private struct OnboardingQuestions: View {
                             note: "Whatever it is, you're almost certainly not alone in it.",
                             valid: !v.worry.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
                             body: AnyView(TextArea(placeholder: "e.g. That we can't afford the schools she's dreaming about…",
-                                                   text: a.worry, minLines: 4)))
+                                                   text: a.worry, minLines: 4)
+                                .accessibilityIdentifier("onboarding.worry")))
         case .involvement:
             return Question(prompt: "How involved do you want to be?",
                             note: "The research is consistent: supported-but-not-managed students do best. Any of these can work.",

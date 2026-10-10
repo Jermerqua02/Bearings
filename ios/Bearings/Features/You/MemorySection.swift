@@ -28,7 +28,9 @@ struct MemorySection: View {
             Panel(icon: "sparkles", title: "What I know about you",
                   subtitle: facts.isEmpty ? "Nothing yet" : "\(facts.count) thing\(facts.count == 1 ? "" : "s") you've shared",
                   tint: .lavender) {
-                Muted("I pick these up as we talk — your goals, what you've done, what matters to you in a college, what you're working around — and read them before every answer, so you never have to repeat yourself. If something's wrong or out of date, fix it here.", size: 14)
+                Muted(model.isParent
+                      ? "I pick these up as we talk — your student, your family's money and circumstances, what you hope for and what worries you — and read them before every answer, so you never have to repeat yourself. They're private to you. If something's wrong or out of date, fix it here."
+                      : "I pick these up as we talk — your goals, what you've done, what matters to you in a college, what you're working around — and read them before every answer, so you never have to repeat yourself. If something's wrong or out of date, fix it here.", size: 14)
                 Button { editing = .add(topic: nil) } label: { Label("Tell me something", systemImage: "plus") }
                     .buttonStyle(HighlightButtonStyle(compact: true))
             }

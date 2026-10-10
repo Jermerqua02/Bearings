@@ -50,6 +50,14 @@ const SUGGESTED_PROMPTS = [
   "How do I figure out what college will really cost?",
 ];
 
+/* A parent's counselor is their own; they arrive with a parent's questions. */
+const PARENT_PROMPTS = [
+  "What should we be doing this season?",
+  "How do we figure out what we'd really pay?",
+  "How can I help without taking over?",
+  "Is my student's list realistic?",
+];
+
 /* ————— Card renderers ————— */
 
 function SchoolCardInline({ schoolId, reason }: { schoolId: string; reason: string }) {
@@ -567,7 +575,7 @@ function CounselorInner() {
               )}
               <SectionLabel className="mb-1">Or start here</SectionLabel>
               <ul className="border-t border-hairline">
-                {SUGGESTED_PROMPTS.map((p) => (
+                {(profile?.role === "parent" ? PARENT_PROMPTS : SUGGESTED_PROMPTS).map((p) => (
                   <li key={p} className="border-b border-hairline">
                     <button
                       onClick={() => void send(p)}

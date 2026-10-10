@@ -15,6 +15,7 @@ struct CounselorView: View {
     /// Drawn once per opening, so they change from visit to visit but not
     /// while the student is reading them.
     @State private var starters = Starters.draw()
+    @State private var parentStarters = Starters.draw(parent: true)
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -92,7 +93,7 @@ struct CounselorView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SectionLabel("Start with")
                 FlowLayout {
-                    ForEach(about.map(Starters.about) ?? starters, id: \.self) { q in
+                    ForEach(about.map { Starters.about($0, parent: model.isParent) } ?? (model.isParent ? parentStarters : starters), id: \.self) { q in
                         Chip(label: q, active: false) { begin(q) }
                     }
                 }
@@ -107,7 +108,9 @@ struct CounselorView: View {
                         .frame(width: 44, height: 44).background(Color.surface, in: Circle())
                     VStack(alignment: .leading, spacing: 3) {
                         Text("What I know about you").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
-                        Text("Everything you've told me, your grades and activities — fix anything that's off.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                        Text(model.isParent
+                             ? "Everything you've told me about you and your family — fix anything that's off."
+                             : "Everything you've told me, your grades and activities — fix anything that's off.").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
                             .multilineTextAlignment(.leading)
                     }
                     Spacer()
@@ -119,6 +122,8 @@ struct CounselorView: View {
             }
             .buttonStyle(.plain)
 
+            // Interview practice is the student's.
+            if !model.isParent {
             NavigationLink(value: InterviewRoute()) {
                 HStack(spacing: 14) {
                     Image(systemName: "person.2.wave.2").font(.system(size: 18)).foregroundStyle(Color.ink)
@@ -135,11 +140,14 @@ struct CounselorView: View {
                 .softShadow()
             }
             .buttonStyle(.plain)
+            }
             } else {
                 LockedCard(icon: "sparkles", title: "What I know about you",
                            teaser: "Everything you tell your counselor, remembered — so you never repeat yourself.")
-                LockedCard(icon: "person.2.wave.2", title: "Practice an interview",
-                           teaser: "I ask out loud, you answer by voice, and you get honest feedback — question by question.")
+                if !model.isParent {
+                    LockedCard(icon: "person.2.wave.2", title: "Practice an interview",
+                               teaser: "I ask out loud, you answer by voice, and you get honest feedback — question by question.")
+                }
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -282,6 +290,7 @@ struct ChatView: View {
     let threadId: String
     @State private var draft = ""
     @State private var starters = Starters.draw()
+    @State private var parentStarters = Starters.draw(parent: true)
 
     var body: some View {
         let thread = store.thread(threadId)
@@ -299,7 +308,7 @@ struct ChatView: View {
                     }
                     if !studentHasSpoken && !thinking {
                         FlowLayout {
-                            ForEach(about.map(Starters.about) ?? starters, id: \.self) { q in
+                            ForEach(about.map { Starters.about($0, parent: model.isParent) } ?? (model.isParent ? parentStarters : starters), id: \.self) { q in
                                 Chip(label: q, active: false) { Task { await store.send(q, in: threadId) } }
                             }
                         }

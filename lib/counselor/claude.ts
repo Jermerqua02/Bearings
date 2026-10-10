@@ -10,7 +10,7 @@
    payload can't request another student's scope.
    ———————————————————————————————————————— */
 
-import { MEMORY_CATEGORIES, isMemoryCategory } from "@/lib/memory";
+import { isMemoryCategory, memoryCategoriesFor } from "@/lib/memory";
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
 import type {
@@ -477,15 +477,12 @@ export function createClaudeCounselor(deps: {
     async chat(req: CounselorRequest, events?: ChatEvents): Promise<CounselorResponse> {
       const contextNote = [
         req.context?.school
-          ? conversationSchoolNote(
-              req.context.school,
-              req.profile.role === "student" ? req.profile.homeState : undefined,
-            )
+          ? conversationSchoolNote(req.context.school, req.profile.homeState)
           : "",
         req.context?.listSummary ?? "",
         req.context?.courseworkSummary ?? "",
         req.context?.screen
-          ? `The student opened this chat from the ${req.context.screen} screen.`
+          ? `They opened this chat from the ${req.context.screen} screen.`
           : "",
       ]
         .filter(Boolean)
@@ -509,7 +506,9 @@ export function createClaudeCounselor(deps: {
           message: {
             id: messageId(),
             author: "counselor",
-            text: "I can't help with that one. Ask me something about your list, your essays, or the process and I'll dig in.",
+            text: req.profile.role === "parent"
+              ? "I can't help with that one. Ask me something about cost, the calendar, or how to help your student and I'll dig in."
+              : "I can't help with that one. Ask me something about your list, your essays, or the process and I'll dig in.",
             createdAt: new Date().toISOString(),
           },
         };
@@ -609,7 +608,7 @@ This is self-understanding, not positioning. Never compare them to other applica
       return textOf(res.content);
     },
 
-    async extractMemories({ studentMessage, counselorReply, known }) {
+    async extractMemories({ studentMessage, counselorReply, known, role = "student" }) {
       /*
         Haiku again, for the same reasons as titles: it runs after every
         reply, off the student's critical path, and it's filing, not counsel.
@@ -619,7 +618,17 @@ This is self-understanding, not positioning. Never compare them to other applica
         and still matter next month. Questions, the counselor's own advice,
         and small talk are not facts about the student.
       */
-      const categories = MEMORY_CATEGORIES.map((c) => `- ${c.id}: ${c.description}`).join("\n");
+      const topics = memoryCategoriesFor(role);
+      const categories = topics.map((c) => `- ${c.id}: ${c.description}`).join("\n");
+      const allowed = new Set<string>(topics.map((c) => c.id));
+      const brief =
+        role === "parent"
+          ? "You keep a college counselor's notes on one PARENT of a high school student. From one exchange, record only durable facts the PARENT revealed: about their student (strengths, struggles, interests, how they're doing), the family's money (what they can pay, savings, aid, jobs), family circumstances (siblings, work, health, moves), their hopes and worries for the student, and what they want in a college (distance, cost, size, safety, schools they like or have ruled out).\n\n" +
+            "Do not record: questions they asked, the counselor's advice or opinions, small talk, or anything already in the known notes unless the parent has now changed it.\n\n" +
+            "Write each fact as a short third-person note without names, specific and self-contained: \"Student is strongest in math; struggles with timed tests\", \"Family can contribute about $20k a year\", \"Worried about a school more than a day's drive away\".\n\n"
+          : "You keep a college counselor's notes on one high school student. From one exchange, record only durable facts the STUDENT revealed about themselves: grades, scores, classes, activities, roles, awards, jobs, interests, intended majors, career ideas, what they want in a college, schools they love or have ruled out, money and family circumstances, constraints, background, values.\n\n" +
+            "Do not record: questions they asked, the counselor's advice or opinions, plans the counselor suggested that the student didn't adopt, small talk, or anything already in the known notes unless the student has now changed it.\n\n" +
+            "Write each fact as a short third-person note without the student's name, specific and self-contained: \"Plays varsity soccer; team captain junior year\", \"Wants to stay within a day's drive of home\", \"Family can contribute about $15k a year\".\n\n";
       const knownList = known.length
         ? known.map((k) => `[${k.id}] (${k.category}) ${k.fact}`).join("\n")
         : "(nothing yet)";
@@ -631,17 +640,15 @@ This is self-understanding, not positioning. Never compare them to other applica
             {
               type: "text",
               text:
-                "You keep a college counselor's notes on one high school student. From one exchange, record only durable facts the STUDENT revealed about themselves: grades, scores, classes, activities, roles, awards, jobs, interests, intended majors, career ideas, what they want in a college, schools they love or have ruled out, money and family circumstances, constraints, background, values.\n\n" +
-                "Do not record: questions they asked, the counselor's advice or opinions, plans the counselor suggested that the student didn't adopt, small talk, or anything already in the known notes unless the student has now changed it.\n\n" +
-                "Write each fact as a short third-person note without the student's name, specific and self-contained: \"Plays varsity soccer; team captain junior year\", \"Wants to stay within a day's drive of home\", \"Family can contribute about $15k a year\".\n\n" +
+                brief +
                 "Categories:\n" + categories + "\n\n" +
-                'Reply with JSON only: {"add":[{"category":"<id>","fact":"<note>"}],"update":[{"id":"<known id>","fact":"<corrected note>"}]}. Use update when the student corrects or changes a known note. Most exchanges reveal nothing new — then reply {"add":[],"update":[]}.',
+                'Reply with JSON only: {"add":[{"category":"<id>","fact":"<note>"}],"update":[{"id":"<known id>","fact":"<corrected note>"}]}. Use update when they correct or change a known note. Most exchanges reveal nothing new — then reply {"add":[],"update":[]}.',
             },
           ],
           messages: [
             {
               role: "user",
-              content: `Known notes:\n${knownList}\n\nStudent said:\n${studentMessage.slice(0, 3000)}\n\nCounselor replied:\n${counselorReply.slice(0, 1500)}`,
+              content: `Known notes:\n${knownList}\n\n${role === "parent" ? "Parent" : "Student"} said:\n${studentMessage.slice(0, 3000)}\n\nCounselor replied:\n${counselorReply.slice(0, 1500)}`,
             },
           ],
         });
@@ -653,7 +660,7 @@ This is self-understanding, not positioning. Never compare them to other applica
         return {
           add: (Array.isArray(parsed.add) ? parsed.add : [])
             .map((a) => ({ category: String(a?.category ?? ""), fact: clean(a?.fact) }))
-            .filter((a) => isMemoryCategory(a.category) && a.fact.length > 3)
+            .filter((a) => isMemoryCategory(a.category) && allowed.has(a.category) && a.fact.length > 3)
             .slice(0, 8),
           update: (Array.isArray(parsed.update) ? parsed.update : [])
             .map((u) => ({ id: String(u?.id ?? ""), fact: clean(u?.fact) }))
@@ -687,8 +694,8 @@ This is self-understanding, not positioning. Never compare them to other applica
             {
               type: "text",
               text:
-                "You name conversations between a high school student and their college counsellor. " +
-                "Reply with a title of at most six words that says what the student is trying to work out. " +
+                "You name conversations between a college counsellor and a high school student or their parent. " +
+                "Reply with a title of at most six words that says what they're trying to work out. " +
                 "No quotation marks, no trailing punctuation, no preamble. " +
                 'Write it as a topic, not a sentence: "Balancing my list" not "The student wants to balance their list".',
             },
@@ -696,7 +703,7 @@ This is self-understanding, not positioning. Never compare them to other applica
           messages: [
             {
               role: "user",
-              content: `Student asked:\n${firstMessage.slice(0, 600)}\n\nCounsellor replied:\n${reply.slice(0, 600)}`,
+              content: `They asked:\n${firstMessage.slice(0, 600)}\n\nCounsellor replied:\n${reply.slice(0, 600)}`,
             },
           ],
         });

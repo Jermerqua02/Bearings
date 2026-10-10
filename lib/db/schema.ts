@@ -340,6 +340,9 @@ export const parentProfiles = pgTable("parent_profile", {
   priorities: text("priorities").array().notNull().default([]),
   biggestWorry: text("biggest_worry").notNull().default(""),
   involvementLevel: involvementEnum("involvement_level").notNull().default("regular-check-ins"),
+  /** Two-letter USPS code — the family's, for what a public college would
+      charge them. Nil until asked; a linked student's stands in. */
+  homeState: text("home_state"),
   ...timestamps,
 });
 

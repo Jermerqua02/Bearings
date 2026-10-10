@@ -24,6 +24,7 @@ import {
   listEntries,
   schoolExplanations,
   schools,
+  studentProfiles,
   transcripts,
 } from "@/lib/db/schema";
 import { AuthzError, requireStudent, requireViewer } from "@/lib/auth/policy";
@@ -43,7 +44,7 @@ import type {
   InterviewFeedback,
 } from "@/lib/counselor";
 import { courseworkSummary } from "@/lib/coursework";
-import type { GradeLevel, School, StudentProfile } from "@/lib/types";
+import type { GradeLevel, Profile, School, StudentProfile } from "@/lib/types";
 import { getSchoolById, getSchoolMap } from "@/lib/db/queries/schools";
 import { residencyAt, residencyNote } from "@/lib/residency";
 
@@ -114,24 +115,38 @@ async function sessionProfile() {
   const snap = await loadSnapshot(viewer);
   if (!snap.profile) throw new UserFacingError("Finish onboarding first.");
   const profile = snap.profile;
-  if (profile.role === "student") {
-    const notes = await rawMemories(viewer.userId).catch(() => []);
-    profile.counselorNotes = notes.map((n) => ({ category: n.category, fact: n.fact }));
+  // Students and parents each have their own counselor, and their own notes.
+  const notes = await rawMemories(viewer.userId).catch(() => []);
+  profile.counselorNotes = notes.map((n) => ({ category: n.category, fact: n.fact }));
+  // A parent's counselor knows their student by name (and nothing private).
+  if (profile.role === "parent" && snap.subjectStudentId) {
+    const [row] = await db
+      .select({ firstName: studentProfiles.firstName })
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, snap.subjectStudentId))
+      .limit(1);
+    profile.studentFirstName = row?.firstName;
   }
-  return { viewer, profile };
+  return { viewer, profile, studentId: snap.subjectStudentId };
 }
 
 /**
- * Learn from a turn: file anything durable the student said about
- * themselves. Runs after the reply is saved and never blocks or fails it —
- * the student is already reading the answer.
+ * Learn from a turn: file anything durable the student (or parent) said
+ * about themselves. Runs after the reply is saved and never blocks or
+ * fails it — they're already reading the answer.
  */
-async function rememberFromTurn(userId: string, threadId: string, studentMessage: string, counselorReply: string) {
+async function rememberFromTurn(
+  userId: string,
+  role: "student" | "parent",
+  threadId: string,
+  studentMessage: string,
+  counselorReply: string,
+) {
   try {
     // The counselor's memory is Pro: a Free sample conversation isn't filed.
     if (!isPro(await proStatus(userId))) return;
     const known = (await rawMemories(userId)).map((m) => ({ id: m.id, category: m.category, fact: m.fact }));
-    const changes = await serviceFor(userId).extractMemories({ studentMessage, counselorReply, known });
+    const changes = await serviceFor(userId).extractMemories({ studentMessage, counselorReply, known, role });
     if (changes.add.length) await addMemories(userId, changes.add, "chat", threadId);
     for (const u of changes.update) await updateMemory(userId, u.id, { fact: u.fact });
   } catch (err) {
@@ -139,10 +154,14 @@ async function rememberFromTurn(userId: string, threadId: string, studentMessage
   }
 }
 
-/* ————————————— Threads ————————————— */
+/* ————————————— Threads —————————————
+
+   Anyone's own conversations: a student's with their counselor, a
+   parent's with theirs. Every query is scoped to the caller's id, so
+   neither can reach the other's. */
 
 export async function createThreadAction(title?: string, schoolId?: string) {
-  const s = await requireStudent();
+  const s = await requireViewer();
   // An id that names no school is dropped rather than failing the thread.
   const school = schoolId ? await getSchoolById(schoolId) : null;
   const [row] = await db
@@ -153,7 +172,7 @@ export async function createThreadAction(title?: string, schoolId?: string) {
 }
 
 export async function listThreadsAction() {
-  const s = await requireStudent();
+  const s = await requireViewer();
   const threads = await db
     .select()
     .from(counselorThreads)
@@ -207,7 +226,12 @@ async function persist(threadId: string, msg: CounselorMessage) {
  * run replied "I don't have your school list yet", which is the single most
  * likely first question. Names and tiers only; no notes, nothing private.
  */
-async function listSummaryFor(studentId: string, homeState?: string): Promise<string> {
+async function listSummaryFor(
+  studentId: string,
+  homeState?: string,
+  heading = "The student's current list",
+  empty = "The student has not added any schools to their list yet.",
+): Promise<string> {
   const rows = await db
     .select({
       schoolId: listEntries.schoolId,
@@ -219,9 +243,7 @@ async function listSummaryFor(studentId: string, homeState?: string): Promise<st
     .from(listEntries)
     .where(eq(listEntries.studentId, studentId));
 
-  if (rows.length === 0) {
-    return "The student has not added any schools to their list yet.";
-  }
+  if (rows.length === 0) return empty;
 
   // One query for the whole list rather than one per row.
   const byId = await getSchoolMap(rows.map((r) => r.schoolId));
@@ -236,7 +258,27 @@ async function listSummaryFor(studentId: string, homeState?: string): Promise<st
     return `- ${name} (id: ${r.schoolId}) — ${bits}.${where}`;
   });
 
-  return `The student's current list (${rows.length} schools):\n${lines.join("\n")}`;
+  return `${heading} (${rows.length} schools):\n${lines.join("\n")}`;
+}
+
+/**
+ * Both lists a parent's counselor should know: their student's (the one
+ * that gets applied from) and the parent's own, kept apart so "my list"
+ * and "her list" stay what they mean.
+ */
+async function parentListSummary(
+  parentId: string,
+  studentId: string | null,
+  profile: Extract<Profile, { role: "parent" }>,
+): Promise<string> {
+  const name = profile.studentFirstName ?? "their student";
+  const [theirs, own] = await Promise.all([
+    studentId
+      ? listSummaryFor(studentId, profile.homeState, `${name}'s list — the one ${name} applies from`, `${name} hasn't added any schools to their list yet.`)
+      : Promise.resolve(""),
+    listSummaryFor(parentId, profile.homeState, "The parent's own list — schools they're looking at themselves", "The parent hasn't saved any schools of their own yet."),
+  ]);
+  return [theirs, own].filter(Boolean).join("\n\n");
 }
 
 /**
@@ -287,6 +329,13 @@ async function courseworkSummaryFor(studentId: string): Promise<string> {
 
 export async function greetAction(threadId: string): Promise<CounselorMessage> {
   const { viewer, profile } = await sessionProfile();
+  // The thread id comes from the client: only greet into your own.
+  const [own] = await db
+    .select({ id: counselorThreads.id })
+    .from(counselorThreads)
+    .where(and(eq(counselorThreads.id, threadId), eq(counselorThreads.studentId, viewer.userId)))
+    .limit(1);
+  if (!own) throw new AuthzError("That conversation doesn't exist.");
   const msg = await (await guardedServiceFor(viewer.userId, "greet")).greet(profile);
   await persist(threadId, msg);
   return msg;
@@ -311,8 +360,8 @@ export async function chatAction(input: {
   */
   onReply?(message: CounselorMessage): void;
 }): Promise<{ message: CounselorMessage; title?: string }> {
-  const s = await requireStudent();
-  const { profile } = await sessionProfile();
+  const s = await requireViewer();
+  const { profile, studentId } = await sessionProfile();
 
   // Ownership check — threadId comes from the client, so it's an IDOR
   // vector unless verified.
@@ -339,10 +388,13 @@ export async function chatAction(input: {
   // The thread's own school wins; the client's is for threads made before
   // threads remembered one.
   const schoolId = thread.schoolId ?? input.context?.schoolId;
+  // A parent's counselor sees the student's list (which the parent can see
+  // anyway) and the parent's own — never the student's coursework.
+  const parent = profile.role === "parent";
   const [service, listSummary, coursework, school] = await Promise.all([
     guardedServiceFor(s.userId, "chat"),
-    listSummaryFor(s.userId, profile.role === "student" ? profile.homeState : undefined),
-    courseworkSummaryFor(s.userId),
+    parent ? parentListSummary(s.userId, studentId, profile) : listSummaryFor(s.userId, profile.homeState),
+    parent ? Promise.resolve("") : courseworkSummaryFor(s.userId),
     schoolId ? getSchoolById(schoolId) : null,
   ]);
   const res = await service.chat(
@@ -365,7 +417,7 @@ export async function chatAction(input: {
 
   await persist(input.threadId, res.message);
   events?.onReply?.(res.message);
-  void rememberFromTurn(s.userId, input.threadId, input.message, res.message.text);
+  void rememberFromTurn(s.userId, parent ? "parent" : "student", input.threadId, input.message, res.message.text);
 
   /*
     Name the thread from the first real exchange.
@@ -406,7 +458,7 @@ export async function chatAction(input: {
  * let anyone remove anyone's conversation.
  */
 export async function deleteThreadAction(threadId: string) {
-  const s = await requireStudent();
+  const s = await requireViewer();
   const [row] = await db
     .delete(counselorThreads)
     .where(and(eq(counselorThreads.id, threadId), eq(counselorThreads.studentId, s.userId)))
@@ -415,9 +467,9 @@ export async function deleteThreadAction(threadId: string) {
   revalidatePath("/counselor");
 }
 
-/** Let a student fix a title we got wrong. */
+/** Let them fix a title we got wrong. */
 export async function renameThreadAction(threadId: string, title: string) {
-  const s = await requireStudent();
+  const s = await requireViewer();
   const clean = title.replace(/\s+/g, " ").trim().slice(0, 60);
   if (!clean) return;
   await db

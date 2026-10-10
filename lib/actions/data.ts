@@ -49,10 +49,14 @@ import type {
 
 const touch = { updatedAt: new Date() };
 
-/* ————————————— List ————————————— */
+/* ————————————— List —————————————
+
+   Anyone's own list. A student's is the one they apply from; a parent
+   keeps one of their own, apart from their student's — the rows are keyed
+   by the caller, so a parent can only ever touch theirs. */
 
 export async function addToListAction(entry: ListEntry) {
-  const s = await requireStudent();
+  const s = await requireViewer();
   // Free lists hold five schools; Pro saves as many as they like. Schools
   // already saved stay saved whatever the plan.
   if (!isPro(await proStatus(s.userId, s.role))) {
@@ -77,7 +81,7 @@ export async function addToListAction(entry: ListEntry) {
 }
 
 export async function removeFromListAction(schoolId: string) {
-  const s = await requireStudent();
+  const s = await requireViewer();
   await db
     .delete(listEntries)
     .where(and(eq(listEntries.studentId, s.userId), eq(listEntries.schoolId, schoolId)));
@@ -85,7 +89,7 @@ export async function removeFromListAction(schoolId: string) {
 }
 
 export async function updateListEntryAction(schoolId: string, patch: Partial<ListEntry>) {
-  const s = await requireStudent();
+  const s = await requireViewer();
   await db
     .update(listEntries)
     .set({

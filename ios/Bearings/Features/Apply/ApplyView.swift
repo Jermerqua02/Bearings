@@ -9,6 +9,10 @@ struct ApplyView: View {
     @State private var cards: [String: ApplicationCard] = [:]
     @State private var loadError: String?
     @State private var path = NavigationPath()
+    /// A linked parent has two lists: their student's, and their own.
+    @State private var whose: Whose = .student
+
+    enum Whose: Hashable { case student, mine }
 
     /// The web's pipeline. "applying" is a legacy status that reads as
     /// "Not started", as it does there.
@@ -23,9 +27,47 @@ struct ApplyView: View {
     var body: some View {
         NavigationStack(path: $path) {
             Page(spacing: 20) {
-                TwoTone(lead: model.isParent ? "Where things stand," : "Your applications,", rest: "one school at a time.")
-                UpgradeBanner()
+                if model.isParent { parentLists } else { studentList }
+            }
+            .rootScreen("Apply", hidesBar: true)
+            .schoolDestination()
+            .refreshable { try? await model.refresh(); await load() }
+        }
+        .tabRoot(.apply, path: $path)
+        // Reload when the list changes shape — a school saved in Explore
+        // needs its requirements fetched.
+        // Again when the plan changes: the requirements are Pro.
+        .task(id: "\(model.snapshot?.list.map(\.schoolId).joined(separator: ",") ?? "")-\(model.isPro)") { await load() }
+    }
 
+    /// A parent: their student's applications (read-only, as before) and,
+    /// apart from them, the list they keep themselves.
+    @ViewBuilder
+    private var parentLists: some View {
+        let linked = model.snapshot?.parentLinked ?? false
+        let name = model.linkedStudentName
+        TwoTone(lead: linked && whose == .student ? "Where things stand," : "Your list,",
+                rest: linked && whose == .student ? "one school at a time." : "schools you're looking at.")
+        UpgradeBanner()
+        if linked {
+            SegmentTabs(tabs: [(.student, name.map { "\($0)'s list" } ?? "Their list"), (.mine, "My list")], selection: $whose)
+        }
+        if linked && whose == .student {
+            studentApplications
+        } else {
+            OwnList(linked: linked)
+        }
+    }
+
+    @ViewBuilder
+    private var studentList: some View {
+        TwoTone(lead: "Your applications,", rest: "one school at a time.")
+        UpgradeBanner()
+        studentApplications
+    }
+
+    @ViewBuilder
+    private var studentApplications: some View {
                 let list = model.snapshot?.list ?? []
                 if list.isEmpty {
                     CardView {
@@ -44,16 +86,6 @@ struct ApplyView: View {
                         }
                     }
                 }
-            }
-            .rootScreen("Apply", hidesBar: true)
-            .schoolDestination()
-            .refreshable { try? await model.refresh(); await load() }
-        }
-        .tabRoot(.apply, path: $path)
-        // Reload when the list changes shape — a school saved in Explore
-        // needs its requirements fetched.
-        // Again when the plan changes: the requirements are Pro.
-        .task(id: "\(model.snapshot?.list.map(\.schoolId).joined(separator: ",") ?? "")-\(model.isPro)") { await load() }
     }
 
     private func load() async {
@@ -63,6 +95,63 @@ struct ApplyView: View {
             loadError = nil
         } catch {
             loadError = error.localizedDescription
+        }
+    }
+}
+
+/// A parent's own list: schools they've saved while exploring, kept apart
+/// from their student's. Not a tracker — parents don't apply — just the
+/// schools, what they cost and admit, and a way to take one off.
+private struct OwnList: View {
+    @Environment(AppModel.self) private var model
+    let linked: Bool
+
+    var body: some View {
+        let list = model.myList
+        if list.isEmpty {
+            CardView {
+                Text("Nothing saved yet.").font(.system(size: 17, weight: .medium))
+                Muted(linked
+                      ? "Schools you save from Explore land here — yours, not on your student's list. Bring the good ones up with them."
+                      : "Schools you save from Explore land here. Link with your student in Settings to see their list too.")
+                Button("Explore schools") { model.tab = .explore }.buttonStyle(InkButtonStyle(compact: true))
+            }
+        } else {
+            VStack(spacing: 12) {
+                ForEach(list) { entry in
+                    if let school = model.school(entry.schoolId) {
+                        HStack(alignment: .center, spacing: 12) {
+                            NavigationLink(value: SchoolRoute(id: school.id)) {
+                                HStack(spacing: 12) {
+                                    SchoolLogo(school: school)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(school.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+                                            .multilineTextAlignment(.leading)
+                                        Text([
+                                            "\(school.city), \(school.state)",
+                                            school.cost.avgNetPrice.map { "~\(Format.thousands($0)) net" },
+                                            school.admissions.acceptanceRate.map { "\(Format.rate($0)) admit" },
+                                        ].compactMap { $0 }.joined(separator: " · "))
+                                        .font(.system(size: 13)).foregroundStyle(Color.grayMid)
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            Button { model.removeFromList(school.id) } label: {
+                                Image(systemName: "xmark").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.grayStrong)
+                                    .frame(width: 30, height: 30).background(Color.mist, in: Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Remove \(school.name) from your list")
+                        }
+                        .padding(14)
+                        .surfaceCard()
+                        .accessibilityIdentifier("ownlist.row")
+                    }
+                }
+            }
         }
     }
 }

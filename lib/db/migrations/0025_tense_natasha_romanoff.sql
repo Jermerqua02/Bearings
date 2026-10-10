@@ -1,0 +1,1 @@
+ALTER TABLE "parent_profile" ADD COLUMN "home_state" text;

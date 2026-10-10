@@ -11,14 +11,48 @@ final class OnboardingTests: XCTestCase {
 
     override func setUpWithError() throws {
         continueAfterFailure = false
-        let token = ProcessInfo.processInfo.environment["BEARINGS_UITEST_NEW_TOKEN"] ?? ""
-        try XCTSkipIf(token.isEmpty, "Set BEARINGS_UITEST_NEW_TOKEN to a new account's session token")
+    }
+
+    private func launch(_ variable: String) throws {
+        let token = ProcessInfo.processInfo.environment[variable] ?? ""
+        try XCTSkipIf(token.isEmpty, "Set \(variable) to a new account's session token")
         app = XCUIApplication()
         app.launchEnvironment["BEARINGS_DEV_TOKEN"] = token
         app.launch()
     }
 
+    /// A new parent: their own tour, their own questions — including where
+    /// the family lives, for what a public college would charge them.
+    func testNewParentOnboardsInApp() throws {
+        try launch("BEARINGS_UITEST_NEW_PARENT_TOKEN")
+        let next = app.buttons["Next"]
+        XCTAssertTrue(next.waitForExistence(timeout: 20), "The welcome tour didn't open for a new parent")
+        for _ in 0..<6 { next.tap() }
+        XCTAssertTrue(app.buttons["Set up my profile"].waitForExistence(timeout: 5), "The parent tour didn't end on Free and Pro")
+        app.buttons["Set up my profile"].tap()
+
+        let proceed = app.buttons["Continue"]
+        type("Pat", into: app.textFields["Your first name"]); proceed.tap()
+        app.buttons["Mother"].tap(); proceed.tap()
+        app.buttons["11th grade"].tap(); proceed.tap()
+        XCTAssertTrue(app.staticTexts["What state does your family live in?"].waitForExistence(timeout: 5), "Parents should be asked their state")
+        type("wash", into: app.textFields["Search states"]); app.buttons["Washington"].tap(); proceed.tap()
+        app.buttons["$15k – $30k / year"].tap(); proceed.tap()
+        app.buttons["Affordability"].tap(); proceed.tap()
+        type("That we can't afford it", into: app.descendants(matching: .any)["onboarding.worry"].firstMatch); proceed.tap()
+        app.buttons["Regular check-ins"].tap()
+        app.buttons["Finish"].tap()
+
+        let done = app.buttons["That's me — let's go"]
+        XCTAssertTrue(done.waitForExistence(timeout: 30), "The parent's profile didn't save")
+        done.tap()
+        if app.buttons["Not now"].waitForExistence(timeout: 10) { app.buttons["Not now"].tap() }
+        XCTAssertTrue(app.buttons["Ask me anything"].waitForExistence(timeout: 10), "Parent Home should offer their counselor")
+        attach("parent-home")
+    }
+
     func testNewStudentOnboardsInApp() throws {
+        try launch("BEARINGS_UITEST_NEW_TOKEN")
         // The tour opens by itself: five pages, then Free and Pro.
         let next = app.buttons["Next"]
         XCTAssertTrue(next.waitForExistence(timeout: 20), "The welcome tour didn't open for a new account")

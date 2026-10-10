@@ -33,7 +33,7 @@ import {
 import { linkedStudentIdFor, type Viewer } from "@/lib/auth/policy";
 import { getSchoolsByIds } from "@/lib/db/queries/schools";
 import { db as _db } from "@/lib/db";
-import { parentProfiles } from "@/lib/db/schema";
+import { parentProfiles, studentProfiles } from "@/lib/db/schema";
 import type {
   Activity,
   Role,
@@ -46,6 +46,7 @@ import type {
   Profile,
   Recommender,
   School,
+  StudentProfile,
   TranscriptFile,
   UniversalProfile,
   WeeklyCheckIn,
@@ -86,6 +87,13 @@ export interface AppSnapshot {
     notifyNudges: boolean;
     shareEssaysByDefault: boolean;
   };
+  /**
+   * A parent's own list, kept apart from their student's (which is `list`).
+   * Absent for a student, whose one list is `list`.
+   */
+  ownList?: ListEntry[];
+  /** A linked parent's student, by first name — "Riley's list". */
+  studentFirstName?: string;
   /** Whose records these are. A parent is viewing their linked student's. */
   subjectStudentId: string | null;
   viewerRole: Role;
@@ -165,7 +173,20 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     viewer.role === "parent" ? Boolean(studentId) : await hasActiveLink(viewer.userId);
 
   if (viewer.role === "parent" && !studentId) {
-    snap.profile = await loadParentProfile(viewer.userId);
+    // Unlinked: nothing of a student's to show, but their own list and
+    // what they've looked at are theirs.
+    const [profile, own, viewed] = await Promise.all([
+      loadParentProfile(viewer.userId),
+      safe(() => getListEntries(viewer, viewer.userId), []),
+      safe(() => recentlyViewedFor(viewer.userId), []),
+    ]);
+    snap.profile = profile;
+    snap.ownList = own.map(toListEntry);
+    snap.recentlyViewed = viewed;
+    snap.schools = await safe(
+      () => getSchoolsByIds([...new Set([...snap.ownList!.map((e) => e.schoolId), ...viewed])]),
+      [],
+    );
     return snap;
   }
   if (!studentId) return snap;
@@ -183,6 +204,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
     activityRows,
     checkInRows,
     viewedRows,
+    ownRows,
   ] = await Promise.all([
     safe(() => getStudentProfile(viewer, studentId), null),
     safe(() => getListEntries(viewer, studentId), []),
@@ -205,6 +227,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
           .limit(6),
       [] as { schoolId: string }[],
     ),
+    viewer.role === "parent" ? safe(() => getListEntries(viewer, viewer.userId), []) : Promise.resolve(null),
   ]);
 
   snap.profile =
@@ -213,15 +236,18 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
       : profileRow
         ? toStudentProfile(profileRow)
         : null;
+  if (viewer.role === "parent") {
+    // Only the name — the rest of the student's profile stays theirs.
+    const [named] = await _db
+      .select({ firstName: studentProfiles.firstName })
+      .from(studentProfiles)
+      .where(eq(studentProfiles.userId, studentId))
+      .limit(1);
+    snap.studentFirstName = named?.firstName;
+  }
 
-  snap.list = list.map((r) => ({
-    schoolId: r.schoolId,
-    tier: r.tier,
-    plan: r.plan ?? undefined,
-    status: r.status,
-    outcome: r.outcome ?? undefined,
-    notes: r.notes ?? undefined,
-  }));
+  snap.list = list.map(toListEntry);
+  if (ownRows) snap.ownList = ownRows.map(toListEntry);
 
   snap.essays = essayRows.map((e) => ({
     id: e.id,
@@ -340,6 +366,7 @@ export async function loadSnapshot(viewer: Viewer): Promise<AppSnapshot> {
   const referenced = [
     ...new Set([
       ...snap.list.map((e) => e.schoolId),
+      ...(snap.ownList ?? []).map((e) => e.schoolId),
       ...snap.recentlyViewed,
       ...snap.aidOffers.map((a) => a.schoolId),
       ...snap.essays.map((e) => e.schoolId).filter((id): id is string => !!id),
@@ -388,6 +415,62 @@ export async function loadProfileOnly(viewer: Viewer): Promise<Profile | null> {
   return row ? toStudentProfile(row) : null;
 }
 
+/**
+ * Whose chances, fit and price a page works out, for the viewer.
+ *
+ * A student: themselves. A linked parent: their student — read here, on
+ * the server, past the "aboutYouPanel" boundary, because only the results
+ * (a tier, a fit label, a price) leave it; the grades and scores never do,
+ * and parents already see the tier on every school in the student's list.
+ * The family's home state stands in when the student hasn't given one.
+ *
+ * An unlinked parent gets a profile with nothing but their budget and
+ * state, and `linked: false` — callers show published numbers and their
+ * price, never a chance read built on no grades at all.
+ */
+export async function subjectProfile(
+  viewer: Viewer,
+): Promise<{ profile: StudentProfile; linked: boolean; name: string; isParent: boolean } | null> {
+  const own = await loadProfileOnly(viewer);
+  if (!own) return null;
+  if (own.role === "student") return { profile: own, linked: true, name: own.firstName, isParent: false };
+
+  const studentId = await linkedStudentIdFor(viewer.userId);
+  const [row] = studentId
+    ? await _db.select().from(studentProfiles).where(eq(studentProfiles.userId, studentId)).limit(1)
+    : [];
+  if (row) {
+    const student = toStudentProfile(row) as StudentProfile;
+    return {
+      profile: { ...student, homeState: student.homeState ?? own.homeState },
+      linked: true,
+      name: student.firstName,
+      isParent: true,
+    };
+  }
+  return {
+    profile: {
+      role: "student",
+      firstName: own.firstName,
+      gradeLevel: own.studentGrade,
+      gpa: {},
+      rigor: { apCount: 0, ibCount: 0, honorsCount: 0 },
+      testScores: { planningToTest: false },
+      intendedMajors: [],
+      undecided: true,
+      activities: [],
+      geography: { regions: [] },
+      campus: { sizes: [], settings: [] },
+      budget: { maxPerYear: own.budgetPerYear, willFileFafsa: true },
+      homeState: own.homeState,
+      values: [],
+    },
+    linked: false,
+    name: own.firstName,
+    isParent: true,
+  };
+}
+
 async function hasActiveLink(studentId: string): Promise<boolean> {
   const { parentStudentLinks } = await import("@/lib/db/schema");
   const { and, eq: eqOp } = await import("drizzle-orm");
@@ -397,6 +480,29 @@ async function hasActiveLink(studentId: string): Promise<boolean> {
     .where(and(eqOp(parentStudentLinks.studentId, studentId), eqOp(parentStudentLinks.status, "active")))
     .limit(1);
   return Boolean(row);
+}
+
+type ListRow = Awaited<ReturnType<typeof getListEntries>>[number];
+
+function toListEntry(r: ListRow): ListEntry {
+  return {
+    schoolId: r.schoolId,
+    tier: r.tier,
+    plan: r.plan ?? undefined,
+    status: r.status,
+    outcome: r.outcome ?? undefined,
+    notes: r.notes ?? undefined,
+  };
+}
+
+async function recentlyViewedFor(userId: string): Promise<string[]> {
+  const rows = await db
+    .select({ schoolId: recentlyViewedTable.schoolId })
+    .from(recentlyViewedTable)
+    .where(eq(recentlyViewedTable.userId, userId))
+    .orderBy(desc(recentlyViewedTable.viewedAt))
+    .limit(6);
+  return rows.map((r) => r.schoolId);
 }
 
 async function loadParentProfile(userId: string): Promise<Profile | null> {
@@ -415,6 +521,7 @@ async function loadParentProfile(userId: string): Promise<Profile | null> {
     priorities: row.priorities,
     biggestWorry: row.biggestWorry,
     involvementLevel: row.involvementLevel,
+    homeState: row.homeState ?? undefined,
   };
 }
 

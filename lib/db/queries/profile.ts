@@ -28,6 +28,8 @@ export async function saveProfile(userId: string, profile: Profile): Promise<voi
       priorities: profile.priorities ?? [],
       biggestWorry: profile.biggestWorry ?? "",
       involvementLevel: profile.involvementLevel ?? "regular-check-ins",
+      // As for a student: only when given, and only a real code.
+      ...(isUsState(profile.homeState) ? { homeState: profile.homeState } : {}),
     };
     await db
       .insert(parentProfiles)
@@ -75,10 +77,18 @@ export async function saveProfile(userId: string, profile: Profile): Promise<voi
 }
 
 /**
- * The student's home state on its own — asked once of profiles made before
+ * The home state on its own — a student's or a parent's — asked once of profiles made before
  * onboarding asked it, and changeable any time after. Null clears it.
  */
-export async function setHomeState(userId: string, homeState: string | null) {
+export async function setHomeState(userId: string, homeState: string | null, role: "student" | "parent" = "student") {
+  if (role === "parent") {
+    const rows = await db
+      .update(parentProfiles)
+      .set({ homeState, updatedAt: new Date() })
+      .where(eq(parentProfiles.userId, userId))
+      .returning({ userId: parentProfiles.userId });
+    return rows.length > 0;
+  }
   const rows = await db
     .update(studentProfiles)
     .set({ homeState, updatedAt: new Date() })

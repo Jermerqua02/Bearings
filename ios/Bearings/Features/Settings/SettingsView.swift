@@ -45,25 +45,26 @@ struct SettingsView: View {
 
                 TwoTone(lead: viewer.name, rest: viewer.role == .parent ? "· parent" : "")
 
-                if viewer.role != .parent {
-                    NavigationLink(value: YouRoute()) {
-                        HStack(spacing: 14) {
-                            Image(systemName: "person.text.rectangle").font(.system(size: 18))
-                                .frame(width: 44, height: 44).background(Color.surface, in: Circle())
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("You").font(.display(19)).foregroundStyle(Color.ink)
-                                Text("What your counselor knows, your courses and grades, activities").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
-                                    .multilineTextAlignment(.leading)
-                            }
-                            Spacer()
-                            RoundIcon(icon: "arrow.up.right", fill: .surface)
+                // Everyone has a You: a student's record, or a parent's own notes.
+                NavigationLink(value: YouRoute()) {
+                    HStack(spacing: 14) {
+                        Image(systemName: "person.text.rectangle").font(.system(size: 18))
+                            .frame(width: 44, height: 44).background(Color.surface, in: Circle())
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("You").font(.display(19)).foregroundStyle(Color.ink)
+                            Text(viewer.role == .parent
+                                 ? "What your counselor knows about you and your family, and where you live"
+                                 : "What your counselor knows, your courses and grades, activities").font(.system(size: 14)).foregroundStyle(Color.grayStrong)
+                                .multilineTextAlignment(.leading)
                         }
-                        .padding(16)
-                        .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
-                        .softShadow()
+                        Spacer()
+                        RoundIcon(icon: "arrow.up.right", fill: .surface)
                     }
-                    .buttonStyle(.plain)
+                    .padding(16)
+                    .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+                    .softShadow()
                 }
+                .buttonStyle(.plain)
                 CardView {
                     row("Email", viewer.email)
                     Divider().overlay(Color.hairline)

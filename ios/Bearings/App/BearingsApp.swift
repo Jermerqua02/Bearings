@@ -31,7 +31,7 @@ struct RootView: View {
         .task { await model.launch() }
         // The counselor opens as a sheet; while it's up, it presents the paywall
         // itself — a sheet under a sheet is silently never shown.
-        .sheet(item: Binding(get: { model.counselorOpen && !model.isParent ? nil : model.paywall },
+        .sheet(item: Binding(get: { model.counselorOpen ? nil : model.paywall },
                              set: { model.paywall = $0 })) { reason in
             ProPaywall(reason: reason).presentationBackground(Color.paper)
         }
@@ -59,8 +59,8 @@ struct MainTabView: View {
             Tab(value: AppTab.apply) { ApplyView().mainNavRoom() }
         }
         .overlay(alignment: .bottom) { MainNav() }
-        // A parent never reaches the counselor — STUDENT_ONLY_ROUTES.
-        .sheet(isPresented: Binding(get: { model.counselorOpen && !model.isParent },
+        // Students and parents each have their own counselor.
+        .sheet(isPresented: Binding(get: { model.counselorOpen },
                                     set: { model.counselorOpen = $0 })) {
             CounselorView()
                 .presentationDragIndicator(.visible)
@@ -189,19 +189,17 @@ struct MainNav: View {
 
             Spacer()
 
-            if !model.isParent {
-                Button { model.counselorOpen = true } label: {
-                    Image(systemName: "bubble.fill")
-                        .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.white)
-                        .frame(width: 60, height: 60)
-                        .background(Color.accent, in: Circle())
-                        .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Ask your counselor")
-                .accessibilityIdentifier("nav.counselor")
+            Button { model.counselorOpen = true } label: {
+                Image(systemName: "bubble.fill")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 60, height: 60)
+                    .background(Color.accent, in: Circle())
+                    .shadow(color: .black.opacity(0.14), radius: 14, y: 6)
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Ask your counselor")
+            .accessibilityIdentifier("nav.counselor")
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 6)

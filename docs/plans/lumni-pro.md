@@ -44,6 +44,7 @@ schools found, what WUE saves them — before Apple's renewal.
 | Deadline dates for saved schools | ✓ |
 | Profile, courses, activities — entering and editing | ✓ |
 | A sample of the counselor | **2 messages, once** — interview practice has no free sample |
+| Linking a parent and student | ✓ — the link is how Pro is shared, so it can't be behind Pro |
 
 **Pro — everything about you**
 
@@ -58,13 +59,23 @@ schools found, what WUE saves them — before Apple's renewal.
 | Writing | Essay feedback, throughline |
 | Transcript | Reading a transcript in from a photo |
 | Reminders | Deadline push reminders and nudges |
-| Family | Parent link — the parent sees the list, costs and deadlines |
+| Family | What a parent sees through the link beyond the list and deadlines: costs, their student's chances, the season's guidance |
 | Deciding | Side-by-side comparison, financial aid offer comparison |
 
 **Locked looks like a preview, not a hole.** A locked card keeps its place
 and title and says what's behind it — "Your chances at Purdue," "What Purdue
 would cost you," "Your counselor's take" — and opens the paywall. On every
 school, a free student sees exactly what Pro would tell them.
+
+**Parents are accounts in their own right (2026-10-10).** A parent has
+their own counselor (speaking to them as a parent, with their own private
+conversations and notes), explores schools, and keeps a list of their own
+apart from their student's. Free allowances are per parent: their own
+2-message sample and their own 5-school list. Pro is still shared across
+the link. Once linked, a parent sees their student's chances and fit on
+every school, worked out on the server from the student's profile — the
+grades themselves never reach the parent. Interview practice stays the
+student's.
 
 **Never locked, whatever the status:** the student's own data — their list
 (all of it, if they saved more than 5 while on Pro), essays, transcript, past

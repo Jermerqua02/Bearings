@@ -67,3 +67,12 @@ Without a token the tests skip rather than fail.
 saved profile, so it needs an account with no profile yet. Sign one up
 (`POST /api/v1/auth/sign-up`), sign in as above, and pass that token as
 `TEST_RUNNER_BEARINGS_UITEST_NEW_TOKEN`. Each run uses the account up.
+Its parent pass takes a new parent account's token in
+`TEST_RUNNER_BEARINGS_UITEST_NEW_PARENT_TOKEN`.
+
+`ParentTests` needs a parent who has onboarded and is linked to a student
+with Pro (Pro is shared across the link): their token in
+`TEST_RUNNER_BEARINGS_UITEST_PARENT_TOKEN`, and the student's first name in
+`TEST_RUNNER_BEARINGS_UITEST_STUDENT_NAME`. Link them with
+`POST /api/v1/links/code` as the student, then `POST /api/v1/links/redeem`
+as the parent.

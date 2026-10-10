@@ -372,9 +372,12 @@ export async function telemetry(days: number): Promise<Telemetry> {
       (select count(*) from "essay")                                   as essays,
       (select count(*) from "list_entry")                              as listed,
       (select count(*) from "interview_session")                       as interviews,
-      (select count(distinct student_id) from "list_entry")            as with_list,
+      (select count(distinct l.student_id) from "list_entry" l
+         join "user" u on u.id = l.student_id where u.role <> 'parent') as with_list,
       (select count(distinct student_id) from "essay")                 as with_essay,
-      (select count(distinct student_id) from "counselor_thread")      as with_chat
+      -- Students who've talked to the counselor; parents have their own threads now.
+      (select count(distinct t.student_id) from "counselor_thread" t
+         join "user" u on u.id = t.student_id where u.role <> 'parent') as with_chat
   `);
 
   // One row per day in the window, zero-filled — a chart with missing days

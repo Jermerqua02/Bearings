@@ -193,10 +193,13 @@ final class AppModel {
 
     // MARK: Home state
 
-    /// Where the student lives. Nil for a parent, or before they've said.
+    /// Where the family lives — the student's, or a parent's own. Nil until they've said.
     var homeState: String? {
-        if case .student(let p) = snapshot?.profile { return p.homeState }
-        return nil
+        switch snapshot?.profile {
+        case .student(let p): p.homeState
+        case .parent(let p): p.homeState
+        case nil: nil
+        }
     }
 
     /// Save it, then reload so every price recomputes against it.
@@ -262,6 +265,9 @@ final class AppModel {
     }
 
     var isParent: Bool { viewer?.role == .parent }
+
+    /// A linked parent's student, by first name — "Riley's list".
+    var linkedStudentName: String? { snapshot?.studentFirstName }
 
     // MARK: Pro
 
@@ -330,8 +336,15 @@ final class AppModel {
         }
     }
 
+    /// The list this account saves to: a student's one list, or a parent's
+    /// own — never their student's, which only the student changes.
+    private var savesTo: WritableKeyPath<Snapshot, [ListEntry]> { isParent ? \.ownListValue : \.list }
+
+    /// What's on that list.
+    var myList: [ListEntry] { snapshot?[keyPath: savesTo] ?? [] }
+
     func isOnList(_ schoolId: String) -> Bool {
-        snapshot?.list.contains { $0.schoolId == schoolId } ?? false
+        myList.contains { $0.schoolId == schoolId }
     }
 
     /// Save a school, at the tier the server computed for it — recomputing
@@ -340,11 +353,12 @@ final class AppModel {
         guard snapshot != nil, !isOnList(school.id) else { return }
         let entry = ListEntry(schoolId: school.id, tier: tier ?? .target, plan: nil,
                               status: .considering, outcome: nil, notes: nil)
-        snapshot!.list.append(entry)
+        let key = savesTo
+        snapshot![keyPath: key].append(entry)
         if !snapshot!.schools.contains(where: { $0.id == school.id }) { snapshot!.schools.append(school) }
 
         struct Body: Encodable { let schoolId: String; let tier: ChanceTier; let status: ListEntry.Status }
-        mutate(rollback: { $0.list.removeAll { $0.schoolId == school.id } }) {
+        mutate(rollback: { $0[keyPath: key].removeAll { $0.schoolId == school.id } }) {
             try await self.api.perform("POST", "/api/v1/list",
                                        Body(schoolId: school.id, tier: entry.tier, status: entry.status))
         }
@@ -355,9 +369,10 @@ final class AppModel {
     }
 
     func removeFromList(_ schoolId: String) {
-        guard let i = snapshot?.list.firstIndex(where: { $0.schoolId == schoolId }) else { return }
-        let removed = snapshot!.list.remove(at: i)
-        mutate(rollback: { $0.list.insert(removed, at: i) }) {
+        let key = savesTo
+        guard let i = snapshot?[keyPath: key].firstIndex(where: { $0.schoolId == schoolId }) else { return }
+        let removed = snapshot![keyPath: key].remove(at: i)
+        mutate(rollback: { $0[keyPath: key].insert(removed, at: i) }) {
             try await self.api.perform("DELETE", "/api/v1/list/\(Self.escape(schoolId))")
         }
     }

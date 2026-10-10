@@ -15,6 +15,12 @@ struct MemoryTopic: Decodable, Identifiable, Hashable {
         case "preferences": "building.columns"
         case "circumstances": "house"
         case "story": "book"
+        // A parent's topics.
+        case "student": "person"
+        case "money": "dollarsign.circle"
+        case "family": "house"
+        case "hopes": "heart"
+        case "wants": "building.columns"
         default: "note.text"
         }
     }

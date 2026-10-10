@@ -104,6 +104,7 @@ function parentFrom(b: Record<string, unknown>): ParentProfile {
     priorities: strings(b.priorities, "priorities"),
     biggestWorry: typeof b.biggestWorry === "string" ? b.biggestWorry.trim().slice(0, 2000) : "",
     involvementLevel: oneOf(b.involvementLevel ?? "regular-check-ins", INVOLVEMENT, "involvement"),
+    homeState: isUsState(b.homeState) ? b.homeState : undefined,
   };
 }
 

@@ -103,7 +103,7 @@ enum OnboardingStep: Hashable {
     static func steps(for role: Role?, askRole: Bool) -> [OnboardingStep] {
         let start: [OnboardingStep] = askRole ? [.role] : []
         if role == .parent {
-            return start + [.name, .relationship, .parentGrade, .parentBudget, .priorities, .worry, .involvement]
+            return start + [.name, .relationship, .parentGrade, .homeState, .parentBudget, .priorities, .worry, .involvement]
         }
         return start + [.name, .grade, .gpa, .rigor, .testing, .majors, .activities, .homeState, .regions,
                         .settings, .budget, .values]
@@ -143,7 +143,7 @@ extension OnboardingAnswers {
                               relationship: relationship?.lowercased() ?? "parent",
                               studentGrade: grade ?? 11, budgetPerYear: budgetMax,
                               priorities: priorities, biggestWorry: worry.trimmed,
-                              involvementLevel: involvement ?? "regular-check-ins")
+                              involvementLevel: involvement ?? "regular-check-ins", homeState: homeState)
         }
         let undecided = majors.isEmpty || majors.contains(OnboardingChoices.undecided)
         return StudentBody(
@@ -197,6 +197,7 @@ extension OnboardingAnswers {
         let priorities: [String]
         let biggestWorry: String
         let involvementLevel: String
+        let homeState: String?
     }
 }
 

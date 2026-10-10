@@ -7,7 +7,7 @@
    generic chatbot.
    ———————————————————————————————————————— */
 
-import { MEMORY_CATEGORIES } from "@/lib/memory";
+import { memoryCategoriesFor } from "@/lib/memory";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Profile, School, StudentProfile } from "@/lib/types";
 import { residencyAt, residencyNote, US_STATES } from "@/lib/residency";
@@ -56,8 +56,8 @@ ${contextNote}
 
 When a structured answer would land better than prose, emit a card with the
 render_cards tool — a tier breakdown, a checklist, a deadline timeline, or a
-side-by-side comparison. Reference schools by their id from the student's
-list or the ids given to you; never invent an id.
+side-by-side comparison. Reference schools by their id from a list above
+or the ids given to you; never invent an id.
 
 Keep responses to the length the question needs. Lead with the answer.`;
 }
@@ -98,10 +98,10 @@ function studentSummary(p: StudentProfile): string {
  * pick up where the student left off in a different conversation — and the
  * student can see and correct every line of it on their You screen.
  */
-function notesSection(p: StudentProfile): string {
+function notesSection(p: Profile): string {
   const notes = p.counselorNotes ?? [];
   if (!notes.length) return "";
-  const byTopic = MEMORY_CATEGORIES.map((c) => {
+  const byTopic = memoryCategoriesFor(p.role).map((c) => {
     const lines = notes.filter((n) => n.category === c.id).map((n) => `  - ${n.fact}`);
     return lines.length ? `- ${c.label}:\n${lines.join("\n")}` : "";
   }).filter(Boolean);
@@ -111,15 +111,29 @@ function notesSection(p: StudentProfile): string {
 }
 
 function parentSummary(p: Extract<Profile, { role: "parent" }>): string {
+  const student = p.studentFirstName ?? "their student";
   return [
-    `- ${p.firstName}, ${p.relationship} of a grade-${p.studentGrade} student`,
+    `- ${p.firstName}, ${p.relationship} of ${p.studentFirstName ? `${p.studentFirstName}, ` : ""}a grade-${p.studentGrade} student`,
+    p.studentFirstName ? "" : "- Not linked to their student's account yet, so you can't see the student's list",
     p.budgetPerYear ? `- Budget: up to $${p.budgetPerYear.toLocaleString()}/year` : "",
+    `- Lives in: ${p.homeState ? `${US_STATES[p.homeState] ?? p.homeState} (${p.homeState})` : "not shared yet"}`,
+    p.priorities.length ? `- What matters most to them: ${p.priorities.join(", ")}` : "",
     p.biggestWorry ? `- Biggest worry: ${p.biggestWorry}` : "",
     `- Wants ${p.involvementLevel.replace(/-/g, " ")} involvement`,
+    notesSection(p),
     "",
-    "You are speaking to a PARENT. Never reveal the student's private",
-    "counselor conversations or essay drafts. If asked for them, say plainly",
-    "that those stay between the student and their counselor.",
+    "You are speaking to a PARENT, as their own counselor — a parent needs",
+    "counsel too. Answer through a parent's lens: money and aid, the",
+    "calendar, what's normal for this season, how to help without taking",
+    `over, and how to talk with ${student} about all of it. Advise them as`,
+    `the adult supporting ${student}, not as the applicant: never coach them`,
+    "to write essays, fill in applications or make choices that are the",
+    "student's to make. When the student would be better served hearing it",
+    "themselves, say so, and suggest how the parent might raise it.",
+    "",
+    "Never reveal the student's private counselor conversations, essay",
+    "drafts, coursework or grades. If asked for them, say plainly that those",
+    "stay between the student and their counselor.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -268,10 +282,10 @@ export function conversationSchoolNote(school: School, homeState?: string): stri
     $(school.outcomes.medianEarnings10yr) && `median earnings ${$(school.outcomes.medianEarnings10yr)}`,
     ...Object.entries(school.admissions.deadlines).map(([plan, date]) => `${plan} deadline ${date}`),
   ].filter(Boolean);
-  return `This conversation is about ${school.name} (id: ${school.id}) in ${school.city}, ${school.state} — the student started it from that school's page. Unless they clearly mean somewhere else, "this school", "here", "it" and questions about chances, cost or fit refer to ${school.name}. What the school page shows them: ${facts.join("; ")}. ${residencyNote(school, residencyAt(school, homeState), homeState)}`;
+  return `This conversation is about ${school.name} (id: ${school.id}) in ${school.city}, ${school.state} — they started it from that school's page. Unless they clearly mean somewhere else, "this school", "here", "it" and questions about chances, cost or fit refer to ${school.name}. What the school page shows them: ${facts.join("; ")}. ${residencyNote(school, residencyAt(school, homeState), homeState)}`;
 }
 
 export function schoolContextNote(school: School | null, homeState?: string): string {
   if (!school) return "";
-  return `The student is currently looking at ${school.name} (id: ${school.id}) in ${school.city}, ${school.state}. ${residencyNote(school, residencyAt(school, homeState), homeState)}`;
+  return `They're currently looking at ${school.name} (id: ${school.id}) in ${school.city}, ${school.state}. ${residencyNote(school, residencyAt(school, homeState), homeState)}`;
 }

@@ -43,6 +43,14 @@ struct CounselorPick: Decodable, Identifiable {
     let reason: String
 }
 
+/// Who the server worked chances and fit out for. For a parent: their
+/// linked student, by first name — or themselves, unlinked, with no tiers.
+struct ExploreSubject: Decodable, Equatable {
+    let name: String
+    let linked: Bool
+    let isParent: Bool
+}
+
 struct ExploreResponse: Decodable {
     let needsProfile: Bool
     /// Free: the public directory only — no chances, fit, picks or "your price".
@@ -50,6 +58,8 @@ struct ExploreResponse: Decodable {
     /// On Free, how many schools Pro opens ("Free shows 40 of 1,587").
     let fullTotal: Int?
     let isParent: Bool?
+    /// Whose chances these are — the viewer, or a parent's linked student.
+    let subject: ExploreSubject?
     let total: Int?
     let page: Int?
     let pageCount: Int?
@@ -107,6 +117,11 @@ struct SchoolDetailResponse: Decodable {
     let residency: Residency?
     let deadline: DeadlineRef?
     let you: You?
+    /// Whose chances these are; for a linked parent, their student's.
+    let subject: ExploreSubject?
+
+    /// The student's name, when a parent is reading their chances.
+    var whose: String? { subject.flatMap { $0.isParent && $0.linked ? $0.name : nil } }
 
     /// Where the student lives, and what that does to the price here
     /// (lib/residency.ts).

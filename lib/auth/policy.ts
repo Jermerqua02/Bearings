@@ -291,8 +291,12 @@ export async function essayVersionCutoff(
 
 /* ————————————— Route guards ————————————— */
 
-/** Routes a parent must never reach, regardless of linkage. */
-export const STUDENT_ONLY_ROUTES = ["/counselor", "/interviews"] as const;
+/**
+ * Routes a parent must never reach, regardless of linkage. The counselor
+ * isn't one: a parent has their own, with their own private conversations
+ * (lib/actions/counselor.ts). Interview practice is the student's.
+ */
+export const STUDENT_ONLY_ROUTES = ["/interviews"] as const;
 
 export function isStudentOnlyRoute(pathname: string): boolean {
   return STUDENT_ONLY_ROUTES.some((r) => pathname === r || pathname.startsWith(`${r}/`));

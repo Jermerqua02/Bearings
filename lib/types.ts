@@ -128,7 +128,13 @@ export interface ParentProfile {
   priorities: string[];
   biggestWorry: string;
   involvementLevel: "light-touch" | "regular-check-ins" | "hands-on";
+  /** Two-letter USPS code. Their own, for real cost before (or without) a link. */
+  homeState?: string;
   linkedStudentId?: string;
+  /** Their linked student's first name. Attached server-side for the counselor. */
+  studentFirstName?: string;
+  /** What the parent has told their own counselor. Server-side only, as for a student. */
+  counselorNotes?: { category: string; fact: string }[];
 }
 
 export type Profile = StudentProfile | ParentProfile;

@@ -133,12 +133,16 @@ export const FREE_SAMPLE = { chat: 2, interview: 0 } as const;
  */
 export const FREE_DIRECTORY = "curated" as const;
 
-/** Whether a Free account may open this school: one of the 40, or on their list. */
-export async function inFreeDirectory(userId: string, schoolId: string): Promise<boolean> {
+/**
+ * Whether a Free account may open this school: one of the 40, or on a list
+ * it can see — its own, and for a parent, their student's too.
+ */
+export async function inFreeDirectory(userIds: string | string[], schoolId: string): Promise<boolean> {
+  const owners = [userIds].flat();
   const [row] = await db
     .select({ curated: schools.curated, listed: listEntries.schoolId })
     .from(schools)
-    .leftJoin(listEntries, and(eq(listEntries.schoolId, schools.id), eq(listEntries.studentId, userId)))
+    .leftJoin(listEntries, and(eq(listEntries.schoolId, schools.id), inArray(listEntries.studentId, owners)))
     .where(eq(schools.id, schoolId))
     .limit(1);
   return !!row && (row.curated || row.listed !== null);

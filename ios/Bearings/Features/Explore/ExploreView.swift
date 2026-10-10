@@ -14,6 +14,7 @@ final class ExploreStore {
     private(set) var pageCount = 0
     private(set) var needsProfile = false
     private(set) var isParent = false
+    private(set) var subject: ExploreSubject?
     /// Free: published facts only (docs/plans/lumni-pro.md).
     private(set) var locked = false
     /// On Free, the whole directory's size — what Pro opens.
@@ -58,6 +59,7 @@ final class ExploreStore {
         options = res.options
         needsProfile = res.needsProfile
         isParent = res.isParent ?? false
+        subject = res.subject
         locked = res.locked ?? false
         fullTotal = res.fullTotal
         // "Best fit" is Pro; the server sorts A–Z instead, and so says the picker.
@@ -129,6 +131,11 @@ struct ExploreView: View {
                     .padding(.bottom, 20)
 
                 if store.locked { FreeDirectoryNote(shown: store.total, all: store.fullTotal).padding(.bottom, 16) }
+                // A parent without a link has no student's grades to read chances from.
+                if let subject = store.subject, subject.isParent, !subject.linked {
+                    Muted("Link with your student in Settings to see their chances and fit at every school. What you save here goes on your own list.", size: 14)
+                        .padding(.bottom, 16)
+                }
 
                 toolbar.padding(.bottom, 16)
 
@@ -157,7 +164,7 @@ struct ExploreView: View {
                 // immediately, and the explorer paged through 500 schools
                 // on launch.
                 ForEach(store.rows) { row in
-                    ResultCard(row: row)
+                    ResultCard(row: row, whose: store.subject.flatMap { $0.isParent && $0.linked ? $0.name : nil })
                         .padding(.bottom, 12)
                         .opacity(store.loading && store.query.page == 1 ? 0.5 : 1)
                         .onAppear {
@@ -220,7 +227,9 @@ struct ExploreView: View {
 
     private var picks: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(icon: "sparkles", title: "Counselor picks", subtitle: "Within reach, at your price", iconBackground: .lavender)
+            SectionHeader(icon: "sparkles", title: "Counselor picks",
+                          subtitle: store.subject.flatMap { $0.isParent ? "Within reach for \($0.name), at your price" : nil } ?? "Within reach, at your price",
+                          iconBackground: .lavender)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(Array(store.picks.enumerated()), id: \.element.id) { i, pick in
@@ -265,15 +274,12 @@ struct ExploreView: View {
 
     private var needsProfile: some View {
         Page {
-            if store.isParent {
-                TwoTone(lead: "The explorer works", rest: "from your student's profile.")
-                Muted("Chances, fit and net price are all calculated against a specific student's grades, budget and preferences — so this page waits until yours has finished onboarding. Their list, deadlines and aid comparisons are already on your Home tab.")
-            } else {
-                TwoTone(lead: "Set up your profile", rest: "and this gets personal.")
-                Muted("It takes about ten minutes, and everything here — chances, fit, what you'd actually pay — becomes specific to you.")
-                Button("Start your first meeting →") { model.startOnboarding() }
-                    .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
-            }
+            TwoTone(lead: "Set up your profile", rest: "and this gets personal.")
+            Muted(store.isParent
+                  ? "A few minutes of questions, and every school here shows what it would really cost your family."
+                  : "It takes about ten minutes, and everything here — chances, fit, what you'd actually pay — becomes specific to you.")
+            Button("Start your first meeting →") { model.startOnboarding() }
+                .font(.system(size: 16, weight: .medium)).foregroundStyle(Color.accent)
         }
     }
 }
@@ -283,6 +289,8 @@ struct ExploreView: View {
 private struct ResultCard: View {
     @Environment(AppModel.self) private var model
     let row: ExploreRow
+    /// A parent sees their student's chances, named: "Riley: Target".
+    var whose: String?
 
     var body: some View {
         let s = row.school
@@ -302,7 +310,12 @@ private struct ResultCard: View {
                         .font(.system(size: 13)).foregroundStyle(Color.grayMid)
                         if row.tier != nil || !(row.fitLabel ?? "").isEmpty {
                             HStack(spacing: 8) {
-                                if let tier = row.tier { TierBadge(tier: tier) }
+                                if let tier = row.tier {
+                                    if let whose {
+                                        Text("\(whose):").font(.system(size: 13)).foregroundStyle(Color.grayStrong)
+                                    }
+                                    TierBadge(tier: tier)
+                                }
                                 if let fit = row.fitLabel, !fit.isEmpty {
                                     Text(fit).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accent)
                                 }
@@ -317,18 +330,17 @@ private struct ResultCard: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("explore.result")
 
-            if !model.isParent {
-                Button { model.toggleList(s, tier: row.tier) } label: {
-                    Image(systemName: saved ? "checkmark" : "plus")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(saved ? Color.white : Color.ink)
-                        .frame(width: 34, height: 34)
-                        .background(saved ? Color.ink : Color.surface, in: Circle())
-                        .overlay(Circle().stroke(saved ? Color.ink : Color.hairline))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(saved ? "Remove \(s.name) from your list" : "Add \(s.name) to your list")
+            // Saves to their own list — a parent's, apart from their student's.
+            Button { model.toggleList(s, tier: row.tier) } label: {
+                Image(systemName: saved ? "checkmark" : "plus")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(saved ? Color.white : Color.ink)
+                    .frame(width: 34, height: 34)
+                    .background(saved ? Color.ink : Color.surface, in: Circle())
+                    .overlay(Circle().stroke(saved ? Color.ink : Color.hairline))
             }
+            .buttonStyle(.plain)
+            .accessibilityLabel(saved ? "Remove \(s.name) from your list" : "Add \(s.name) to your list")
         }
         .padding(14)
         .surfaceCard()

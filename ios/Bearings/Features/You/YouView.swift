@@ -19,10 +19,12 @@ struct YouView: View {
     var body: some View {
         Group {
             if model.isParent {
-                Page {
-                    TwoTone(lead: "This one belongs", rest: "to your student.")
-                    Muted("What they tell their counselor, their courses and their activities are the part of this process where being watched is least useful — so it stays theirs. It feeds their application profile automatically; nothing gets re-typed in senior year.")
-                    Muted("What you can see is on your Home tab: their list, where each application stands, what's due next, and the aid comparison once offers arrive.")
+                // A parent's own: what their counselor knows about them and
+                // their family. The student's record stays the student's.
+                Page(spacing: 22) {
+                    TwoTone(lead: "You,", rest: "as your counselor knows you.")
+                    MemorySection()
+                    Muted("Your student's courses, activities and conversations with their counselor stay theirs — the part of this process where being watched is least useful. What you can see is on Home and Apply.", size: 14)
                 }
             } else {
                 Page(spacing: 22) {

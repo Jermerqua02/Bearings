@@ -104,6 +104,8 @@ struct StudentProfile: Decodable {
 struct ParentProfile: Decodable {
     let firstName: String
     let studentGrade: Int
+    /// The family's state; a linked student's stands in until they give one.
+    let homeState: String?
 }
 
 // MARK: Schools
@@ -294,6 +296,16 @@ struct Snapshot: Decodable {
     let parentLinked: Bool
     var schools: [School]
     let viewerRole: Role
+    /// A parent's own list, apart from their student's (`list`). Nil for a student.
+    var ownList: [ListEntry]?
+    /// A linked parent's student, by first name.
+    let studentFirstName: String?
+
+    /// `ownList` as a list that's always there, for writing through.
+    var ownListValue: [ListEntry] {
+        get { ownList ?? [] }
+        set { ownList = newValue }
+    }
 }
 
 struct SnapshotResponse: Decodable {

@@ -9,7 +9,7 @@
 
 import { requireViewer, subjectStudentId } from "@/lib/auth/policy";
 import { getSchoolById } from "@/lib/db/queries/schools";
-import { loadProfileOnly } from "@/lib/db/queries/snapshot";
+import { subjectProfile } from "@/lib/db/queries/snapshot";
 import { chanceRead, fit, nextDeadline } from "@/lib/match";
 import { NotFound, route } from "@/lib/api/v1";
 import { adjustForResidency, residencyAt, US_STATES } from "@/lib/residency";
@@ -20,9 +20,10 @@ export const runtime = "nodejs";
 
 export const GET = route<{ id: string }>("school", "We couldn't load that school.", async (_r, { id }) => {
   const viewer = await requireViewer();
-  const [school, profile] = await Promise.all([
+  // The viewer, or a parent's linked student — see subjectProfile().
+  const [school, subject] = await Promise.all([
     getSchoolById(decodeURIComponent(id)),
-    loadProfileOnly(viewer),
+    subjectProfile(viewer),
   ]);
   if (!school) throw new NotFound();
 
@@ -31,23 +32,32 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
   // the published facts only; the personal half isn't computed, so no
   // client can show it (docs/plans/lumni-pro.md).
   const pro = isPro(await proStatus(viewer.userId, viewer.role));
-  // Free browses the 40 hand-written schools, and anything already on their
-  // list; the rest of the directory is Pro.
-  if (!pro && !(await inFreeDirectory((await subjectStudentId(viewer)) ?? viewer.userId, school.id))) {
+  // Free browses the 40 hand-written schools, and anything already on a list
+  // they can see — a parent's own, and their student's; the rest is Pro.
+  const owners = [viewer.userId, (await subjectStudentId(viewer)) ?? viewer.userId];
+  if (!pro && !(await inFreeDirectory(owners, school.id))) {
     throw new ProRequired("Lumni Free covers 40 well-known schools. Pro opens every school — with your chances and your real cost at each.");
   }
-  const student = pro && profile?.role === "student" ? profile : null;
-  const read = student ? chanceRead(student, school) : null;
-  // Those figures are in-state at a public school; where the student lives
+  // Chances and fit need a student's grades: theirs, or a linked parent's
+  // student's. Price needs only a budget and a state, so an unlinked parent
+  // still gets theirs.
+  const student = pro && subject?.linked ? subject.profile : null;
+  const priced = pro && subject ? subject.profile : null;
+  const own = student ? chanceRead(student, school) : null;
+  // The caveat speaks to the student ("your GPA"); to their parent it names them.
+  const read = own && subject?.isParent && own.caveat
+    ? { ...own, caveat: own.caveat.replace(/\byour\b/g, `${subject.name}'s`) }
+    : own;
+  // Those figures are in-state at a public school; where the family lives
   // decides what's added on top (lib/residency.ts), budget fit included.
-  const homeState = student?.homeState;
+  const homeState = priced?.homeState;
   const residency = residencyAt(school, homeState);
   const f = student ? fit(student, school, adjustForResidency(school.cost.avgNetPrice, residency)) : null;
 
   // Same banding as SchoolDetail.tsx: the student's stated budget picks the
   // income band that best matches it; no budget, the school's average.
   const income = school.cost.netPriceByIncome;
-  const budget = student?.budget.maxPerYear;
+  const budget = priced?.budget.maxPerYear;
   const banded =
     budget === undefined
       ? school.cost.avgNetPrice
@@ -93,8 +103,11 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
       })),
     },
     deadline: dl ? { plan: dl.plan, date: dl.iso } : null,
-    you: student
+    // The student's own numbers, to themselves only — a parent gets the
+    // read, never the grades behind it.
+    you: student && !subject?.isParent
       ? { gpaUnweighted: student.gpa.unweighted ?? null, sat: student.testScores.sat ?? null }
       : null,
+    subject: subject ? { name: subject.name, linked: subject.linked, isParent: subject.isParent } : null,
   };
 });

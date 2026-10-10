@@ -61,7 +61,7 @@ struct SchoolDetailView: View {
             header(d)
             glance(d)
             if let fit = d.fit {
-                whyPanel(fit)
+                whyPanel(fit, whose: d.whose)
             } else if d.locked == true {
                 LockedCard(icon: "sparkles", title: "How \(s.shortName) fits you",
                            teaser: "Your chances here, what it would really cost you, and your counselor's take.")
@@ -92,7 +92,12 @@ struct SchoolDetailView: View {
                     ].compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
                     HStack(spacing: 8) {
-                        if let tier = d.chance?.tier { TierBadge(tier: tier) }
+                        if let tier = d.chance?.tier {
+                            if let whose = d.whose {
+                                Text("\(whose):").font(.system(size: 13)).foregroundStyle(Color.grayStrong)
+                            }
+                            TierBadge(tier: tier)
+                        }
                         if let label = d.fit?.label {
                             Text(label).font(.system(size: 13, weight: .medium)).foregroundStyle(Color.accent)
                         }
@@ -102,15 +107,14 @@ struct SchoolDetailView: View {
             Text(s.name).font(.display(30)).tracking(-0.3)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityIdentifier("school.name")
-            if !model.isParent {
-                if onList {
-                    Button { model.removeFromList(s.id) } label: { Label("On your list", systemImage: "checkmark") }
-                        .buttonStyle(OutlineButtonStyle(compact: true))
-                        .accessibilityLabel("Remove \(s.name) from your list")
-                } else {
-                    Button { model.addToList(s, tier: d.chance?.tier) } label: { Label("Save to list", systemImage: "plus") }
-                        .buttonStyle(HighlightButtonStyle(compact: true))
-                }
+            // Their own list: a parent's is apart from their student's.
+            if onList {
+                Button { model.removeFromList(s.id) } label: { Label("On your list", systemImage: "checkmark") }
+                    .buttonStyle(OutlineButtonStyle(compact: true))
+                    .accessibilityLabel("Remove \(s.name) from your list")
+            } else {
+                Button { model.addToList(s, tier: d.chance?.tier) } label: { Label(model.isParent ? "Save to my list" : "Save to list", systemImage: "plus") }
+                    .buttonStyle(HighlightButtonStyle(compact: true))
             }
         }
     }
@@ -175,8 +179,8 @@ struct SchoolDetailView: View {
         }
     }
 
-    private func whyPanel(_ fit: SchoolDetailResponse.Fit) -> some View {
-        Panel(icon: "sparkles", title: "How it fits you", subtitle: "From your counselor", tint: .lavender) {
+    private func whyPanel(_ fit: SchoolDetailResponse.Fit, whose: String?) -> some View {
+        Panel(icon: "sparkles", title: whose.map { "How it fits \($0)" } ?? "How it fits you", subtitle: "From your counselor", tint: .lavender) {
             if let why, !why.isEmpty {
                 Text(why).font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
             } else if why == nil {
@@ -202,7 +206,8 @@ struct SchoolDetailView: View {
             }
             if let caveat = d.chance?.caveat { Muted(caveat, size: 14) }
             if d.chance?.tier == .reach {
-                Muted("For students with your profile, this is a reach — and that's fine. Reaches belong on a list that's built on a solid foundation of targets and likelies.", size: 14)
+                Muted(d.whose.map { "For \($0)'s profile, this is a reach — and that's fine. Reaches belong on a list that's built on a solid foundation of targets and likelies." }
+                      ?? "For students with your profile, this is a reach — and that's fine. Reaches belong on a list that's built on a solid foundation of targets and likelies.", size: 14)
             }
             if !hasRanges && d.chance?.caveat == nil && d.chance?.tier != .reach {
                 Muted("This school hasn't published grade or test ranges.", size: 14)
@@ -388,17 +393,16 @@ struct SchoolDetailView: View {
         }
     }
 
-    @ViewBuilder
     private func askCounselor(_ s: School) -> some View {
-        if !model.isParent {
-            Panel(icon: "bubble.left.and.text.bubble.right", title: "Questions about \(s.shortName)?", tint: .lavender) {
-                Muted("I know your profile — ask me anything about fit, chances, or cost.")
-                Button {
-                    model.askAbout = s
-                    model.counselorOpen = true
-                } label: { Label("Ask the counselor", systemImage: "arrow.up.right") }
-                    .buttonStyle(InkButtonStyle(compact: true))
-            }
+        Panel(icon: "bubble.left.and.text.bubble.right", title: "Questions about \(s.shortName)?", tint: .lavender) {
+            Muted(model.isParent
+                  ? "I know your family's situation — ask me what it would cost you, whether it's realistic, or what to ask on a visit."
+                  : "I know your profile — ask me anything about fit, chances, or cost.")
+            Button {
+                model.askAbout = s
+                model.counselorOpen = true
+            } label: { Label("Ask the counselor", systemImage: "arrow.up.right") }
+                .buttonStyle(InkButtonStyle(compact: true))
         }
     }
 

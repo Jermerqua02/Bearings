@@ -143,17 +143,14 @@ struct ResidencyPanel: View {
     var body: some View {
         switch residency.status {
         case .unknown:
-            // Home state is the student's to set; a parent can't, so don't offer it.
-            if model.isParent {
-                Muted("\(school.shortName) is public, and these are in-state prices. Out-of-state students pay more, unless a discount for nearby states applies.", size: 14)
-            } else {
-                VStack(alignment: .leading, spacing: 10) {
-                    Muted("\(school.shortName) is public, and these are in-state prices. Tell me where you live and I'll show what you'd actually pay — including any discount for students from nearby states.", size: 14)
-                    Button { picking = true } label: { Label("Choose your state", systemImage: "mappin.and.ellipse") }
-                        .buttonStyle(OutlineButtonStyle(compact: true))
-                }
-                .sheet(isPresented: $picking) { HomeStatePicker().presentationBackground(Color.paper) }
+            // A student sets theirs; a parent sets the family's, which stands
+            // in for a linked student who hasn't.
+            VStack(alignment: .leading, spacing: 10) {
+                Muted("\(school.shortName) is public, and these are in-state prices. Tell me where you live and I'll show what you'd actually pay — including any discount for students from nearby states.", size: 14)
+                Button { picking = true } label: { Label("Choose your state", systemImage: "mappin.and.ellipse") }
+                    .buttonStyle(OutlineButtonStyle(compact: true))
             }
+            .sheet(isPresented: $picking) { HomeStatePicker().presentationBackground(Color.paper) }
         case .outOfState:
             Muted("You live in \(residency.homeStateName ?? "another state"), so you'd pay out-of-state tuition here" + (residency.extraPerYear.map { " — about \(Format.thousands($0)) more a year than in-state students, already added to the figures below." } ?? ". The figures below are in-state; out-of-state costs more."), size: 14)
             maybePrograms

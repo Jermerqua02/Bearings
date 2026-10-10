@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { counselorThreads } from "@/lib/db/schema";
-import { requireStudent } from "@/lib/auth/policy";
+import { requireViewer } from "@/lib/auth/policy";
 import { NotFound, uuid } from "@/lib/api/v1";
 
 /**
@@ -14,7 +14,8 @@ import { NotFound, uuid } from "@/lib/api/v1";
  * closed regardless of which action is underneath.
  */
 export async function requireOwnThread(id: string): Promise<string> {
-  const s = await requireStudent();
+  // A student's or a parent's — each has their own conversations.
+  const s = await requireViewer();
   const [row] = await db
     .select({ id: counselorThreads.id })
     .from(counselorThreads)

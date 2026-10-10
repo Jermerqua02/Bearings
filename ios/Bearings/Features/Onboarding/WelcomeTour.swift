@@ -108,9 +108,16 @@ private struct TourPage {
         TourPage(icon: "graduationcap", lead: "Welcome to Lumni.",
                  rest: "Honest help for the parent's side of college.",
                  detail: "Where things stand, what it will cost, and what's coming next — without becoming your student's project manager."),
+        TourPage(icon: "sparkles", lead: "A counselor of your own.",
+                 rest: "Parents need counsel too.",
+                 detail: "Ask about aid, the calendar, or how to help without taking over. She remembers your family's situation, and what you tell her stays between you.",
+                 pro: "Two messages are free; the rest is Pro"),
         TourPage(icon: "eye", lead: "See where things stand.",
                  rest: "Without asking at dinner.",
-                 detail: "Link with your student to see their list, application statuses and deadlines. Their counselor conversations and essays stay private unless they share them."),
+                 detail: "Link with your student to see their list, application statuses, deadlines and their chances at each school. Their counselor conversations and essays stay private unless they share them."),
+        TourPage(icon: "scope", lead: "Explore on your own.",
+                 rest: "Keep your own list.",
+                 detail: "Browse schools and save the ones you like to a list of your own — apart from your student's, so you can bring the good ones up together."),
         TourPage(icon: "dollarsign.circle", lead: "What it would really cost.",
                  rest: "Not the sticker price.",
                  detail: "Net price for a family like yours — in-state tuition, regional discounts and aid — so the money conversation starts from real numbers.",
@@ -164,13 +171,13 @@ private struct WhyPro: View {
 
     private var free: [String] {
         isParent
-            ? ["Your student's list and deadlines, once you link", "Published numbers for 40 hand-picked schools"]
+            ? ["Your student's list and deadlines, once you link", "40 hand-picked schools, and a list of your own up to 5", "Two messages with your counselor, to try her out"]
             : ["40 hand-picked schools and their published numbers", "A list of up to 5 schools, with deadline dates", "Two messages with the counselor, to try her out"]
     }
 
     private var pro: [String] {
         isParent
-            ? ["What each school would really cost your family", "What's normal this season, and how to help", "Every school, not just 40", "Shared with your linked student — one Pro covers you both"]
+            ? ["Your counselor, whenever you need her", "What each school would really cost your family", "Your student's chances at every school", "What's normal this season, and how to help", "Shared with your linked student — one Pro covers you both"]
             : ["Your chances at every school", "What each one would really cost you", "Your counselor, whenever you need her", "Interview practice with spoken feedback", "Picks within reach, and why they fit", "Your full application plan and reminders"]
     }
 

@@ -262,14 +262,37 @@ private struct ParentHome: View {
                        teaser: "Where your student should be this season, and how to help.")
         }
 
-        TileRow {
-            StatTile(label: "Schools on the list", value: "\(snapshot.list.count)", icon: "building.columns")
-            StatTile(label: "Applications submitted", value: "\(submitted)", tint: submitted > 0 ? .highlight : .surface, icon: "paperplane")
+        // Their own counselor: a parent needs counsel too.
+        Panel(icon: "bubble.left.and.text.bubble.right", title: "Your counselor", tint: .surface) {
+            Text("Ask me about cost and aid, the calendar, or how to help without taking over. What you tell me stays between us.")
+                .font(.system(size: 15)).foregroundStyle(Color.grayStrong)
+                .fixedSize(horizontal: false, vertical: true)
+            Button { model.counselorOpen = true } label: { Label("Ask me anything", systemImage: "arrow.up.right") }
+                .buttonStyle(InkButtonStyle(compact: true))
         }
 
-        Panel(icon: "lock", title: "What you can see", tint: .surface) {
-            Text("You're seeing the shared view: the list, statuses, and deadlines. Your student's counselor conversations and essay drafts stay private unless they choose to share — that boundary is deliberate, and it's part of why this works.")
-                .font(.system(size: 14)).foregroundStyle(Color.grayMid)
+        TileRow {
+            if snapshot.parentLinked {
+                StatTile(label: "On \(model.linkedStudentName.map { "\($0)'s" } ?? "their") list", value: "\(snapshot.list.count)", icon: "building.columns")
+                StatTile(label: "Applications submitted", value: "\(submitted)", tint: submitted > 0 ? .highlight : .surface, icon: "paperplane")
+            } else {
+                StatTile(label: "On your list", value: "\(model.myList.count)", icon: "building.columns")
+                StatTile(label: "Linked student", value: "None yet", icon: "person.2")
+            }
+        }
+
+        if snapshot.parentLinked {
+            Panel(icon: "lock", title: "What you can see", tint: .surface) {
+                Text("You're seeing the shared view: their list, statuses, and deadlines. Your student's counselor conversations and essay drafts stay private unless they choose to share — that boundary is deliberate, and it's part of why this works. Your own conversations and list are private to you the same way.")
+                    .font(.system(size: 14)).foregroundStyle(Color.grayMid)
+            }
+        } else {
+            Panel(icon: "person.2", title: "Link with your student", tint: .surface) {
+                Text("Once you're linked you'll see their list, where each application stands, and their chances at schools you explore. Their conversations and essays stay theirs.")
+                    .font(.system(size: 14)).foregroundStyle(Color.grayMid)
+                NavigationLink(value: SettingsRoute()) { Label("Link in Settings", systemImage: "arrow.up.right") }
+                    .buttonStyle(InkButtonStyle(compact: true))
+            }
         }
 
         Panel(icon: "calendar", title: "Deadlines & money milestones") {
