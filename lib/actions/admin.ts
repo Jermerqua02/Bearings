@@ -12,13 +12,13 @@
 
 "use server";
 
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { accountEvents, adminSettings, entitlements, feedback, schoolLeads, users } from "@/lib/db/schema";
+import { accountEvents, adminSettings, feedback, schoolLeads, users } from "@/lib/db/schema";
 import { decideFreeAccess } from "@/lib/free-access";
 import { createSchoolLicense, revokeSchoolLicense } from "@/lib/school-licenses";
-import { ownActiveEntitlements, proStatus } from "@/lib/entitlements";
+import { changeGrant, endGrant, grantPro as grantProFor, proDetail, removePro, restorePro, type ProDetail } from "@/lib/pro-admin";
 import { AuthzError, requireViewer } from "@/lib/auth/policy";
 import { safeError } from "@/lib/actions/_error";
 import { SELF_ASSIGNABLE_ROLES } from "@/lib/types";
@@ -86,53 +86,24 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
 
 /* ————————————— Pro ————————————— */
 
-const REASON_MAX = 300;
+/* Thin wrappers over lib/pro-admin.ts, which holds the rules (and is what
+   scripts/test-pro-admin.ts tests). Each re-checks the role. */
 
-function cleanReason(reason: string): string | null {
-  const r = reason.trim();
-  return r && r.length <= REASON_MAX ? r : null;
+type Dates = { from?: string | null; until?: string | null; note?: string | null };
+
+export async function proDetailAction(userId: string): Promise<{ ok: true; detail: ProDetail } | { ok: false; error: string }> {
+  try {
+    await requireAdmin();
+    return { ok: true, detail: await proDetail(userId) };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not load this account.") };
+  }
 }
 
-/**
- * Give an account Pro, until a date or with no end. A reason is required:
- * it's what the history shows when someone later asks why this account
- * has Pro ("beta tester", "school pilot", "free access approved").
- */
-export async function grantPro(
-  userId: string,
-  input: { until: string | null; reason: string },
-): Promise<ActionResult> {
+export async function grantPro(userId: string, input: Dates): Promise<ActionResult> {
   try {
     const admin = await requireAdmin();
-    const reason = cleanReason(input.reason);
-    if (!reason) return { ok: false, error: `Give a reason (up to ${REASON_MAX} characters).` };
-
-    let endsAt: Date | null = null;
-    if (input.until) {
-      // A date from the form is the last day of Pro, through its end.
-      endsAt = new Date(`${input.until}T23:59:59.999Z`);
-      if (Number.isNaN(endsAt.getTime())) return { ok: false, error: "That end date isn't valid." };
-      if (endsAt.getTime() <= Date.now()) return { ok: false, error: "The end date has to be in the future." };
-    }
-
-    const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
-    if (!target) return { ok: false, error: "That account no longer exists." };
-
-    await db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(entitlements)
-        .values({ userId, source: "admin", endsAt, grantedBy: admin.userId, note: reason })
-        .returning({ id: entitlements.id });
-      await tx.insert(accountEvents).values({
-        userId,
-        actorId: admin.userId,
-        actorKind: "admin",
-        action: "pro.granted",
-        reason,
-        detail: { entitlementId: row.id, source: "admin", endsAt: endsAt?.toISOString() ?? null },
-      });
-    });
-
+    await grantProFor(admin.userId, userId, input);
     revalidatePath("/admin/users");
     return { ok: true };
   } catch (err) {
@@ -140,52 +111,50 @@ export async function grantPro(
   }
 }
 
-/**
- * End an account's Pro now. Only what Lumni granted can be ended here: an
- * App Store purchase is between the family and Apple — Lumni can't cancel
- * or refund it, and the next notification from Apple would restore it — so
- * those are left in place and the admin is told so.
- */
-export async function revokePro(userId: string, input: { reason: string }): Promise<ActionResult> {
+export async function changeGrantAction(entitlementId: string, input: Dates): Promise<ActionResult> {
   try {
     const admin = await requireAdmin();
-    const reason = cleanReason(input.reason);
-    if (!reason) return { ok: false, error: `Give a reason (up to ${REASON_MAX} characters).` };
-
-    const own = await ownActiveEntitlements(userId);
-    const ours = own.filter((e) => e.source !== "app_store");
-    const apple = own.filter((e) => e.source === "app_store");
-
-    if (ours.length === 0) {
-      if (apple.length > 0) {
-        return { ok: false, error: "Their Pro is an App Store purchase — only Apple or they can cancel or refund it (App Store Connect)." };
-      }
-      const status = await proStatus(userId);
-      if (status.tier === "pro" && status.via === "family") {
-        return { ok: false, error: "Their Pro is shared from a linked parent or student — revoke it on that account." };
-      }
-      return { ok: false, error: "This account doesn't have Pro to revoke." };
-    }
-
-    const now = new Date();
-    await db.transaction(async (tx) => {
-      await tx.update(entitlements).set({ revokedAt: now, updatedAt: now }).where(inArray(entitlements.id, ours.map((e) => e.id)));
-      await tx.insert(accountEvents).values({
-        userId,
-        actorId: admin.userId,
-        actorKind: "admin",
-        action: "pro.revoked",
-        reason,
-        detail: { entitlementIds: ours.map((e) => e.id), sources: ours.map((e) => e.source) },
-      });
-    });
-
+    await changeGrant(admin.userId, entitlementId, input);
     revalidatePath("/admin/users");
-    return apple.length > 0
-      ? { ok: false, error: "Revoked what Lumni granted. They still have an App Store purchase, which only Apple or they can cancel." }
-      : { ok: true };
+    return { ok: true };
   } catch (err) {
-    return { ok: false, error: safeError("admin", err, "Could not revoke Pro.") };
+    return { ok: false, error: safeError("admin", err, "Could not change that grant.") };
+  }
+}
+
+export async function endGrantAction(entitlementId: string, input: { note?: string | null }): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin();
+    await endGrant(admin.userId, entitlementId, input);
+    revalidatePath("/admin/users");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not end that grant.") };
+  }
+}
+
+export async function removeProAction(
+  userId: string,
+  input: { note?: string | null },
+): Promise<{ ok: true; appStoreActive: boolean } | { ok: false; error: string }> {
+  try {
+    const admin = await requireAdmin();
+    const { appStoreActive } = await removePro(admin.userId, userId, input);
+    revalidatePath("/admin/users");
+    return { ok: true, appStoreActive };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not remove Pro.") };
+  }
+}
+
+export async function restoreProAction(userId: string, input: { note?: string | null }): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin();
+    await restorePro(admin.userId, userId, input);
+    revalidatePath("/admin/users");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not restore Pro.") };
   }
 }
 
@@ -194,6 +163,7 @@ export interface AccountEventRow {
   action: string;
   actor: string;
   reason: string | null;
+  startsAt: string | null;
   endsAt: string | null;
 }
 
@@ -224,6 +194,7 @@ export async function accountHistory(
         action: r.action,
         actor: r.actorEmail ?? r.actorKind,
         reason: r.reason,
+        startsAt: ((r.detail as { startsAt?: string | null } | null)?.startsAt) ?? null,
         endsAt: ((r.detail as { endsAt?: string | null } | null)?.endsAt) ?? null,
       })),
     };

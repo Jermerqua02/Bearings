@@ -1383,6 +1383,26 @@ export const accountEvents = pgTable(
 );
 
 /* ————————————————————————————————————————
+   Pro removed by an admin.
+
+   A row here means "this account has no Pro, whatever else says it
+   should": its own grants, a linked parent's or student's, an App Store
+   purchase Lumni can't cancel. It's the moderation switch — removing Pro
+   ends what Lumni granted and writes this, so nothing that arrives later
+   (a renewal, a new link) brings Pro back until an admin restores it.
+   Restoring deletes the row; account_event keeps the record.
+   ———————————————————————————————————————— */
+
+export const proBlocks = pgTable("pro_block", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  blockedBy: text("blocked_by").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/* ————————————————————————————————————————
    Link codes: how a student and a parent link from the app.
 
    Either side makes one (Settings › Link an account) and sends it however

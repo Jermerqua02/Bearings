@@ -69,17 +69,21 @@ struct ProPaywall: View {
                     .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
                     .softShadow()
 
-                    purchase
+                    if model.proRemoved {
+                        InlineNote(text: "Pro isn't available on this account. If you think that's a mistake, write to support@promptllc.com.", kind: .problem)
+                    } else {
+                        purchase
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        Button("Have a school code?") { schoolCode = true }
-                        Button("Can't afford it? Ask for free access") { asking = true }
+                        VStack(alignment: .leading, spacing: 10) {
+                            Button("Have a school code?") { schoolCode = true }
+                            Button("Can't afford it? Ask for free access") { asking = true }
+                        }
+                        .buttonStyle(LinkButtonStyle(color: .accent))
+
+                        Muted("Pro is shared with a linked parent or student. If yours has it, link your accounts in Settings and you'll have it too.", size: 14)
+
+                        terms
                     }
-                    .buttonStyle(LinkButtonStyle(color: .accent))
-
-                    Muted("Pro is shared with a linked parent or student. If yours has it, link your accounts in Settings and you'll have it too.", size: 14)
-
-                    terms
                 }
                 .padding(20)
             }

@@ -18,6 +18,7 @@ import { db } from "@/lib/db";
 import { accountEvents, entitlements, schoolLeads, schoolLicenses, seatRedemptions } from "@/lib/db/schema";
 import { UserFacingError } from "@/lib/actions/_error";
 import { schoolLeadEmail } from "@/lib/email";
+import { proRemoved } from "@/lib/entitlements";
 import { adminUrl, notifyAdmins } from "@/lib/admin-notify";
 import type { Viewer } from "@/lib/auth/policy";
 
@@ -108,6 +109,8 @@ export async function createSchoolLicense(
 /** A student (or parent) enters their school's code. */
 export async function redeemSchoolCode(viewer: Viewer, input: string): Promise<{ orgName: string; endsAt: Date }> {
   if (viewer.role !== "student" && viewer.role !== "parent") throw new UserFacingError("School codes are for student and parent accounts.");
+  // A seat would give them nothing, and use up one of the school's.
+  if (await proRemoved(viewer.userId)) throw new UserFacingError("Pro isn't available on this account. Write to support@promptllc.com if you think that's a mistake.");
   const code = input.toUpperCase().replace(/\s+/g, "").replace(/[^A-Z0-9-]/g, "");
   const [license] = await db.select().from(schoolLicenses).where(eq(schoolLicenses.code, code)).limit(1);
   const now = new Date();

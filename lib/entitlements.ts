@@ -9,6 +9,11 @@
    Admins have Pro by role ("staff"), so the people running Lumni see what
    a paying family sees without granting themselves anything.
 
+   An account an admin has removed Pro from (pro_block) is Free whatever
+   else is true — its own rows, a linked family member's, an App Store
+   purchase. Its own rows still share to its linked family: the block is
+   about this account, not the people linked to it.
+
    Reads only. Granting and revoking are admin actions (lib/actions/
    admin.ts), purchases arrive from the App Store — both write rows that
    this then reads.
@@ -18,7 +23,7 @@ import "server-only";
 
 import { and, count, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { aiUsage, entitlements, listEntries, parentStudentLinks, schools, users } from "@/lib/db/schema";
+import { aiUsage, entitlements, listEntries, parentStudentLinks, proBlocks, schools, users } from "@/lib/db/schema";
 import { ProRequired } from "@/lib/actions/_error";
 
 export type ProSource = "app_store" | "admin" | "free_access" | "school" | "staff";
@@ -177,27 +182,46 @@ export async function assertFeature(userId: string, feature: string): Promise<vo
   }
 }
 
+/** Whether an admin has removed Pro from this account. */
+export async function proRemoved(userId: string): Promise<boolean> {
+  return (await blockedOf([userId])).has(userId);
+}
+
+/** Accounts an admin has removed Pro from, of these. */
+async function blockedOf(userIds: string[]): Promise<Set<string>> {
+  if (userIds.length === 0) return new Set();
+  const rows = await db.select({ userId: proBlocks.userId }).from(proBlocks).where(inArray(proBlocks.userId, userIds));
+  return new Set(rows.map((r) => r.userId));
+}
+
 /** What the app needs to know about an account's plan. */
 export async function planFor(userId: string, role: string) {
   const status = await proStatus(userId, role);
   if (isPro(status)) {
     const s = status as Extract<ProStatus, { tier: "pro" }>;
-    return { tier: "pro" as const, source: s.source, endsAt: s.endsAt?.toISOString() ?? null, inTrial: s.inTrial, via: s.via, sample: null };
+    return { tier: "pro" as const, source: s.source, endsAt: s.endsAt?.toISOString() ?? null, inTrial: s.inTrial, via: s.via, sample: null, blocked: false };
   }
-  return { tier: "free" as const, source: null, endsAt: null, inTrial: false, via: null, sample: await sampleLeft(userId) };
+  // Removed by an admin: the app hides the purchase buttons, since a
+  // purchase couldn't give them Pro.
+  const blocked = await proRemoved(userId);
+  return { tier: "free" as const, source: null, endsAt: null, inTrial: false, via: null, sample: await sampleLeft(userId), blocked };
 }
 
-/** Pro status for many accounts at once — the admin roster — in two queries. */
+/** Pro status for many accounts at once — the admin roster — in three queries. */
 export async function proStatuses(accounts: { userId: string; role: string }[], now = new Date()) {
   const ids = accounts.map((a) => a.userId);
   const family = await familyOf(ids);
   const holders = [...new Set([...ids, ...[...family.values()].flat()])];
-  const rows = await activeFor(holders, now);
+  const [rows, blocked] = await Promise.all([activeFor(holders, now), blockedOf(ids)]);
 
   const out = new Map<string, ProStatus>();
   for (const { userId, role } of accounts) {
     if (role === "admin") {
       out.set(userId, { tier: "pro", source: "staff", endsAt: null, inTrial: false, via: "own" });
+      continue;
+    }
+    if (blocked.has(userId)) {
+      out.set(userId, { tier: "free" });
       continue;
     }
     const mine = new Set([userId, ...(family.get(userId) ?? [])]);

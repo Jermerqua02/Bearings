@@ -30,6 +30,7 @@
     "test:links": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-link-codes.ts",
     "test:billing": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-billing.ts",
     "test:pro-access": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-pro-access.ts",
+    "test:pro-admin": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-pro-admin.ts",
     "test:budget": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-budget-alert.ts",
     "test:schools": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-schools.ts",
     "test:requirements": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-requirements.ts",

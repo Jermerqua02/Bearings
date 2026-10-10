@@ -119,7 +119,7 @@ final class AppModel {
     /// Once per account, the first time a Free account arrives with a
     /// profile (onboarding done): the trial offer, with "Not now".
     private func offerProOnce() {
-        guard let viewer, !isPro, snapshot?.profile != nil, viewer.role != .admin else { return }
+        guard let viewer, !isPro, !proRemoved, snapshot?.profile != nil, viewer.role != .admin else { return }
         let key = "proIntroShown-\(viewer.id)"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
@@ -217,6 +217,10 @@ final class AppModel {
 
     /// Pro — or a server from before Pro, where everything was open.
     var isPro: Bool { viewer?.plan?.isPro ?? true }
+
+    /// An admin removed Pro from this account; the paywall says so instead
+    /// of selling something that wouldn't count.
+    var proRemoved: Bool { viewer?.plan?.blocked ?? false }
 
     /// What's left of the Free sample of the counselor.
     var sample: Plan.Sample? { isPro ? nil : viewer?.plan?.sample }

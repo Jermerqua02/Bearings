@@ -5,6 +5,8 @@ import Card from "@/components/ui/Card";
 import UsersTable, { type Row } from "./UsersTable";
 import { accounts, userCosts } from "@/lib/db/queries/admin";
 import { proStatuses, type ProStatus } from "@/lib/entitlements";
+import { db } from "@/lib/db";
+import { proBlocks } from "@/lib/db/schema";
 import { getViewer } from "@/lib/auth/policy";
 import { formatBytes, formatMillicents } from "@/lib/costs";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
@@ -20,19 +22,25 @@ const SOURCE_LABEL: Record<string, string> = {
   staff: "staff",
 };
 
-function planOf(status: ProStatus | undefined): Row["plan"] {
-  if (!status || status.tier === "free") return { tier: "free", label: "Free", until: null };
+function planOf(status: ProStatus | undefined, removed: boolean): Row["plan"] {
+  if (removed) return { tier: "free", label: "Free · Pro removed", until: null, removed };
+  if (!status || status.tier === "free") return { tier: "free", label: "Free", until: null, removed };
   const source = SOURCE_LABEL[status.source] ?? status.source;
   return {
     tier: "pro",
     label: `Pro · ${status.via === "family" ? "via family" : status.inTrial ? "App Store trial" : source}`,
     until: status.endsAt ? status.endsAt.toISOString() : null,
+    removed,
   };
 }
 
 export default async function AdminUsersPage() {
   const [list, costs, viewer] = await Promise.all([accounts(), userCosts(), getViewer()]);
-  const pro = await proStatuses(list.map((a) => ({ userId: a.userId, role: a.role })));
+  const [pro, blocks] = await Promise.all([
+    proStatuses(list.map((a) => ({ userId: a.userId, role: a.role }))),
+    db.select({ userId: proBlocks.userId }).from(proBlocks),
+  ]);
+  const removed = new Set(blocks.map((b) => b.userId));
 
   const costById = new Map(costs.map((c) => [c.userId, c]));
 
@@ -50,7 +58,7 @@ export default async function AdminUsersPage() {
       consents: a.consents.map((x) => ({ document: x.document, version: x.version })),
       aiSpend: formatMillicents(c?.aiMillicents ?? 0),
       storage: formatBytes(c?.storageBytes ?? 0),
-      plan: planOf(pro.get(a.userId)),
+      plan: planOf(pro.get(a.userId), removed.has(a.userId)),
     };
   });
 

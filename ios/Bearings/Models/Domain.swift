@@ -38,6 +38,8 @@ struct Plan: Codable, Equatable {
     let via: String?
     /// What's left of the Free sample; nil on Pro.
     var sample: Sample?
+    /// An admin removed Pro from this account: nothing it buys would count.
+    var blocked: Bool?
 
     struct Sample: Codable, Equatable {
         var chat: Int

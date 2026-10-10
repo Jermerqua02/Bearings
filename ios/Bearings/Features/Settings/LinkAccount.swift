@@ -213,7 +213,7 @@ struct ProWaysSection: View {
 
     var body: some View {
         CardView {
-            if !model.isPro {
+            if !model.isPro && !model.proRemoved {
                 row("I have a school code", "ticket") { schoolCode = true }
                 Divider().overlay(Color.hairline)
                 row("Request free access", "heart") { asking = true }
