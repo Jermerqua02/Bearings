@@ -81,7 +81,9 @@ export const COMPANY = {
 /*
   2026-10-10: the product is Lumni; Lumni Pro, App Store subscriptions and
   trials, refunds through Apple, free access and school licenses; linking by
-  code, one to one, with Pro shared across the link.
+  code, one to one, with Pro shared across the link; Pro's fair-use limits on
+  AI features. (The fair-use paragraph was added within the hour this version
+  went live, before anyone had accepted it, so the version stands.)
 */
 export const TERMS_VERSION = "2026-10-10";
 export const PRIVACY_VERSION = "2026-10-10";

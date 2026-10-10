@@ -79,7 +79,7 @@ struct CounselorView: View {
 
             if let left = model.sample?.chat {
                 Label(left > 0
-                      ? "\(left) free message\(left == 1 ? "" : "s") with me. Pro is unlimited."
+                      ? "\(left) free message\(left == 1 ? "" : "s") with me. Pro keeps the conversation going."
                       : "You've used your free messages. Pro lets us keep talking.",
                       systemImage: left > 0 ? "bubble.left" : "lock.fill")
                     .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.grayStrong)
@@ -466,7 +466,7 @@ private struct OutOfMessages: View {
                     .frame(width: 34, height: 34).background(.white.opacity(0.2), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Upgrade to keep talking").font(.system(size: 16, weight: .semibold))
-                    Text("You've used your free messages. Pro is unlimited.").font(.system(size: 13)).opacity(0.9)
+                    Text("You've used your free messages. Pro keeps the conversation going.").font(.system(size: 13)).opacity(0.9)
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "arrow.right").font(.system(size: 14, weight: .semibold))

@@ -261,6 +261,18 @@ export default function TermsPage() {
           have already bought.
         </p>
         <p>
+          <strong>Usage limits.</strong> Pro is not unlimited. The counselor,
+          interview practice, read-aloud, and other features that run on
+          third-party AI models cost us for every use, so they are subject to
+          fair-use limits — for example, how many messages or practice questions
+          an account can send in an hour or a day. We set these limits to keep
+          the Service reliable and affordable for everyone, we may change them,
+          and they may differ by feature. They are generous for ordinary use;
+          if you reach one, the app tells you and the feature becomes available
+          again after the limit resets. We may also limit or suspend use that
+          looks automated, abusive, or far outside ordinary use.
+        </p>
+        <p>
           <strong>Buying through the App Store.</strong> Purchases in the iOS app
           are made through Apple’s App Store and charged to your Apple ID. Apple
           processes the payment; we never receive your card details. Prices are

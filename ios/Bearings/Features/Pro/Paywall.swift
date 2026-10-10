@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 /// Why the paywall opened — the message the server or the screen gave.
 struct PaywallReason: Identifiable {
@@ -19,12 +20,15 @@ struct ProPaywall: View {
     @State private var store = ProStore.shared
     @State private var asking = false
     @State private var schoolCode = false
+    @State private var plan: PlanChoice = .monthly
+
+    enum PlanChoice { case monthly, season }
 
     private let benefits: [(String, String, String)] = [
         ("chart.bar.xaxis", "Your chances", "Reach, target or likely at every school — and where you stand against the middle 50%."),
         ("dollarsign.circle", "What it would really cost you", "Out-of-state tuition, WUE and other discounts, your family's income — your price, not the brochure's."),
-        ("sparkles", "Your counselor, unlimited", "Ask anything, any time. She remembers what you've told her."),
-        ("waveform", "Interview practice", "Spoken questions, honest feedback, as many sessions as you want."),
+        ("sparkles", "Your counselor, whenever you need her", "Ask her anything. She remembers what you've told her."),
+        ("waveform", "Interview practice", "Spoken questions and honest feedback, session after session."),
         ("scope", "Picks within reach", "Schools chosen for your profile and your budget, and how each one fits you."),
         ("checklist", "Your application plan", "Everything each school asks for, what's due this week, and reminders."),
     ]
@@ -99,31 +103,34 @@ extension ProPaywall {
     @ViewBuilder
     var purchase: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let monthly = store.monthly {
-                Button { Task { await store.buy(monthly) } } label: {
+            if let monthly = store.monthly, let season = store.season {
+                // Two plans, side by side, picked like a radio; one button
+                // buys the one picked.
+                HStack(alignment: .top, spacing: 10) {
+                    PlanCard(title: "Monthly", price: monthly.displayPrice, per: "a month",
+                             detail: store.trialEligible ? "7 days free, cancel anytime" : "Cancel anytime",
+                             badge: nil, selected: plan == .monthly) { plan = .monthly }
+                    PlanCard(title: "Season Pass", price: season.displayPrice, per: "for 12 months",
+                             detail: "One payment, junior spring through Decision Day",
+                             badge: savings(monthly, season).map { "SAVE \($0)%" } ?? "BEST VALUE",
+                             selected: plan == .season) { plan = .season }
+                }
+                Button { Task { await store.buy(plan == .season ? season : monthly) } } label: {
                     if store.purchasing { ProgressView().tint(.white) }
-                    else { Text(store.trialEligible ? "Start your 7-day free trial" : "Get Pro — \(monthly.displayPrice) a month") }
+                    else if plan == .season { Text("Get the Season Pass — \(season.displayPrice)") }
+                    else { Text(store.trialEligible ? "Start your 7-day free trial" : "Subscribe — \(monthly.displayPrice) a month") }
                 }
                 .buttonStyle(PrimaryButtonStyle())
-                Text(store.trialEligible
-                     ? "Free for 7 days, then \(monthly.displayPrice) a month. Cancel anytime in Settings."
-                     : "\(monthly.displayPrice) a month. Cancel anytime in Settings.")
+                Text(plan == .season
+                     ? "\(season.displayPrice) once for 12 months of Pro. It doesn't renew."
+                     : store.trialEligible
+                        ? "Free for 7 days, then \(monthly.displayPrice) a month. Cancel anytime in Settings."
+                        : "\(monthly.displayPrice) a month. Cancel anytime in Settings.")
                     .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
-            }
-            if let season = store.season {
-                Button { Task { await store.buy(season) } } label: {
-                    Text("Season Pass — \(season.displayPrice) for a year")
-                }
-                .buttonStyle(OutlineButtonStyle())
-                Text("One payment, 12 months of Pro — junior spring through Decision Day. Doesn't renew.")
-                    .font(.system(size: 13)).foregroundStyle(Color.grayStrong)
-            }
-            if store.monthly == nil && store.season == nil {
-                if store.loading {
-                    ProgressView().frame(maxWidth: .infinity)
-                } else {
-                    Muted("Pro isn't available to buy just yet. Check back soon.", size: 14)
-                }
+            } else if store.loading {
+                ProgressView().frame(maxWidth: .infinity)
+            } else {
+                Muted("Pro isn't available to buy just yet. Check back soon.", size: 14)
             }
             if let error = store.error { InlineNote(text: error, kind: .problem) }
             if reason.intro {
@@ -133,6 +140,14 @@ extension ProPaywall {
             }
         }
         .disabled(store.purchasing)
+    }
+
+    /// The Season Pass against twelve months of Monthly, as a whole percent.
+    private func savings(_ monthly: Product, _ season: Product) -> Int? {
+        let year = monthly.price * 12
+        guard year > 0 else { return nil }
+        let pct = NSDecimalNumber(decimal: (1 - season.price / year) * 100).doubleValue
+        return pct >= 5 ? Int(pct.rounded()) : nil
     }
 
     /// What Apple requires beside a subscription offer.
@@ -151,6 +166,51 @@ extension ProPaywall {
             .font(.system(size: 12))
             .foregroundStyle(Color.grayStrong)
         }
+    }
+}
+
+/// One plan on the paywall: a card picked like a radio button.
+struct PlanCard: View {
+    let title: String
+    let price: String
+    let per: String
+    let detail: String
+    let badge: String?
+    let selected: Bool
+    let pick: () -> Void
+
+    var body: some View {
+        Button(action: pick) {
+            VStack(alignment: .leading, spacing: 6) {
+                // The badge and the radio share a row, so a long badge
+                // can't run under the radio.
+                HStack(alignment: .center, spacing: 6) {
+                    Text(badge ?? " ")
+                        .font(.system(size: 10, weight: .bold)).tracking(0.6)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(badge == nil ? Color.clear : Color.accent, in: Capsule())
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                    Spacer(minLength: 0)
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 18)).foregroundStyle(selected ? Color.accent : Color.grayMid)
+                }
+                Text(title).font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.ink)
+                Text(price).font(.system(size: 24, weight: .semibold)).tracking(-0.3).foregroundStyle(Color.ink)
+                Text(per).font(.system(size: 13)).foregroundStyle(Color.grayStrong)
+                Text(detail).font(.system(size: 12)).foregroundStyle(Color.grayStrong)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(selected ? Color.lavender : Color.surface, in: RoundedRectangle(cornerRadius: Radius.tile, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Radius.tile, style: .continuous)
+                .stroke(selected ? Color.accent : Color.hairline, lineWidth: selected ? 2 : 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityLabel("\(title), \(price) \(per). \(detail)\(badge.map { ". \($0)" } ?? "")")
     }
 }
 
