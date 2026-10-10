@@ -1,0 +1,77 @@
+{
+  "identifier" : "6C9F2A1E-4B7D-4E3A-9C51-2F8B0D7E6A11",
+  "nonRenewingSubscriptions" : [
+    {
+      "displayPrice" : "99.99",
+      "familyShareable" : false,
+      "internalID" : "6821200650",
+      "localizations" : [
+        {
+          "description" : "A year of Lumni Pro, paid once.",
+          "displayName" : "Lumni Pro Season Pass",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.promptllc.bearings.pro.season",
+      "referenceName" : "Season Pass",
+      "type" : "NonRenewingSubscription"
+    }
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "6819491472",
+    "_developerTeamID" : "3AM9B6VP52",
+    "_failTransactionsEnabled" : false,
+    "_locale" : "en_US",
+    "_storefront" : "USA",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "A3E1C9B2-7F44-4D0E-8B26-5C1A9E3F7D20",
+      "localizations" : [
+
+      ],
+      "name" : "Lumni Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "14.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "6821200611",
+          "introductoryOffer" : {
+            "internalID" : "B1F0D2C3-5E6A-4B7C-8D9E-0A1B2C3D4E5F",
+            "paymentMode" : "free",
+            "subscriptionPeriod" : "P1W"
+          },
+          "localizations" : [
+            {
+              "description" : "Your chances, your real cost, and your counselor.",
+              "displayName" : "Lumni Pro",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.promptllc.bearings.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Pro Monthly",
+          "subscriptionGroupID" : "A3E1C9B2-7F44-4D0E-8B26-5C1A9E3F7D20",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

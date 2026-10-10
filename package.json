@@ -28,6 +28,7 @@
     "test:rate": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-rate-limit.ts",
     "test:entitlements": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-entitlements.ts",
     "test:links": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-link-codes.ts",
+    "test:billing": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-billing.ts",
     "test:budget": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-budget-alert.ts",
     "test:schools": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-schools.ts",
     "test:requirements": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-requirements.ts",
@@ -40,6 +41,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
+    "@apple/app-store-server-library": "^3.1.0",
     "@better-auth/drizzle-adapter": "1.6.25",
     "better-auth": "1.6.25",
     "drizzle-orm": "^0.45.2",

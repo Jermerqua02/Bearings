@@ -1,4 +1,5 @@
 import SwiftUI
+import StoreKit
 
 /// Settings › Link an account. A student links one parent, a parent one
 /// student, and Pro is shared between them — so a purchase by either covers
@@ -158,11 +159,23 @@ struct LinkAccountSection: View {
     }
 }
 
-/// Settings' plan row: Free or Pro, and for Free, the way to see Pro.
+/// Settings' plan row: Free or Pro, and for Free, the way to see Pro. An
+/// App Store subscription is managed — and cancelled — in Apple's own sheet.
 struct PlanRow: View {
     @Environment(AppModel.self) private var model
+    @State private var managing = false
 
     var body: some View {
+        row
+        if model.viewer?.plan?.source == "app_store", model.viewer?.plan?.via == "own" {
+            Divider().overlay(Color.hairline)
+            Button("Manage subscription") { managing = true }
+                .font(.system(size: 15)).foregroundStyle(Color.accent)
+                .manageSubscriptionsSheet(isPresented: $managing)
+        }
+    }
+
+    private var row: some View {
         HStack {
             Text("Plan").foregroundStyle(Color.grayStrong)
             Spacer()

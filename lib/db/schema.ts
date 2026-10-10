@@ -1408,3 +1408,21 @@ export const linkCodes = pgTable(
   },
   (t) => [index("link_code_creator_idx").on(t.createdBy)],
 );
+
+/* ————————————————————————————————————————
+   The id an account's App Store purchases carry.
+
+   The app passes it as StoreKit's appAccountToken on every purchase, and
+   Apple repeats it in every transaction and server notification after —
+   so a renewal or refund that reaches the server before the app does still
+   lands on the right account. Random, not derived from the user id, so a
+   transaction seen outside Lumni says nothing about who bought it.
+   ———————————————————————————————————————— */
+
+export const appStoreAccounts = pgTable("app_store_account", {
+  userId: text("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  appAccountToken: uuid("app_account_token").notNull().unique().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

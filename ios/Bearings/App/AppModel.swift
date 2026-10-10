@@ -107,6 +107,7 @@ final class AppModel {
     }
 
     private func dropSession() {
+        ProStore.shared.stopListening()
         Keychain.deleteToken()
         viewer = nil
         snapshot = nil
@@ -115,10 +116,28 @@ final class AppModel {
         phase = .signedOut
     }
 
+    /// Once per account, the first time a Free account arrives with a
+    /// profile (onboarding done): the trial offer, with "Not now".
+    private func offerProOnce() {
+        guard let viewer, !isPro, snapshot?.profile != nil, viewer.role != .admin else { return }
+        let key = "proIntroShown-\(viewer.id)"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        paywall = PaywallReason(message: nil, intro: true)
+    }
+
+    /// Purchases: the store knows whose they are, and hears renewals.
+    private func startStore() {
+        ProStore.shared.model = self
+        ProStore.shared.listen()
+    }
+
     func refresh() async throws {
         let res: SnapshotResponse = try await api.get("/api/v1/snapshot")
         viewer = res.viewer
         snapshot = res.snapshot
+        startStore()
+        offerProOnce()
         await syncAvatar()
     }
 
