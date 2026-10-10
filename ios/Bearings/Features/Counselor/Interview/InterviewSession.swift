@@ -49,7 +49,7 @@ final class InterviewSession {
     /// Free with no practice left: the paywall rather than a refused answer.
     private func sampleSpent() -> Bool {
         guard let model, !model.isPro, (model.sample?.interview ?? 0) <= 0 else { return false }
-        model.showPaywall("That's the end of your free interview practice. Pro lets you keep going.")
+        model.showPaywall("Interview practice is part of Lumni Pro.")
         return true
     }
     let ears = SpeechRecognizer()

@@ -72,7 +72,7 @@ async function main() {
   check("Free can use a chat message from the sample", !(await refused(() => assertFeature(O, "chat"))));
   await db.insert(aiUsage).values(Array.from({ length: FREE_SAMPLE.chat }, () => ({ userId: O, feature: "chat" as const, model: "test", inputTokens: 0, outputTokens: 0, costMillicents: 1 })));
   check("…and is refused once it's used", await refused(() => assertFeature(O, "chat")));
-  check("the interview sample is counted separately", !(await refused(() => assertFeature(O, "interview"))));
+  check("interview practice has no free sample", await refused(() => assertFeature(O, "interview")));
   check("Pro-only features are refused for Free", await refused(() => assertFeature(O, "why_school")) && await refused(() => assertFeature(O, "transcript")));
   await db.insert(entitlements).values({ userId: O, source: "admin" });
   check("Pro has no sample limit", !(await refused(() => assertFeature(O, "chat"))) && !(await refused(() => assertFeature(O, "why_school"))));

@@ -294,6 +294,8 @@ export interface SchoolSearchCriteria {
   /** Max average net price. 0 or undefined means no cap. */
   costCap?: number;
   testOptionalOnly?: boolean;
+  /** Only the hand-written schools: the Free directory. */
+  curatedOnly?: boolean;
   /** Free-text match on name or city. */
   q?: string;
   sort?: SortKey;
@@ -418,6 +420,7 @@ export async function searchSchools(
   if (criteria.testOptionalOnly) {
     filters.push(sql`${schoolAdmissions.testPolicy} <> 'required'`);
   }
+  if (criteria.curatedOnly) filters.push(eq(schools.curated, true));
   if (criteria.q?.trim()) {
     const needle = `%${criteria.q.trim().toLowerCase()}%`;
     filters.push(

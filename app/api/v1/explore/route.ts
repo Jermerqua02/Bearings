@@ -64,16 +64,21 @@ export const GET = route("explore", "We couldn't load schools just now.", async 
     params.tiers = [];
   }
 
-  const [result, picks] = await Promise.all([
-    searchSchools(profile, { ...params, perPage: PAGE_SIZE }),
+  const [result, picks, everything] = await Promise.all([
+    // Free browses the 40 hand-written schools; Pro, all of them.
+    searchSchools(profile, { ...params, perPage: PAGE_SIZE, curatedOnly: !pro }),
     // Picks are only shown on an unfiltered first page, so skip the query otherwise.
     pro && params.page === 1 ? counselorPicksFor(profile) : Promise.resolve([]),
+    // What Pro would open, for the Free note: the whole directory.
+    pro ? Promise.resolve(null) : searchSchools(profile, { perPage: 1 }),
   ]);
 
   if (!pro) {
     return {
       needsProfile: false,
       locked: true,
+      // How many schools Pro opens, for "Free shows 40 of 1,587".
+      fullTotal: everything?.total ?? null,
       total: result.total,
       page: result.page,
       pageCount: result.pageCount,

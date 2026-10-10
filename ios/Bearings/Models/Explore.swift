@@ -47,6 +47,8 @@ struct ExploreResponse: Decodable {
     let needsProfile: Bool
     /// Free: the public directory only — no chances, fit, picks or "your price".
     let locked: Bool?
+    /// On Free, how many schools Pro opens ("Free shows 40 of 1,587").
+    let fullTotal: Int?
     let isParent: Bool?
     let total: Int?
     let page: Int?

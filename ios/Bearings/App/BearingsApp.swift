@@ -29,7 +29,10 @@ struct RootView: View {
             }
         }
         .task { await model.launch() }
-        .sheet(item: $model.paywall) { reason in
+        // The counselor opens as a sheet; while it's up, it presents the paywall
+        // itself — a sheet under a sheet is silently never shown.
+        .sheet(item: Binding(get: { model.counselorOpen && !model.isParent ? nil : model.paywall },
+                             set: { model.paywall = $0 })) { reason in
             ProPaywall(reason: reason).presentationBackground(Color.paper)
         }
         .alert("Something went wrong",

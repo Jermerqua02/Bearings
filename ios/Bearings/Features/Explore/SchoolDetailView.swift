@@ -10,11 +10,19 @@ struct SchoolDetailView: View {
     @State private var detail: SchoolDetailResponse?
     @State private var why: String?
     @State private var failed: String?
+    /// Outside Free's 40 schools: what Pro opens, instead of an error.
+    @State private var proOnly: String?
 
     var body: some View {
         Group {
             if let detail {
                 content(detail)
+            } else if let proOnly {
+                Page(spacing: 18) {
+                    TwoTone(lead: "This school is in", rest: "Lumni Pro.")
+                    Muted(proOnly)
+                    UpgradeBanner()
+                }
             } else if let failed {
                 RetryView(message: failed) { await load() }
             } else {
@@ -38,6 +46,8 @@ struct SchoolDetailView: View {
                 why = w?.text.isEmpty == false ? w?.text : nil
                 if why == nil { why = "" }
             }
+        } catch let e as APIError where e.status == 402 {
+            proOnly = e.message
         } catch {
             failed = error.localizedDescription
         }

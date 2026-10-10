@@ -65,11 +65,8 @@ struct InterviewView: View {
 
             HowItWorks()
 
-            if let left = model.sample?.interview {
-                Label(left > 0
-                      ? "\(left) free practice question\(left == 1 ? "" : "s") — about one session. Pro is unlimited."
-                      : "You've used your free practice. Pro lets you keep going.",
-                      systemImage: left > 0 ? "mic" : "lock.fill")
+            if !model.isPro {
+                Label("Interview practice is part of Lumni Pro.", systemImage: "lock.fill")
                     .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.grayStrong)
             }
 

@@ -18,7 +18,7 @@ import "server-only";
 
 import { and, count, eq, gt, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { aiUsage, entitlements, parentStudentLinks, users } from "@/lib/db/schema";
+import { aiUsage, entitlements, listEntries, parentStudentLinks, schools, users } from "@/lib/db/schema";
 import { ProRequired } from "@/lib/actions/_error";
 
 export type ProSource = "app_store" | "admin" | "free_access" | "school" | "staff";
@@ -114,12 +114,30 @@ export const isPro = (s: ProStatus) => s.tier === "pro";
 /* ————— What Free can do ————— */
 
 /**
- * The counselor, once: enough to meet her, not to rely on her. Counted
- * over the account's lifetime from ai_usage, the way rate limits count —
- * no separate counter to drift. Interview is counted in questions; five
- * is about one sitting.
+ * The counselor, once: two messages — enough to meet her, not to rely on
+ * her. Interview practice has no free sample. Counted over the account's
+ * lifetime from ai_usage, the way rate limits count — no separate counter
+ * to drift.
  */
-export const FREE_SAMPLE = { chat: 3, interview: 5 } as const;
+export const FREE_SAMPLE = { chat: 2, interview: 0 } as const;
+
+/**
+ * Free's directory: the 40 schools written up by hand (`school.curated`) —
+ * well-known, and the fullest data — plus any school already on the
+ * student's own list. Pro opens every school.
+ */
+export const FREE_DIRECTORY = "curated" as const;
+
+/** Whether a Free account may open this school: one of the 40, or on their list. */
+export async function inFreeDirectory(userId: string, schoolId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ curated: schools.curated, listed: listEntries.schoolId })
+    .from(schools)
+    .leftJoin(listEntries, and(eq(listEntries.schoolId, schools.id), eq(listEntries.studentId, userId)))
+    .where(eq(schools.id, schoolId))
+    .limit(1);
+  return !!row && (row.curated || row.listed !== null);
+}
 
 /** Free lists hold this many schools. */
 export const FREE_LIST_LIMIT = 5;

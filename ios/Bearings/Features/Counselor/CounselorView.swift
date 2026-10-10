@@ -62,6 +62,9 @@ struct CounselorView: View {
             path = NavigationPath()
             about = school
         }
+        .sheet(item: Binding(get: { model.paywall }, set: { model.paywall = $0 })) { reason in
+            ProPaywall(reason: reason).presentationBackground(Color.paper)
+        }
         .alert("Something went wrong",
                isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("OK", role: .cancel) {}
@@ -92,6 +95,7 @@ struct CounselorView: View {
             }
             .disabled(starting)
 
+            if model.isPro {
             // What it knows about you — and where you can correct it.
             NavigationLink(value: YouRoute()) {
                 HStack(spacing: 14) {
@@ -127,6 +131,12 @@ struct CounselorView: View {
                 .softShadow()
             }
             .buttonStyle(.plain)
+            } else {
+                LockedCard(icon: "sparkles", title: "What I know about you",
+                           teaser: "Everything you tell your counselor, remembered — so you never repeat yourself.")
+                LockedCard(icon: "person.2.wave.2", title: "Practice an interview",
+                           teaser: "I ask out loud, you answer by voice, and you get honest feedback — question by question.")
+            }
         }
         .safeAreaInset(edge: .bottom) {
             VStack(alignment: .leading, spacing: 8) {
@@ -197,6 +207,7 @@ struct ConversationsView: View {
 
 /// The message box, shared by a fresh chat and an ongoing one.
 struct ChatComposer: View {
+    @Environment(AppModel.self) private var model
     @Binding var draft: String
     var busy = false
     var placeholder = "Ask your counselor"
@@ -206,6 +217,14 @@ struct ChatComposer: View {
     private var canSend: Bool { !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !busy }
 
     var body: some View {
+        if !model.isPro, (model.sample?.chat ?? 0) <= 0 {
+            OutOfMessages()
+        } else {
+            box
+        }
+    }
+
+    private var box: some View {
         HStack(alignment: .bottom, spacing: 10) {
             TextField(placeholder, text: $draft, axis: .vertical)
                 .lineLimit(1...6)
@@ -431,5 +450,34 @@ private struct MessageView: View {
                 }
             }
         }
+    }
+}
+
+
+/// Where the message box was, once a Free account's two messages are used:
+/// the way to keep talking, rather than a box whose send does nothing.
+private struct OutOfMessages: View {
+    @Environment(AppModel.self) private var model
+
+    var body: some View {
+        Button { model.showPaywall("That's the end of your free messages with the counselor. Pro lets you keep talking.") } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "lock.fill").font(.system(size: 14)).foregroundStyle(.white)
+                    .frame(width: 34, height: 34).background(.white.opacity(0.2), in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Upgrade to keep talking").font(.system(size: 16, weight: .semibold))
+                    Text("You've used your free messages. Pro is unlimited.").font(.system(size: 13)).opacity(0.9)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.right").font(.system(size: 14, weight: .semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.accent, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Upgrade to Lumni Pro to keep talking")
     }
 }

@@ -7,13 +7,14 @@
    the phone and the site can't disagree about a student's chances.
    ———————————————————————————————————————— */
 
-import { requireViewer } from "@/lib/auth/policy";
+import { requireViewer, subjectStudentId } from "@/lib/auth/policy";
 import { getSchoolById } from "@/lib/db/queries/schools";
 import { loadProfileOnly } from "@/lib/db/queries/snapshot";
 import { chanceRead, fit, nextDeadline } from "@/lib/match";
 import { NotFound, route } from "@/lib/api/v1";
 import { adjustForResidency, residencyAt, US_STATES } from "@/lib/residency";
-import { isPro, proStatus } from "@/lib/entitlements";
+import { inFreeDirectory, isPro, proStatus } from "@/lib/entitlements";
+import { ProRequired } from "@/lib/actions/_error";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,11 @@ export const GET = route<{ id: string }>("school", "We couldn't load that school
   // the published facts only; the personal half isn't computed, so no
   // client can show it (docs/plans/lumni-pro.md).
   const pro = isPro(await proStatus(viewer.userId, viewer.role));
+  // Free browses the 40 hand-written schools, and anything already on their
+  // list; the rest of the directory is Pro.
+  if (!pro && !(await inFreeDirectory((await subjectStudentId(viewer)) ?? viewer.userId, school.id))) {
+    throw new ProRequired("Lumni Free covers 40 well-known schools. Pro opens every school — with your chances and your real cost at each.");
+  }
   const student = pro && profile?.role === "student" ? profile : null;
   const read = student ? chanceRead(student, school) : null;
   // Those figures are in-state at a public school; where the student lives

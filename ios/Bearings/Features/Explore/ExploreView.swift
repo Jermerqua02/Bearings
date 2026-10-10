@@ -16,6 +16,8 @@ final class ExploreStore {
     private(set) var isParent = false
     /// Free: published facts only (docs/plans/lumni-pro.md).
     private(set) var locked = false
+    /// On Free, the whole directory's size — what Pro opens.
+    private(set) var fullTotal: Int?
     private(set) var loading = false
     var error: String?
 
@@ -57,6 +59,7 @@ final class ExploreStore {
         needsProfile = res.needsProfile
         isParent = res.isParent ?? false
         locked = res.locked ?? false
+        fullTotal = res.fullTotal
         // "Best fit" is Pro; the server sorts A–Z instead, and so says the picker.
         if locked, query.sort == "fit" { query.sort = "name" }
         total = res.total ?? 0
@@ -118,7 +121,7 @@ struct ExploreView: View {
                 TwoTone(lead: "\(store.total.formatted()) school\(store.total == 1 ? "" : "s")", rest: "worth your attention.")
                     .padding(.bottom, 20)
 
-                if store.locked { UpgradeBanner().padding(.bottom, 16) }
+                if store.locked { FreeDirectoryNote(shown: store.total, all: store.fullTotal).padding(.bottom, 16) }
 
                 toolbar.padding(.bottom, 16)
 
@@ -380,6 +383,41 @@ private struct FilterSheet: View {
                 }
             }
             if let note { Muted(note, size: 13) }
+        }
+    }
+}
+
+
+/// On Free, atop Explore: what this list is, what it isn't, and what Pro
+/// opens — so a short directory reads as a choice, not a bug.
+private struct FreeDirectoryNote: View {
+    @Environment(AppModel.self) private var model
+    let shown: Int
+    let all: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Lumni Free").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.ink)
+            VStack(alignment: .leading, spacing: 8) {
+                bullet("checkmark", "\(shown) well-known schools, with their published numbers")
+                bullet("checkmark", "Save up to 5 to your list")
+                bullet("lock.fill", "\(all.map { "All \($0.formatted()) schools" } ?? "Every school"), your chances and real cost at each, and picks chosen for you — with Pro")
+            }
+            Button { model.showPaywall() } label: { Text("Upgrade to Pro") }
+                .buttonStyle(InkButtonStyle(compact: true))
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.lavender, in: RoundedRectangle(cornerRadius: Radius.panel, style: .continuous))
+        .softShadow()
+    }
+
+    private func bullet(_ icon: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: icon).font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(icon == "lock.fill" ? Color.accent : Color.ink)
+            Text(text).font(.system(size: 14)).foregroundStyle(Color.ink)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
