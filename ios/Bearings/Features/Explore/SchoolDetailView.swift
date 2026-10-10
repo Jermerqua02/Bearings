@@ -32,7 +32,8 @@ struct SchoolDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .paperChrome()
         // Again when the home state changes: the prices depend on it.
-        .task(id: model.homeStateRevision) { await load() }
+        // Again when the plan changes: Pro adds chances, fit and their price.
+        .task(id: "\(model.homeStateRevision)-\(model.isPro)") { proOnly = nil; await load() }
     }
 
     private func load() async {

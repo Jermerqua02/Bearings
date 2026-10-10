@@ -50,7 +50,8 @@ struct ApplyView: View {
         }
         // Reload when the list changes shape — a school saved in Explore
         // needs its requirements fetched.
-        .task(id: model.snapshot?.list.map(\.schoolId).joined(separator: ",")) { await load() }
+        // Again when the plan changes: the requirements are Pro.
+        .task(id: "\(model.snapshot?.list.map(\.schoolId).joined(separator: ",") ?? "")-\(model.isPro)") { await load() }
     }
 
     private func load() async {

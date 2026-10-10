@@ -104,6 +104,12 @@ struct ExploreView: View {
             #endif
             if store.options == nil { await store.reload() }
         }
+        // Bought, restored, or shared through a link: what Explore shows
+        // changes with the plan — the whole directory, chances, picks.
+        .onChange(of: model.isPro) { _, pro in
+            if pro, store.query.sort == "name" { store.query.sort = "fit" }
+            Task { await store.reload() }
+        }
         .task(id: searchText) {
             // Wait for a pause in typing — one request per keystroke over
             // ~1,900 schools is waste, the same debounce as the web.
