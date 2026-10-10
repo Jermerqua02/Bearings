@@ -12,10 +12,11 @@
 
 "use server";
 
-import { eq } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { adminSettings, feedback, users } from "@/lib/db/schema";
+import { accountEvents, adminSettings, entitlements, feedback, users } from "@/lib/db/schema";
+import { ownActiveEntitlements, proStatus } from "@/lib/entitlements";
 import { AuthzError, requireViewer } from "@/lib/auth/policy";
 import { safeError } from "@/lib/actions/_error";
 import { SELF_ASSIGNABLE_ROLES } from "@/lib/types";
@@ -78,6 +79,154 @@ export async function deleteUser(userId: string): Promise<ActionResult> {
     return { ok: true };
   } catch (err) {
     return { ok: false, error: safeError("admin", err, "Could not delete.") };
+  }
+}
+
+/* ————————————— Pro ————————————— */
+
+const REASON_MAX = 300;
+
+function cleanReason(reason: string): string | null {
+  const r = reason.trim();
+  return r && r.length <= REASON_MAX ? r : null;
+}
+
+/**
+ * Give an account Pro, until a date or with no end. A reason is required:
+ * it's what the history shows when someone later asks why this account
+ * has Pro ("beta tester", "school pilot", "free access approved").
+ */
+export async function grantPro(
+  userId: string,
+  input: { until: string | null; reason: string },
+): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin();
+    const reason = cleanReason(input.reason);
+    if (!reason) return { ok: false, error: `Give a reason (up to ${REASON_MAX} characters).` };
+
+    let endsAt: Date | null = null;
+    if (input.until) {
+      // A date from the form is the last day of Pro, through its end.
+      endsAt = new Date(`${input.until}T23:59:59.999Z`);
+      if (Number.isNaN(endsAt.getTime())) return { ok: false, error: "That end date isn't valid." };
+      if (endsAt.getTime() <= Date.now()) return { ok: false, error: "The end date has to be in the future." };
+    }
+
+    const [target] = await db.select({ id: users.id }).from(users).where(eq(users.id, userId)).limit(1);
+    if (!target) return { ok: false, error: "That account no longer exists." };
+
+    await db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(entitlements)
+        .values({ userId, source: "admin", endsAt, grantedBy: admin.userId, note: reason })
+        .returning({ id: entitlements.id });
+      await tx.insert(accountEvents).values({
+        userId,
+        actorId: admin.userId,
+        actorKind: "admin",
+        action: "pro.granted",
+        reason,
+        detail: { entitlementId: row.id, source: "admin", endsAt: endsAt?.toISOString() ?? null },
+      });
+    });
+
+    revalidatePath("/admin/users");
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not grant Pro.") };
+  }
+}
+
+/**
+ * End an account's Pro now. Only what Lumni granted can be ended here: an
+ * App Store purchase is between the family and Apple — Lumni can't cancel
+ * or refund it, and the next notification from Apple would restore it — so
+ * those are left in place and the admin is told so.
+ */
+export async function revokePro(userId: string, input: { reason: string }): Promise<ActionResult> {
+  try {
+    const admin = await requireAdmin();
+    const reason = cleanReason(input.reason);
+    if (!reason) return { ok: false, error: `Give a reason (up to ${REASON_MAX} characters).` };
+
+    const own = await ownActiveEntitlements(userId);
+    const ours = own.filter((e) => e.source !== "app_store");
+    const apple = own.filter((e) => e.source === "app_store");
+
+    if (ours.length === 0) {
+      if (apple.length > 0) {
+        return { ok: false, error: "Their Pro is an App Store purchase — only Apple or they can cancel or refund it (App Store Connect)." };
+      }
+      const status = await proStatus(userId);
+      if (status.tier === "pro" && status.via === "family") {
+        return { ok: false, error: "Their Pro is shared from a linked parent or student — revoke it on that account." };
+      }
+      return { ok: false, error: "This account doesn't have Pro to revoke." };
+    }
+
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(entitlements).set({ revokedAt: now, updatedAt: now }).where(inArray(entitlements.id, ours.map((e) => e.id)));
+      await tx.insert(accountEvents).values({
+        userId,
+        actorId: admin.userId,
+        actorKind: "admin",
+        action: "pro.revoked",
+        reason,
+        detail: { entitlementIds: ours.map((e) => e.id), sources: ours.map((e) => e.source) },
+      });
+    });
+
+    revalidatePath("/admin/users");
+    return apple.length > 0
+      ? { ok: false, error: "Revoked what Lumni granted. They still have an App Store purchase, which only Apple or they can cancel." }
+      : { ok: true };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not revoke Pro.") };
+  }
+}
+
+export interface AccountEventRow {
+  at: string;
+  action: string;
+  actor: string;
+  reason: string | null;
+  endsAt: string | null;
+}
+
+/** An account's history, newest first. */
+export async function accountHistory(
+  userId: string,
+): Promise<{ ok: true; events: AccountEventRow[] } | { ok: false; error: string }> {
+  try {
+    await requireAdmin();
+    const rows = await db
+      .select({
+        createdAt: accountEvents.createdAt,
+        action: accountEvents.action,
+        actorKind: accountEvents.actorKind,
+        actorEmail: users.email,
+        reason: accountEvents.reason,
+        detail: accountEvents.detail,
+      })
+      .from(accountEvents)
+      .leftJoin(users, eq(users.id, accountEvents.actorId))
+      .where(eq(accountEvents.userId, userId))
+      .orderBy(desc(accountEvents.createdAt))
+      .limit(50);
+    return {
+      ok: true,
+      events: rows.map((r) => ({
+        at: r.createdAt.toISOString(),
+        action: r.action,
+        actor: r.actorEmail ?? r.actorKind,
+        reason: r.reason,
+        endsAt: ((r.detail as { endsAt?: string | null } | null)?.endsAt) ?? null,
+      })),
+    };
+  } catch (err) {
+    return { ok: false, error: safeError("admin", err, "Could not load the history.") };
   }
 }
 

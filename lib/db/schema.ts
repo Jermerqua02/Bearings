@@ -1306,3 +1306,78 @@ export const counselorMemories = pgTable(
   },
   (t) => [index("counselor_memory_student_idx").on(t.studentId)],
 );
+
+/* ————————————————————————————————————————
+   Pro: who has it, from where, and what changed.
+
+   `entitlement` is the single source of truth for Pro (docs/plans/
+   lumni-pro.md). A row says "this account has Pro from `starts_at` until
+   `ends_at` (null: no end), because of `source`". Rows are never deleted:
+   revoking sets `revoked_at`, so the record of what someone had survives.
+
+   The holder can be a student or a parent — a parent can buy before their
+   student has an account. Pro is shared across an active parent link in
+   lib/entitlements.ts, not copied here, so unlinking ends the sharing
+   without touching anyone's rows.
+
+   `account_event` is the append-only history behind the admin portal:
+   who changed what about an account, when, and why. It's the first audit
+   log the portal has had.
+   ———————————————————————————————————————— */
+
+export const entitlementSourceEnum = pgEnum("entitlement_source", [
+  "app_store",
+  "admin",
+  "free_access",
+  "school",
+]);
+
+export const entitlements = pgTable(
+  "entitlement",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    source: entitlementSourceEnum("source").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+    /** Null: no end date. */
+    endsAt: timestamp("ends_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    /** An App Store introductory offer that hasn't converted yet. */
+    inTrial: boolean("in_trial").notNull().default(false),
+    /** App Store: the product bought, and the id that ties renewals together. */
+    productId: text("product_id"),
+    originalTransactionId: text("original_transaction_id"),
+    /** Who granted it, for admin and free-access grants. */
+    grantedBy: text("granted_by").references(() => users.id, { onDelete: "set null" }),
+    note: text("note"),
+    ...timestamps,
+  },
+  (t) => [
+    index("entitlement_user_idx").on(t.userId),
+    unique("entitlement_app_store_txn").on(t.originalTransactionId),
+  ],
+);
+
+export const accountEvents = pgTable(
+  "account_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** The account the event is about. */
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    /** Who did it: an admin's id, or null for the system or Apple. */
+    actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+    /** "admin" | "system" | "apple" | "user" */
+    actorKind: text("actor_kind").notNull(),
+    /** e.g. "pro.granted", "pro.revoked". */
+    action: text("action").notNull(),
+    reason: text("reason"),
+    /** What changed: the entitlement's id, source, dates. */
+    detail: jsonb("detail"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("account_event_user_idx").on(t.userId, t.createdAt)],
+);

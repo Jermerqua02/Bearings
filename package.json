@@ -26,6 +26,7 @@
     "test:onboarding": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-onboarding.ts",
     "test:invite": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-invite.ts",
     "test:rate": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-rate-limit.ts",
+    "test:entitlements": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-entitlements.ts",
     "test:budget": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-budget-alert.ts",
     "test:schools": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-schools.ts",
     "test:requirements": "NODE_OPTIONS=--conditions=react-server tsx scripts/test-requirements.ts",

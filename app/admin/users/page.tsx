@@ -4,15 +4,35 @@ import TwoTone from "@/components/ui/TwoTone";
 import Card from "@/components/ui/Card";
 import UsersTable, { type Row } from "./UsersTable";
 import { accounts, userCosts } from "@/lib/db/queries/admin";
+import { proStatuses, type ProStatus } from "@/lib/entitlements";
 import { getViewer } from "@/lib/auth/policy";
 import { formatBytes, formatMillicents } from "@/lib/costs";
 import { PRIVACY_VERSION, TERMS_VERSION } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Users · Bearings admin" };
+export const metadata: Metadata = { title: "Users · Lumni admin" };
 export const dynamic = "force-dynamic";
+
+const SOURCE_LABEL: Record<string, string> = {
+  app_store: "App Store",
+  admin: "granted",
+  free_access: "free access",
+  school: "school",
+  staff: "staff",
+};
+
+function planOf(status: ProStatus | undefined): Row["plan"] {
+  if (!status || status.tier === "free") return { tier: "free", label: "Free", until: null };
+  const source = SOURCE_LABEL[status.source] ?? status.source;
+  return {
+    tier: "pro",
+    label: `Pro · ${status.via === "family" ? "via family" : status.inTrial ? "App Store trial" : source}`,
+    until: status.endsAt ? status.endsAt.toISOString() : null,
+  };
+}
 
 export default async function AdminUsersPage() {
   const [list, costs, viewer] = await Promise.all([accounts(), userCosts(), getViewer()]);
+  const pro = await proStatuses(list.map((a) => ({ userId: a.userId, role: a.role })));
 
   const costById = new Map(costs.map((c) => [c.userId, c]));
 
@@ -30,6 +50,7 @@ export default async function AdminUsersPage() {
       consents: a.consents.map((x) => ({ document: x.document, version: x.version })),
       aiSpend: formatMillicents(c?.aiMillicents ?? 0),
       storage: formatBytes(c?.storageBytes ?? 0),
+      plan: planOf(pro.get(a.userId)),
     };
   });
 
