@@ -9,7 +9,7 @@ struct APIError: LocalizedError {
     var errorDescription: String? { message }
     var isUnauthorized: Bool { status == 401 }
 
-    static let offline = APIError(status: 0, message: "Can't reach Bearings. Check your connection and try again.")
+    static let offline = APIError(status: 0, message: "Can't reach Lumni. Check your connection and try again.")
 }
 
 /// HTTP to the Bearings server: /api/v1 for app data, /api/auth for
@@ -249,7 +249,7 @@ final class APIClient {
             #if DEBUG
             print("[api] decode \(T.self) failed:", error)
             #endif
-            throw APIError(status: 0, message: "Bearings sent something this version of the app can't read. Try updating.")
+            throw APIError(status: 0, message: "Lumni sent something this version of the app can't read. Try updating.")
         }
     }
 }

@@ -53,14 +53,14 @@ final class SpeechRecognizer {
         switch await Self.speechAuthorization() {
         case .authorized: break
         case .notDetermined, .denied, .restricted:
-            unavailable = "Speech recognition is off for Bearings. Turn it on in Settings › Bearings to answer out loud — or type your answer."
+            unavailable = "Speech recognition is off for Lumni. Turn it on in Settings › Lumni to answer out loud — or type your answer."
             return false
         @unknown default:
             unavailable = "Speech recognition isn't available. Type your answer instead."
             return false
         }
         guard await AVAudioApplication.requestRecordPermission() else {
-            unavailable = "Bearings can't use the microphone. Allow it in Settings › Bearings to answer out loud — or type your answer."
+            unavailable = "Lumni can't use the microphone. Allow it in Settings › Lumni to answer out loud — or type your answer."
             return false
         }
         guard recognizer.isAvailable else {

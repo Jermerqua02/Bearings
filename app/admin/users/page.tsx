@@ -60,7 +60,7 @@ export default async function AdminUsersPage() {
     <div>
       <SectionLabel className="mb-4">Users</SectionLabel>
       <TwoTone as="h1" size="lg" className="mb-8">
-        <em>{rows.length} accounts</em> on Bearings.
+        <em>{rows.length} accounts</em> on Lumni.
       </TwoTone>
 
       {missing > 0 && (

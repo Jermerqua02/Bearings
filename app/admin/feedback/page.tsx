@@ -6,7 +6,7 @@ import FeedbackList, { type FeedbackRow } from "./FeedbackList";
 import { db } from "@/lib/db";
 import { feedback } from "@/lib/db/schema";
 
-export const metadata: Metadata = { title: "Feedback · Bearings admin" };
+export const metadata: Metadata = { title: "Feedback · Lumni admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminFeedbackPage() {

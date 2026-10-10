@@ -34,9 +34,9 @@ const FILL_ME = (what: string) => {
 };
 
 export const COMPANY = {
-  /** The operating entity. Bearings is the product; Prompt LLC is the company. */
+  /** The operating entity. Lumni is the product; Prompt LLC is the company. */
   legalName: "Prompt LLC",
-  productName: "Bearings",
+  productName: "Lumni",
 
   /* —— Review these four before launch —————————————————————————— */
 
@@ -78,12 +78,17 @@ export const COMPANY = {
   service. Cheap to do now, and the alternative is a record that quietly
   stops matching the text it was given for.
 */
-export const TERMS_VERSION = "2026-08-10";
-export const PRIVACY_VERSION = "2026-10-09";
+/*
+  2026-10-10: the product is Lumni; Lumni Pro, App Store subscriptions and
+  trials, refunds through Apple, free access and school licenses; linking by
+  code, one to one, with Pro shared across the link.
+*/
+export const TERMS_VERSION = "2026-10-10";
+export const PRIVACY_VERSION = "2026-10-10";
 
 /** Shown at the top of each document. Keep in step with the versions above. */
-export const TERMS_EFFECTIVE = "August 10, 2026";
-export const PRIVACY_EFFECTIVE = "October 9, 2026";
+export const TERMS_EFFECTIVE = "October 10, 2026";
+export const PRIVACY_EFFECTIVE = "October 10, 2026";
 
 /**
  * Minimum age to hold an account.
@@ -91,7 +96,7 @@ export const PRIVACY_EFFECTIVE = "October 9, 2026";
  * 13 is a deliberate line, not an arbitrary one. COPPA attaches to operators
  * who knowingly collect personal information from children under 13 and
  * requires verifiable parental consent — a materially different product.
- * Bearings serves high schoolers, so the documents state plainly that the
+ * Lumni serves high schoolers, so the documents state plainly that the
  * service is not directed to under-13s, and signup enforces it.
  */
 export const MINIMUM_AGE = 13;

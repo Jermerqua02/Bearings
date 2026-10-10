@@ -22,9 +22,9 @@
 	     (SFSpeechRecognizer, on-device only). The audio is never sent
 	     anywhere; only the text the student chooses to send. -->
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Bearings listens when you answer an interview practice question out loud. Your recording stays on your iPhone.</string>
+	<string>Lumni listens when you answer an interview practice question out loud. Your recording stays on your iPhone.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Bearings turns your spoken interview answers into text on your iPhone, so your counselor can read them. Your voice is never uploaded.</string>
+	<string>Lumni turns your spoken interview answers into text on your iPhone, so your counselor can read them. Your voice is never uploaded.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

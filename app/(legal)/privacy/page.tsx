@@ -4,7 +4,7 @@ import { Bullets, DocTitle, Emphasis, Section } from "../_components/Doc";
 import { COMPANY, MINIMUM_AGE, PRIVACY_EFFECTIVE, PRIVACY_VERSION } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Bearings",
+  title: `Privacy Policy · ${COMPANY.productName}`,
   description: `How ${COMPANY.legalName} collects, uses, and protects information in ${COMPANY.productName}.`,
 };
 
@@ -62,7 +62,24 @@ export default function PrivacyPage() {
               <strong>Messages to the AI assistant,</strong> and its responses.
             </>,
             <>
-              <strong>Correspondence</strong> when you contact support.
+              <strong>Correspondence</strong> when you contact support, ask for
+              free access to Pro, or ask about Lumni for a school.
+            </>,
+            <>
+              <strong>Purchases.</strong> When you buy {COMPANY.productName} Pro
+              in the App Store, Apple sends us a record of the transaction: the
+              product, purchase and renewal dates, whether it is a trial, refund
+              or cancellation status, Apple’s transaction identifiers, and a
+              random identifier we give your account so Apple’s notices reach the
+              right one. We never receive your name, card, or billing address
+              from Apple.
+            </>,
+            <>
+              <strong>Plan and link records:</strong> whether your account has
+              Pro, where it came from (a purchase, a linked account, a school
+              license, or a grant from us), and when it starts and ends; link
+              codes you make or enter; and a history of changes to these, so we
+              can answer questions about an account accurately.
             </>,
           ]}
         />
@@ -188,6 +205,16 @@ export default function PrivacyPage() {
               Each receives the minimum needed for its job.
             </>,
             <>
+              <strong>Apple,</strong> which processes App Store purchases under
+              its own privacy policy. We tell Apple nothing about you beyond the
+              random account identifier attached to a purchase.
+            </>,
+            <>
+              <strong>Your school, if you join through its license:</strong> it
+              learns that a seat is in use. It does not receive your
+              conversations, essays, or other content from us.
+            </>,
+            <>
               <strong>A linked parent or guardian,</strong> within the limits in
               Section 6.
             </>,
@@ -213,8 +240,10 @@ export default function PrivacyPage() {
 
       <Section n={6} title="Students, parents, and the boundary between them">
         <p>
-          A parent may link to a student’s account with the student’s
-          participation. Linking is intentionally narrow.
+          A student and a parent may link their accounts, and both must take
+          part — one makes a code, the other enters it. Each account links to
+          at most one other, either side can unlink, and Pro is shared across
+          the link while it lasts. Linking is intentionally narrow.
         </p>
         <p>
           <strong>A linked parent can see:</strong> application progress and

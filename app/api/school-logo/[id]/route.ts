@@ -6,7 +6,7 @@
    The bytes were fetched once at import time and stored (see
    scripts/import-schools.ts). Serving them ourselves rather than pointing
    an <img> at a third party means two things: the link cannot rot, and
-   nobody outside Bearings learns which schools a student is looking at.
+   nobody outside Lumni learns which schools a student is looking at.
    That second one matters for a product whose privacy policy promises no
    third-party tracking — a favicon service would have seen every card.
 

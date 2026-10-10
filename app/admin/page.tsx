@@ -12,7 +12,7 @@ import { spendThisMonth, telemetry } from "@/lib/db/queries/admin";
 import { railwayCost } from "@/lib/railway";
 import { hasUnfilledPlaceholders } from "@/lib/legal";
 
-export const metadata: Metadata = { title: "Admin · Bearings" };
+export const metadata: Metadata = { title: "Admin · Lumni" };
 export const dynamic = "force-dynamic";
 
 /* Admin overview.
@@ -75,7 +75,7 @@ export default async function AdminOverviewPage() {
     <div>
       <SectionLabel className="mb-4">Overview</SectionLabel>
       <TwoTone as="h1" size="lg" className="mb-8">
-        <em>How Bearings is doing</em> right now.
+        <em>How Lumni is doing</em> right now.
       </TwoTone>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">

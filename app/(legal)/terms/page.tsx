@@ -4,7 +4,7 @@ import { Bullets, DocTitle, Emphasis, Section } from "../_components/Doc";
 import { COMPANY, MINIMUM_AGE, TERMS_EFFECTIVE, TERMS_VERSION } from "@/lib/legal";
 
 export const metadata: Metadata = {
-  title: "Terms of Service · Bearings",
+  title: `Terms of Service · ${COMPANY.productName}`,
   description: `The agreement between you and ${COMPANY.legalName} for use of ${COMPANY.productName}.`,
 };
 
@@ -15,7 +15,7 @@ export default function TermsPage() {
         title="Terms of Service"
         effective={TERMS_EFFECTIVE}
         version={TERMS_VERSION}
-        summary={`These terms are the agreement between you and ${COMPANY.legalName} for use of ${COMPANY.productName}. The short version: Bearings helps you think about college. It is not a counselor, not a guarantee, and it will not write your essays. You own what you write. We do not sell your data.`}
+        summary={`These terms are the agreement between you and ${COMPANY.legalName} for use of ${COMPANY.productName}. The short version: ${COMPANY.productName} helps you think about college. It is not a counselor, not a guarantee, and it will not write your essays. You own what you write. We do not sell your data.`}
       />
 
       <Section n={1} title="Who we are and what this covers">
@@ -36,7 +36,7 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section n={2} title="What Bearings is — and is not">
+      <Section n={2} title={`What ${COMPANY.productName} is — and is not`}>
         <p>
           The Service provides informational and educational tools for students
           researching colleges: school information, list-building, planning
@@ -44,7 +44,7 @@ export default function TermsPage() {
           material back to you, and offers critique.
         </p>
         <Emphasis>
-          <strong>Bearings does not provide professional advice.</strong> It is
+          <strong>{COMPANY.productName} does not provide professional advice.</strong> It is
           not a licensed college counselor, guidance counselor, financial
           advisor, tax advisor, attorney, or mental-health professional. Nothing
           in the Service is professional advice of any kind, and no
@@ -135,7 +135,7 @@ export default function TermsPage() {
           ]}
         />
         <Emphasis>
-          <strong>Bearings does not write your application essays.</strong> The
+          <strong>{COMPANY.productName} does not write your application essays.</strong> The
           Service is designed to ask questions, reflect your own writing back to
           you, and offer critique — never to draft or ghostwrite on your behalf.
           You are solely responsible for the integrity of everything you submit
@@ -148,8 +148,15 @@ export default function TermsPage() {
 
       <Section n={6} title="Student and parent accounts">
         <p>
-          A parent may link to a student’s account with the student’s
-          participation. Linking is limited by design: a linked parent sees
+          A student and a parent may link their accounts, and both must take
+          part: one makes a link code in Settings and the other enters it, or a
+          student invites a parent by email. A student may link one parent and a
+          parent one student, and either may unlink at any time. Lumni Pro is
+          shared across an active link (Section 11), and stops being shared
+          when the link ends.
+        </p>
+        <p>
+          Linking is limited by design: a linked parent sees
           progress, status, deadlines, and cost information, and does not see the
           student’s private conversations with the AI assistant or their essay
           drafts unless the student explicitly shares them.
@@ -242,14 +249,78 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section n={11} title="Fees">
+      <Section n={11} title={`${COMPANY.productName} Pro, purchases, and fees`}>
         <p>
-          Where the Service is offered free of charge, we may change that on
-          notice, and we may introduce paid features. We will not start charging
-          you for something you are already using without telling you first and
-          giving you the chance to decline. Any paid terms — price, billing
-          period, refunds — will be disclosed at the point of purchase and become
-          part of these Terms.
+          <strong>Free and Pro.</strong> Part of the Service is free. The rest —
+          including personalized admission chances and cost, the AI counselor
+          beyond a short free sample, interview practice, and the full
+          application tracker — is available with a paid subscription,{" "}
+          {COMPANY.productName} Pro. What is included in each changes as the
+          product develops; the app shows what Pro includes at the point of
+          purchase, and we will not take a feature away from a paid period you
+          have already bought.
+        </p>
+        <p>
+          <strong>Buying through the App Store.</strong> Purchases in the iOS app
+          are made through Apple’s App Store and charged to your Apple ID. Apple
+          processes the payment; we never receive your card details. Prices are
+          shown in the app before you buy and may change with notice; a price
+          change for an auto-renewing subscription takes effect at a later
+          renewal, as Apple’s rules provide.
+        </p>
+        <Bullets
+          items={[
+            <>
+              <strong>Pro Monthly</strong> renews automatically each month at the
+              price shown until you cancel. Cancel at least 24 hours before the
+              end of the current period to avoid the next charge. Manage or cancel
+              in your device’s Settings › Apple ID › Subscriptions; cancelling
+              ends renewal, and Pro continues until the end of the period you have
+              paid for.
+            </>,
+            <>
+              <strong>Free trial.</strong> Where offered, a free trial lasts the
+              period shown (currently 7 days) and becomes a paid Pro Monthly
+              subscription when it ends unless you cancel at least 24 hours
+              before. Each Apple ID may receive one trial.
+            </>,
+            <>
+              <strong>Season Pass</strong> is a single payment for 12 months of
+              Pro. It does not renew.
+            </>,
+          ]}
+        />
+        <p>
+          <strong>Refunds.</strong> Refunds for App Store purchases are handled
+          by Apple under its policies; request one at reportaproblem.apple.com.
+          If Apple refunds a purchase, the Pro it paid for ends.
+        </p>
+        <p>
+          <strong>Pro for a linked family.</strong> One purchase covers the
+          purchaser and the one account linked to theirs (Section 6). Ending the
+          link ends the sharing; the purchase stays with the account that made
+          it.
+        </p>
+        <p>
+          <strong>Free access.</strong> A student who cannot afford Pro may ask
+          for it free. We decide requests at our discretion; access we grant is
+          for the period stated (currently 12 months) and may be ended if
+          granted on information that was not accurate.
+        </p>
+        <p>
+          <strong>School licenses.</strong> A school or other organization may
+          buy Pro for its students under a separate agreement with us. A student
+          who joins with the organization’s code has Pro for as long as the
+          organization’s license lasts. The organization learns how many of its
+          seats are in use, and nothing a student writes or tells the counselor.
+        </p>
+        <p>
+          <strong>Apple’s terms.</strong> If you use the iOS app, Apple’s
+          Licensed Application End User License Agreement also applies. Apple is
+          not a party to these Terms and is not responsible for the Service or
+          its content, but Apple and its subsidiaries are third-party
+          beneficiaries of these Terms and may enforce them as they relate to
+          your use of the iOS app.
         </p>
       </Section>
 

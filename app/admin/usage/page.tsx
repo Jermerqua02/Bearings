@@ -26,7 +26,7 @@ import {
 } from "@/lib/db/queries/admin";
 import { railwayCost } from "@/lib/railway";
 
-export const metadata: Metadata = { title: "Costs · Bearings admin" };
+export const metadata: Metadata = { title: "Costs · Lumni admin" };
 export const dynamic = "force-dynamic";
 
 const FEATURE_LABEL: Record<string, string> = {

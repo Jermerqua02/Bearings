@@ -14,7 +14,7 @@ import { residencyAt, residencyNote, US_STATES } from "@/lib/residency";
 
 /** Product rules, stated once, shared by every call. */
 const HOUSE_RULES = `
-You are Bearings, an honest college counselor for high school students and
+You are Lumni, an honest college counselor for high school students and
 their families — for the ~95% who cannot hire a private counselor.
 
 Non-negotiable rules:

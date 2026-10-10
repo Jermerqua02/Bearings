@@ -1,5 +1,5 @@
 /* ————————————————————————————————————————
-   Bearings database schema.
+   Lumni database schema.
 
    Mirrors lib/types.ts, which stays the source of truth for the domain
    model. Where this file deliberately diverges from the in-memory shapes,
@@ -1178,7 +1178,7 @@ export const feedback = pgTable(
    which would tell that third party exactly which schools a teenager is
    looking at. Fetching once at import time and serving from our own domain
    fixes both: nothing breaks when an upstream service changes, and no one
-   outside Bearings learns what anybody browsed.
+   outside Lumni learns what anybody browsed.
 
    Small enough to sit in Postgres rather than object storage: a few KB per
    school, so all ~2,000 institutions come to roughly 20 MB, which the

@@ -78,7 +78,7 @@ struct SettingsView: View {
             CardView {
                 // Everything not yet native is one tap away on the web,
                 // against the same account.
-                link("Open Bearings on the web", Config.apiBaseURL)
+                link("Open Lumni on the web", Config.apiBaseURL)
                 Divider().overlay(Color.hairline)
                 link("Privacy Policy", Config.apiBaseURL.appending(path: "privacy"))
                 Divider().overlay(Color.hairline)
@@ -87,11 +87,11 @@ struct SettingsView: View {
 
             Button("Sign out") { confirmingSignOut = true }
                 .buttonStyle(OutlineButtonStyle())
-                .confirmationDialog("Sign out of Bearings?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
+                .confirmationDialog("Sign out of Lumni?", isPresented: $confirmingSignOut, titleVisibility: .visible) {
                     Button("Sign out", role: .destructive) { Task { await model.signOut() } }
                 }
 
-            Text("Bearings \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
+            Text("Lumni \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
                 .font(.system(size: 12)).foregroundStyle(Color.grayMid)
         }
         .navigationTitle("Profile")

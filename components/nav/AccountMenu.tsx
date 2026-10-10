@@ -8,7 +8,7 @@ import type { Role } from "@/lib/types";
 
 /* The account menu.
 
-   Bearings had no sign-out control anywhere. `signOut` was exported from
+   Lumni had no sign-out control anywhere. `signOut` was exported from
    lib/auth-client.ts and called by nothing, the avatar in the header was a
    decorative circle, and mobile had no header at all — which also left
    Settings unreachable on a phone, since it lives in the secondary nav the

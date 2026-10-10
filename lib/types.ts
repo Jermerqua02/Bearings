@@ -1,5 +1,5 @@
 /* ————————————————————————————————————————
-   Bearings domain model
+   Lumni domain model
    ———————————————————————————————————————— */
 
 export type Role = "student" | "parent" | "admin";

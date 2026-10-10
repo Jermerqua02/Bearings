@@ -72,7 +72,7 @@ export default async function InvitePage({
           it. Ask them to send a new one from their settings.
         </p>
         <Link href="/" className="text-[0.95rem] text-ink underline underline-offset-4">
-          Go to Bearings
+          Go to Lumni
         </Link>
       </>,
     );
