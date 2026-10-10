@@ -38,12 +38,12 @@ schools found, what WUE saves them — before Apple's renewal.
 
 | | Free |
 |---|---|
-| Search and browse every school | ✓ |
+| Browse the **40 hand-written schools** (well-known, the fullest data), plus any school on their list | ✓ |
 | School pages: **published** numbers — admit rate, sticker and average net price, test ranges, outcomes, deadlines | ✓ |
 | Save a list | **up to 5 schools** |
 | Deadline dates for saved schools | ✓ |
 | Profile, courses, activities — entering and editing | ✓ |
-| A sample of the counselor | **3 messages and 1 interview session, once** |
+| A sample of the counselor | **2 messages, once** — interview practice has no free sample |
 
 **Pro — everything about you**
 
@@ -305,7 +305,10 @@ Steps 1–2 work without Apple; step 3 needs the setup below first.
   the public directory plus a 5-school list and deadline dates. Everything
   personal — chances, real cost, fit, the counselor, interviews, the tracker —
   is Pro. Replaces the earlier reverse trial and 10-messages-a-week allowance.
-- Free sample of the counselor: 3 messages and 1 interview session, once.
+- Free sample of the counselor: 2 messages, once; no free interview
+  practice (tightened 2026-10-09 after testing — "the right balance").
+- Free's directory is the 40 hand-written schools plus the student's own
+  list; Explore says so and what Pro opens.
 - Monthly ($14.99, 7 days free) **and** Season Pass ($99.99, 12 months).
 - Free Pro for students who can't afford it — *yes, admin-approved until
   verification exists*, visible on the paywall.
