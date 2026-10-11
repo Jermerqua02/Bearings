@@ -83,6 +83,13 @@ struct ExploreView: View {
             Group {
                 if store.needsProfile {
                     needsProfile
+                } else if store.options == nil, store.rows.isEmpty, !store.loading, let error = store.error {
+                    // Nothing has ever loaded: say why and offer a retry,
+                    // rather than "0 schools worth your attention".
+                    RetryView(message: error) {
+                        store.error = nil
+                        await store.reload()
+                    }
                 } else {
                     results
                 }
