@@ -63,9 +63,10 @@ export const COMPANY = {
 
   /* ——————————————————————————————————————————————————————————— */
 
-  supportEmail: "support@promptllc.com",
-  privacyEmail: "privacy@promptllc.com",
-  legalEmail: "legal@promptllc.com",
+  // One inbox for now; privacy and legal requests land there too.
+  supportEmail: "support@trylumni.com",
+  privacyEmail: "support@trylumni.com",
+  legalEmail: "support@trylumni.com",
 } as const;
 
 /** Bump when the substance changes. Stored with every acceptance. */

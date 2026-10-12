@@ -110,7 +110,7 @@ export async function createSchoolLicense(
 export async function redeemSchoolCode(viewer: Viewer, input: string): Promise<{ orgName: string; endsAt: Date }> {
   if (viewer.role !== "student" && viewer.role !== "parent") throw new UserFacingError("School codes are for student and parent accounts.");
   // A seat would give them nothing, and use up one of the school's.
-  if (await proRemoved(viewer.userId)) throw new UserFacingError("Pro isn't available on this account. Write to support@promptllc.com if you think that's a mistake.");
+  if (await proRemoved(viewer.userId)) throw new UserFacingError("Pro isn't available on this account. Write to support@trylumni.com if you think that's a mistake.");
   const code = input.toUpperCase().replace(/\s+/g, "").replace(/[^A-Z0-9-]/g, "");
   const [license] = await db.select().from(schoolLicenses).where(eq(schoolLicenses.code, code)).limit(1);
   const now = new Date();

@@ -70,7 +70,7 @@ struct ProPaywall: View {
                     .softShadow()
 
                     if model.proRemoved {
-                        InlineNote(text: "Pro isn't available on this account. If you think that's a mistake, write to support@promptllc.com.", kind: .problem)
+                        InlineNote(text: "Pro isn't available on this account. If you think that's a mistake, write to support@trylumni.com.", kind: .problem)
                     } else {
                         VStack(alignment: .leading, spacing: 10) {
                             Button("Have a school code?") { schoolCode = true }

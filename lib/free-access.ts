@@ -48,7 +48,7 @@ export async function requestFreeAccess(viewer: Viewer, input: { message: string
   if (message.length < 10) throw new UserFacingError("Tell us a little about your situation — a sentence or two is plenty.");
   if (message.length > MESSAGE_MAX) throw new UserFacingError(`Keep it under ${MESSAGE_MAX} characters.`);
   if (isPro(await proStatus(viewer.userId, viewer.role))) throw new UserFacingError("You already have Pro.");
-  if (await proRemoved(viewer.userId)) throw new UserFacingError("Pro isn't available on this account. Write to support@promptllc.com if you think that's a mistake.");
+  if (await proRemoved(viewer.userId)) throw new UserFacingError("Pro isn't available on this account. Write to support@trylumni.com if you think that's a mistake.");
 
   const existing = await myFreeAccessRequest(viewer);
   if (existing?.status === "pending") throw new UserFacingError("Your request is already with us — we'll email you when it's decided.");
