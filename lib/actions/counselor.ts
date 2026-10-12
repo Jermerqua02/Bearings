@@ -496,7 +496,8 @@ export async function whyThisSchoolAction(schoolId: string): Promise<string> {
 
   // The suffix is the prompt's version: a cached explanation written for
   // the old "why might it fit" prompt is regenerated, not reused.
-  const hash = `${profileHash(profile)}:fit-v2`;
+  // v3: v2 explanations could be cut off mid-sentence and were cached so.
+  const hash = `${profileHash(profile)}:fit-v3`;
 
   const [cached] = await db
     .select()
@@ -512,6 +513,7 @@ export async function whyThisSchoolAction(schoolId: string): Promise<string> {
   if (cached && cached.profileHash === hash) return cached.text;
 
   const text = await (await guardedServiceFor(viewer.userId, "why_school")).whyThisSchool(profile, school as School);
+  if (!text) return "";
 
   await db
     .insert(schoolExplanations)

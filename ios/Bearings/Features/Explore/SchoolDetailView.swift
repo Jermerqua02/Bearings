@@ -182,7 +182,9 @@ struct SchoolDetailView: View {
     private func whyPanel(_ fit: SchoolDetailResponse.Fit, whose: String?) -> some View {
         Panel(icon: "sparkles", title: whose.map { "How it fits \($0)" } ?? "How it fits you", subtitle: "From your counselor", tint: .lavender) {
             if let why, !why.isEmpty {
-                Text(why).font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
+                // The counselor writes Markdown ("**A likely admit.** …"); show it, not the asterisks.
+                Text((try? AttributedString(markdown: why, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))) ?? AttributedString(why))
+                    .font(.system(size: 17)).fixedSize(horizontal: false, vertical: true)
             } else if why == nil {
                 HStack(spacing: 8) { ProgressView(); Muted("Reading your profile…") }
             }

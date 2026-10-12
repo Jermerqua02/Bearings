@@ -81,3 +81,19 @@ as the parent.
 counselor messages, in `TEST_RUNNER_BEARINGS_UITEST_FREE_TOKEN`. It loads the
 plans from `BearingsUITests/Lumni.storekit` (a copy of `Config/Lumni.storekit`)
 through `SKTestSession`, so nothing reaches the App Store.
+
+## App Store screenshots
+
+`StoreScreenshots` (UI test, skipped unless its tokens are set) walks to the
+ten screens; `scripts/compose-store.swift` puts each on the teal with its
+headline. Boot the 6.9" simulator and set the status bar first:
+
+    xcrun simctl boot "iPhone 17 Pro Max"
+    xcrun simctl status_bar "iPhone 17 Pro Max" override --time 9:41 \
+      --batteryState discharging --batteryLevel 100 --wifiBars 3 --cellularBars 4
+
+The tokens it reads are listed at the top of `BearingsUITests/StoreScreenshots.swift`.
+Export the attachments from the result bundle into a folder, then:
+
+    swift ios/scripts/compose-store.swift <raw-dir> <out-dir> ios/Bearings/Resources/Fonts/Raleway-Variable.ttf
+

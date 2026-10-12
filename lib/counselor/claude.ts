@@ -602,9 +602,13 @@ This is self-understanding, not positioning. Never compare them to other applica
             content: `How well does ${school.name} fit this specific student? Open with a plain verdict of a few words ("A strong fit." / "A good fit with one catch." / "Honestly, a stretch."), then two or three sentences on why — something concrete about their profile and something about the school, including cost at their price and their real chances if either is the catch. One short paragraph, no lists.`,
           },
         ],
-        { maxTokens: 700, effort: "low" },
+        // Thinking counts against max_tokens: at 700 it ran out mid-sentence
+        // ("needs a separ") and the stub was cached for good.
+        { maxTokens: 2000, effort: "low" },
       );
       meter("why_school", res.usage as UsageCounts);
+      // A cut-off answer is worse than none; the page shows the fit chips.
+      if ((res as { stop_reason?: string }).stop_reason === "max_tokens") return "";
       return textOf(res.content);
     },
 
