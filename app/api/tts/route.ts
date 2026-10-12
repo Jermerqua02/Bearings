@@ -11,7 +11,7 @@
 
 import { NextResponse } from "next/server";
 import { requireViewer } from "@/lib/auth/policy";
-import { MAX_SPEECH_CHARS, synthesize } from "@/lib/tts";
+import { MAX_SPEECH_CHARS, spokenBefore, synthesize } from "@/lib/tts";
 import { recordUsage } from "@/lib/counselor/usage";
 import { speechCostMillicents } from "@/lib/costs";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -44,6 +44,11 @@ export async function POST(request: Request) {
     );
   }
 
+  // Said before — an interview's opening question, or "Hear it again":
+  // no call to make, nothing to bill or rate-limit.
+  const again = spokenBefore(text);
+  if (again) return wav(again.wav);
+
   // Bound what one account can spend before calling the provider, not after.
   const rate = await checkRateLimit(viewer.userId, "speech");
   if (!rate.allowed) {
@@ -72,10 +77,14 @@ export async function POST(request: Request) {
     speechCostMillicents(result.model, result.inputTokens, result.outputTokens),
   );
 
-  return new NextResponse(new Uint8Array(result.wav), {
+  return wav(result.wav);
+}
+
+function wav(bytes: Buffer) {
+  return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": "audio/wav",
-      "Content-Length": String(result.wav.length),
+      "Content-Length": String(bytes.length),
       // Personal content: never let a shared cache hold it.
       "Cache-Control": "private, no-store",
     },

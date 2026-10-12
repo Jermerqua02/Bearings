@@ -34,14 +34,39 @@ import type {
   StudentProfile,
   Throughline,
 } from "@/lib/types";
-import { chatSystemPrompt, conversationSchoolNote, RENDER_CARDS_TOOL, schoolContextNote } from "./prompt";
+import {
+  chatSystemPrompt,
+  contextPreamble,
+  conversationSchoolNote,
+  counselorSystem,
+  RENDER_CARDS_TOOL,
+  schoolContextNote,
+  type SystemBlock,
+} from "./prompt";
 import { enforceNeverWrites } from "./guardrails";
 import { UserFacingError } from "@/lib/actions/_error";
 import { recordUsage, type AiFeature, type UsageCounts } from "./usage";
 
-const MODEL = "claude-opus-5";
+/*
+  Models, by what the job is worth (cost per call measured in ai_usage):
+
+  - The counselor conversation and essay feedback are the product: Opus.
+    5.5 over 5 is the same tier at 20% less ($4/$20 per MTok).
+  - Short writing the student reads in passing — "How it fits you", the
+    greeting, the onboarding summary — and transcript reading: Sonnet 5.5,
+    about half of Opus.
+  - Filing (memory) and labelling (titles): Haiku 5.5, a tenth of Haiku 4.5.
+*/
+const MODEL = "claude-opus-5-5";
+const LIGHT = { model: "claude-sonnet-5-5", effort: "low" } as const;
+const FILER = "claude-haiku-5-5";
 /** Interview feedback: a spoken back-and-forth, where every second of waiting shows. */
-const INTERVIEW_SPEED = { model: "claude-sonnet-5-5", effort: "low" } as const;
+const INTERVIEW_SPEED = LIGHT;
+/**
+ * A declined request is re-run on a fallback model inside the same call
+ * rather than coming back empty. Opus 5.5 and Sonnet 5.5 only; Haiku has none.
+ */
+const FALLBACK_BETA = "server-side-fallback-2026-07-01";
 
 let client: Anthropic | null = null;
 function anthropic(): Anthropic {
@@ -66,6 +91,31 @@ function textOf(blocks: Anthropic.ContentBlock[]): string {
     .map((b) => b.text)
     .join("\n")
     .trim();
+}
+
+/**
+ * An earlier reply as the model should remember it: its text, plus what its
+ * cards said. History used to carry the text alone, so a reply that put its
+ * steps in a checklist card read back as ending on "Here's what to do:" —
+ * and the next turn apologised for having been cut off.
+ */
+function withCards(text: string, cards?: CounselorCard[]): string {
+  if (!cards?.length) return text;
+  const lines = cards.map((c) => {
+    switch (c.kind) {
+      case "checklist":
+        return `[Checklist card "${c.title}": ${c.items.map((i) => i.text).join("; ")}]`;
+      case "school":
+        return `[School card ${c.schoolId}: ${c.reason}]`;
+      case "tier-breakdown":
+        return `[Tier card: ${c.tiers.map((t) => `${t.count} ${t.tier}`).join(", ")}]`;
+      case "comparison":
+        return `[Comparison card of ${c.schoolIds.join(", ")}: ${c.rows.map((r) => `${r.label} ${r.values.join(" / ")}`).join("; ")}]`;
+      case "timeline":
+        return `[Timeline card: ${c.items.map((i) => `${i.date} ${i.label}`).join("; ")}]`;
+    }
+  });
+  return `${text}\n\n${lines.join("\n")}`;
 }
 
 function cardsOf(blocks: Anthropic.ContentBlock[]): CounselorCard[] {
@@ -104,20 +154,37 @@ function pruneUnknownSchools(cards: CounselorCard[], known: Set<string>): Counse
     .filter((c) => (c.kind === "comparison" ? c.schoolIds.length > 1 : true));
 }
 
-async function ask(
-  system: string,
-  messages: Anthropic.MessageParam[],
-  opts: { tools?: Anthropic.Tool[]; maxTokens?: number; effort?: "low" | "medium" | "high" } = {},
-) {
-  return anthropic().messages.create({
-    model: MODEL,
+type AskOpts = {
+  tools?: Anthropic.Tool[];
+  maxTokens?: number;
+  effort?: "low" | "medium" | "high";
+  /** Defaults to MODEL. */
+  model?: string;
+};
+
+/**
+ * One request, shaped the same way for every ask. A plain-string system
+ * prompt isn't cached — for one-offs nothing would read it back, and the
+ * write costs 1.25× — while counselorSystem()'s blocks carry their own
+ * cache markers.
+ */
+function requestOf(system: string | SystemBlock[], messages: Anthropic.MessageParam[], opts: AskOpts) {
+  return {
+    model: opts.model ?? MODEL,
     max_tokens: opts.maxTokens ?? 2048,
-    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-    thinking: { type: "adaptive" },
+    system,
+    thinking: { type: "adaptive" as const },
     output_config: { effort: opts.effort ?? "medium" },
     ...(opts.tools ? { tools: opts.tools } : {}),
     messages,
-  });
+    betas: [FALLBACK_BETA],
+    fallbacks: "default" as const,
+  };
+}
+
+async function ask(system: string | SystemBlock[], messages: Anthropic.MessageParam[], opts: AskOpts = {}) {
+  // Beta, for fallbacks; the shape read back is the same message.
+  return (await anthropic().beta.messages.create(requestOf(system, messages, opts) as never)) as unknown as Anthropic.Message;
 }
 
 /**
@@ -127,20 +194,12 @@ async function ask(
  * same final message ask() would have returned.
  */
 async function askStreamed(
-  system: string,
+  system: string | SystemBlock[],
   messages: Anthropic.MessageParam[],
-  opts: { tools?: Anthropic.Tool[]; maxTokens?: number; effort?: "low" | "medium" | "high" },
+  opts: AskOpts,
   events: ChatEvents = {},
 ) {
-  const stream = anthropic().messages.stream({
-    model: MODEL,
-    max_tokens: opts.maxTokens ?? 2048,
-    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
-    thinking: { type: "adaptive" },
-    output_config: { effort: opts.effort ?? "medium" },
-    ...(opts.tools ? { tools: opts.tools } : {}),
-    messages,
-  });
+  const stream = anthropic().beta.messages.stream(requestOf(system, messages, opts) as never);
   let textBlocks = 0;
   for await (const event of stream) {
     if (event.type === "content_block_start") {
@@ -156,7 +215,7 @@ async function askStreamed(
       events.onText?.(event.delta.text);
     }
   }
-  return stream.finalMessage();
+  return (await stream.finalMessage()) as unknown as Anthropic.Message;
 }
 
 /**
@@ -191,7 +250,7 @@ function parseJson<T>(text: string): T {
  * Everything non-JSON still goes through the SDK.
  */
 async function askJson<T>(
-  system: string,
+  system: string | SystemBlock[],
   /**
    * The user turn. A plain string for text-only asks; an array of content
    * blocks when the ask carries a document or an image.
@@ -217,8 +276,8 @@ async function askJson<T>(
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
       // A declined request is re-run on a fallback model inside the same
-      // call, rather than coming back empty mid-interview.
-      ...(speed ? { "anthropic-beta": "server-side-fallback-2026-07-01" } : {}),
+      // call, rather than coming back empty.
+      "anthropic-beta": FALLBACK_BETA,
     },
     body: JSON.stringify({
       model: speed?.model ?? MODEL,
@@ -226,7 +285,7 @@ async function askJson<T>(
       system,
       thinking: { type: "adaptive" },
       output_config: { effort: speed?.effort ?? "medium", format: { type: "json_schema", schema } },
-      ...(speed ? { fallbacks: "default" } : {}),
+      fallbacks: "default",
       messages: [{ role: "user", content: userContent }],
     }),
   });
@@ -268,6 +327,7 @@ async function askJsonStreamed<T>(
   userContent: string | Anthropic.ContentBlockParam[],
   schema: Record<string, unknown>,
   maxTokens: number,
+  model: string = MODEL,
 ): Promise<{ data: T; usage: UsageCounts; truncated: boolean }> {
   if (!process.env.ANTHROPIC_API_KEY) {
     throw new Error(
@@ -281,13 +341,15 @@ async function askJsonStreamed<T>(
       "x-api-key": process.env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
+      "anthropic-beta": FALLBACK_BETA,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model,
       max_tokens: maxTokens,
       system,
       thinking: { type: "adaptive" },
       output_config: { effort: "medium", format: { type: "json_schema", schema } },
+      fallbacks: "default",
       stream: true,
       messages: [{ role: "user", content: userContent }],
     }),
@@ -468,6 +530,12 @@ export function createClaudeCounselor(deps: {
   knownSchoolIds: () => Promise<Set<string>>;
   /** Who to bill this call to. Every call is metered. */
   userId: string;
+  /**
+   * The chat's model when it isn't the default — Sonnet past the fair-use
+   * line (lib/actions/counselor.ts), so a heavy month slows the cost down
+   * rather than cutting the conversation off.
+   */
+  chatModel?: string;
 }): CounselorService {
   const meter = (feature: AiFeature, usage: UsageCounts | undefined, model?: string) => {
     if (usage) void recordUsage(deps.userId, feature, usage, model);
@@ -490,16 +558,33 @@ export function createClaudeCounselor(deps: {
 
       const history: Anthropic.MessageParam[] = req.history.slice(-20).map((m) => ({
         role: m.author === "user" ? ("user" as const) : ("assistant" as const),
-        content: m.text,
+        content: m.author === "user" ? m.text : withCards(m.text, m.cards),
       }));
+      // A cache marker on the newest earlier message: next turn, everything
+      // up to here — rules, profile, the conversation so far — is read back
+      // at a tenth of the price instead of sent again in full.
+      const last = history.at(-1);
+      if (last && typeof last.content === "string") {
+        last.content = [{ type: "text", text: last.content, cache_control: { type: "ephemeral" } }];
+      }
+
+      // Opening a conversation sets its direction: think it through. A short
+      // follow-up inside one rarely needs the same depth, and thinking is
+      // most of what a reply costs.
+      const followUp = req.history.some((m) => m.author === "user") && req.message.length < 280;
 
       const res = await askStreamed(
-        chatSystemPrompt(req.profile, contextNote),
-        [...history, { role: "user", content: req.message }],
-        { tools: [RENDER_CARDS_TOOL], maxTokens: 2048 },
+        counselorSystem(req.profile),
+        [...history, { role: "user", content: contextPreamble(contextNote) + req.message }],
+        {
+          tools: [RENDER_CARDS_TOOL],
+          maxTokens: 2048,
+          effort: followUp ? "low" : "medium",
+          model: deps.chatModel,
+        },
         events,
       );
-      meter("chat", res.usage as UsageCounts);
+      meter("chat", res.usage as UsageCounts, res.model);
 
       if (res.stop_reason === "refusal") {
         return {
@@ -538,9 +623,9 @@ export function createClaudeCounselor(deps: {
               "Open the conversation. Two or three sentences: greet them by name, name one specific thing you notice about where they are right now, and invite a question. No lists, no cards.",
           },
         ],
-        { maxTokens: 900, effort: "low" },
+        { maxTokens: 900, ...LIGHT },
       );
-      meter("greet", res.usage as UsageCounts);
+      meter("greet", res.usage as UsageCounts, res.model);
       return {
         id: messageId(),
         author: "counselor",
@@ -559,9 +644,9 @@ export function createClaudeCounselor(deps: {
               "Reflect back what you're hearing about this person, in one short paragraph they'd recognize as accurate. Plain sentences. No score, no ranking, no advice yet.",
           },
         ],
-        { maxTokens: 900, effort: "low" },
+        { maxTokens: 900, ...LIGHT },
       );
-      meter("summarize", res.usage as UsageCounts);
+      meter("summarize", res.usage as UsageCounts, res.model);
       return textOf(res.content);
     },
 
@@ -585,13 +670,15 @@ Write "paragraph" in second person, addressed to the student. Give 3–4 short "
 This is self-understanding, not positioning. Never compare them to other applicants.`,
         schema,
       );
-      meter("throughline", usage);
+      meter("throughline", usage, MODEL);
       return data;
     },
 
     async whyThisSchool(profile: StudentProfile, school: School): Promise<string> {
+      // Cached rules and profile, the school as this turn's context: a
+      // student opening ten school pages pays for their profile once.
       const res = await ask(
-        chatSystemPrompt(profile, schoolContextNote(school, profile.homeState)),
+        counselorSystem(profile),
         [
           {
             role: "user",
@@ -599,14 +686,14 @@ This is self-understanding, not positioning. Never compare them to other applica
             // this fit", and for a poor fit came back "Honestly? It mostly
             // doesn't" under a heading that promised the opposite. Now the
             // verdict leads, whichever way it goes.
-            content: `How well does ${school.name} fit this specific student? Open with a plain verdict of a few words ("A strong fit." / "A good fit with one catch." / "Honestly, a stretch."), then two or three sentences on why — something concrete about their profile and something about the school, including cost at their price and their real chances if either is the catch. One short paragraph, no lists.`,
+            content: `${contextPreamble(schoolContextNote(school, profile.homeState))}How well does ${school.name} fit this specific student? Open with a plain verdict of a few words ("A strong fit." / "A good fit with one catch." / "Honestly, a stretch."), then two or three sentences on why — something concrete about their profile and something about the school, including cost at their price and their real chances if either is the catch. One short paragraph, no lists.`,
           },
         ],
         // Thinking counts against max_tokens: at 700 it ran out mid-sentence
         // ("needs a separ") and the stub was cached for good.
-        { maxTokens: 2000, effort: "low" },
+        { maxTokens: 2000, ...LIGHT },
       );
-      meter("why_school", res.usage as UsageCounts);
+      meter("why_school", res.usage as UsageCounts, res.model);
       // A cut-off answer is worse than none; the page shows the fit chips.
       if ((res as { stop_reason?: string }).stop_reason === "max_tokens") return "";
       return textOf(res.content);
@@ -638,7 +725,11 @@ This is self-understanding, not positioning. Never compare them to other applica
         : "(nothing yet)";
       try {
         const res = await anthropic().messages.create({
-          model: "claude-haiku-4-5-20251001",
+          model: FILER,
+          // Filing and labelling need no deliberation, and Haiku 5.5 thinks
+          // by default — which on a 32-token title would leave no room to answer.
+          thinking: { type: "disabled" },
+          output_config: { effort: "low" },
           max_tokens: 600,
           system: [
             {
@@ -656,7 +747,7 @@ This is self-understanding, not positioning. Never compare them to other applica
             },
           ],
         });
-        meter("memory", res.usage as UsageCounts, "claude-haiku-4-5-20251001");
+        meter("memory", res.usage as UsageCounts, FILER);
         const raw = textOf(res.content).trim().replace(/^```(?:json)?\s*|\s*```$/g, "");
         const parsed = JSON.parse(raw) as { add?: unknown; update?: unknown };
         const knownIds = new Set(known.map((k) => k.id));
@@ -692,7 +783,11 @@ This is self-understanding, not positioning. Never compare them to other applica
       */
       try {
         const res = await anthropic().messages.create({
-          model: "claude-haiku-4-5-20251001",
+          model: FILER,
+          // Filing and labelling need no deliberation, and Haiku 5.5 thinks
+          // by default — which on a 32-token title would leave no room to answer.
+          thinking: { type: "disabled" },
+          output_config: { effort: "low" },
           max_tokens: 32,
           system: [
             {
@@ -712,7 +807,7 @@ This is self-understanding, not positioning. Never compare them to other applica
           ],
         });
         const raw = textOf(res.content).trim();
-        meter("thread_title", res.usage as UsageCounts, "claude-haiku-4-5-20251001");
+        meter("thread_title", res.usage as UsageCounts, FILER);
 
         // A model that ignores the brief must not produce a worse title than
         // the student's own words would have.
@@ -777,7 +872,7 @@ Give observations on structure, specificity, and voice, and questions that would
 
       // The prompt asks; this enforces. A helpful model will still slip a
       // suggested line into a note.
-      meter("essay_feedback", usage);
+      meter("essay_feedback", usage, MODEL);
       const { feedback, violations } = enforceNeverWrites(raw, essayText);
       if (violations.length) {
         console.warn("[essay-guardrail]", violations.join("; "));
@@ -826,8 +921,9 @@ ${earlier
       const words = answer.trim().split(/\s+/).filter(Boolean).length;
 
       const { data: turn, usage } = await askJson<InterviewFeedback & { nextQuestion: string; tooBrief: boolean }>(
-        chatSystemPrompt(profile, schoolContextNote(school, profile.homeState)),
-        `Mock interview${school ? ` for ${school.name}` : ""}. You are playing the interviewer and coaching at the same time.
+        // Cached across the sitting's questions; the school rides in the turn.
+        counselorSystem(profile),
+        `${contextPreamble(schoolContextNote(school, profile.homeState))}Mock interview${school ? ` for ${school.name}` : ""}. You are playing the interviewer and coaching at the same time.
 
 ${sofar}Question just asked: ${question}
 Their answer (${words} words): """${answer}"""
@@ -940,8 +1036,11 @@ not contain it, hint at it, or end with any question.`,
           8,000 and cut a real transcript off mid-array.
         */
         32000,
+        // Reading a table off a page is careful transcription, not counsel:
+        // Sonnet does it for about 40% of what Opus charged (~34¢ a read).
+        LIGHT.model,
       );
-      meter("transcript", usage);
+      meter("transcript", usage, LIGHT.model);
 
       if (truncated) {
         throw new UserFacingError(

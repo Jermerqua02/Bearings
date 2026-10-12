@@ -128,6 +128,32 @@ export function speechConfigured(): boolean {
   return Boolean(process.env.GEMINI_API_KEY);
 }
 
+/*
+  Lines said more than once, kept as audio. Interview practice opens with
+  one of six fixed questions — the same words for every student — and "Hear
+  it again" asks for the line it just played. Both used to be generated and
+  billed every time. Bounded: a line is ~0.5 MB of WAV, so 64 of them is a
+  few dozen MB at most; the least recently used goes first. Per process, so
+  a deploy starts it empty, which costs six questions' worth of audio.
+*/
+const SPOKEN = new Map<string, SpeechResult>();
+const SPOKEN_MAX = 64;
+
+/** The same line again, from memory: no call, no cost. Null when it isn't held. */
+export function spokenBefore(text: string): SpeechResult | null {
+  const key = text.trim().slice(0, MAX_SPEECH_CHARS);
+  const hit = SPOKEN.get(key);
+  if (!hit) return null;
+  SPOKEN.delete(key); // re-inserted below: most recently used last
+  SPOKEN.set(key, hit);
+  return hit;
+}
+
+function remember(text: string, result: SpeechResult) {
+  SPOKEN.set(text, result);
+  while (SPOKEN.size > SPOKEN_MAX) SPOKEN.delete(SPOKEN.keys().next().value!);
+}
+
 export async function synthesize(text: string): Promise<SpeechResult | null> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
@@ -140,7 +166,10 @@ export async function synthesize(text: string): Promise<SpeechResult | null> {
     const left = deadline - Date.now();
     if (left < 2_000) break;
     const result = await attempt(model, key, trimmed, Math.min(attemptMs(trimmed.length), left));
-    if (result) return result;
+    if (result) {
+      remember(trimmed, result);
+      return result;
+    }
   }
   return null;
 }

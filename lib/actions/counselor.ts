@@ -13,9 +13,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, count, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNotNull, isNull } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
+  aiUsage,
   counselorMessages,
   counselorThreads,
   coursePlanEntries,
@@ -77,8 +78,26 @@ async function knownSchoolIds(): Promise<Set<string>> {
  * so the factory needs the viewer's id — which is why this is built per
  * request rather than once at module scope.
  */
-function serviceFor(userId: string) {
-  return createClaudeCounselor({ knownSchoolIds, userId });
+function serviceFor(userId: string, chatModel?: string) {
+  return createClaudeCounselor({ knownSchoolIds, userId, chatModel });
+}
+
+/**
+ * Fair use (Terms §11): past this many counselor messages in 30 days, the
+ * replies come from Sonnet instead of Opus. Nothing stops and nothing is
+ * shown — the conversation carries on, at about half the cost. A heavy
+ * senior in application season sends ~150 a month; this is twice that.
+ */
+const FAIR_USE_CHATS_PER_30_DAYS = 300;
+const FAIR_USE_CHAT_MODEL = "claude-sonnet-5-5";
+
+async function chatModelFor(userId: string): Promise<string | undefined> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(aiUsage)
+    .where(and(eq(aiUsage.userId, userId), eq(aiUsage.feature, "chat"), gte(aiUsage.createdAt, since)));
+  return n >= FAIR_USE_CHATS_PER_30_DAYS ? FAIR_USE_CHAT_MODEL : undefined;
 }
 
 /**
@@ -102,7 +121,7 @@ async function guardedServiceFor(userId: string, feature: string) {
   // Free gets the counselor once, as a sample; the rest is Pro. One check,
   // here, because every AI call already comes through.
   await assertFeature(userId, feature);
-  return serviceFor(userId);
+  return serviceFor(userId, feature === "chat" ? await chatModelFor(userId) : undefined);
 }
 
 /**
@@ -138,7 +157,7 @@ async function sessionProfile() {
 async function rememberFromTurn(
   userId: string,
   role: "student" | "parent",
-  threadId: string,
+  threadId: string | null,
   studentMessage: string,
   counselorReply: string,
 ) {
@@ -587,6 +606,17 @@ export async function interviewTurnAction(input: {
     input.answer,
     // Bounded here as well as at the route: the prompt is what costs money.
     (input.earlier ?? []).slice(-INTERVIEW_CONTEXT_TURNS),
+  );
+
+  // What they said in practice is about them — the sea lion pup, the
+  // robotics team — and their counselor should know it. Filed the same way
+  // as a chat turn, without holding up the feedback they're waiting on.
+  void rememberFromTurn(
+    viewer.userId,
+    "student",
+    null,
+    `(In interview practice, answering "${input.question}") ${input.answer}`,
+    feedback.followUp,
   );
 
   /*

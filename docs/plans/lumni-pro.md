@@ -77,6 +77,13 @@ every school, worked out on the server from the student's profile — the
 grades themselves never reach the parent. Interview practice stays the
 student's.
 
+**Fair use, in practice (2026-10-11):** past 300 counselor messages in 30
+days, replies come from Sonnet 5.5 instead of Opus 5.5 — nothing stops and
+nothing is shown, the conversation just costs about half as much. A heavy
+senior sends ~150 a month, so this protects the Season Pass margin without
+anyone ordinary noticing (`FAIR_USE_CHATS_PER_30_DAYS` in
+lib/actions/counselor.ts).
+
 **Never locked, whatever the status:** the student's own data — their list
 (all of it, if they saved more than 5 while on Pro), essays, transcript, past
 practice — stays readable, and deadline dates stay visible. A student who

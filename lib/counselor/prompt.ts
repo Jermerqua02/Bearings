@@ -41,25 +41,59 @@ teenager who is capable of hearing the truth, or to a parent who last saw
 this process decades ago and needs it explained plainly.
 `.trim();
 
-export function chatSystemPrompt(profile: Profile, contextNote: string): string {
+/*
+  The prompt in two cached layers, then whatever this turn is about.
+
+  Order is cost: the model provider caches a prompt by its prefix, so the
+  part that is the same for every student and parent comes first (written
+  once, read by everyone), then this person's profile (read back on every
+  turn of their conversation), and only then what changes from turn to
+  turn — the list, the school, the screen — which goes in the user turn
+  rather than the system prompt. When that context sat in the middle of
+  the system prompt, nearly every message paid to write ~3,000 tokens to
+  the cache and read almost none of it back.
+*/
+const COUNSELOR_RULES = `${HOUSE_RULES}
+
+When a structured answer would land better than prose, emit a card with the
+render_cards tool — a tier breakdown, a checklist, a deadline timeline, or a
+side-by-side comparison. Reference schools by their id from a list you were
+given or the ids given to you; never invent an id.
+
+What the app knows about this turn — their list, the school they're on, the
+screen they came from — arrives at the start of their message, marked as
+context from the app. It's background, not something they typed.
+
+Keep responses to the length the question needs. Lead with the answer.`;
+
+export interface SystemBlock {
+  type: "text";
+  text: string;
+  cache_control?: { type: "ephemeral" };
+}
+
+/** The counselor's system prompt: the shared rules, then who this is. Both cached. */
+export function counselorSystem(profile: Profile): SystemBlock[] {
   const who =
     profile.role === "student"
       ? studentSummary(profile as StudentProfile)
       : parentSummary(profile);
+  return [
+    { type: "text", text: COUNSELOR_RULES, cache_control: { type: "ephemeral" } },
+    { type: "text", text: `Who you are talking to:\n${who}`, cache_control: { type: "ephemeral" } },
+  ];
+}
 
-  return `${HOUSE_RULES}
+/** This turn's context, as the opening of the user's message. Empty when there's none. */
+export function contextPreamble(contextNote: string): string {
+  const note = contextNote.trim();
+  return note ? `<context from the app>\n${note}\n</context from the app>\n\n` : "";
+}
 
-Who you are talking to:
-${who}
-
-${contextNote}
-
-When a structured answer would land better than prose, emit a card with the
-render_cards tool — a tier breakdown, a checklist, a deadline timeline, or a
-side-by-side comparison. Reference schools by their id from a list above
-or the ids given to you; never invent an id.
-
-Keep responses to the length the question needs. Lead with the answer.`;
+/** The whole prompt as one string, for the few calls that aren't worth caching. */
+export function chatSystemPrompt(profile: Profile, contextNote: string): string {
+  const [rules, who] = counselorSystem(profile);
+  return [rules.text, who.text, contextNote.trim()].filter(Boolean).join("\n\n");
 }
 
 function studentSummary(p: StudentProfile): string {
@@ -98,8 +132,11 @@ function studentSummary(p: StudentProfile): string {
  * pick up where the student left off in a different conversation — and the
  * student can see and correct every line of it on their You screen.
  */
+/** The most notes put in front of the model; the newest win. Keeps long-time users' prompts from growing without end. */
+const MAX_NOTES_IN_PROMPT = 80;
+
 function notesSection(p: Profile): string {
-  const notes = p.counselorNotes ?? [];
+  const notes = (p.counselorNotes ?? []).slice(-MAX_NOTES_IN_PROMPT);
   if (!notes.length) return "";
   const byTopic = memoryCategoriesFor(p.role).map((c) => {
     const lines = notes.filter((n) => n.category === c.id).map((n) => `  - ${n.fact}`);
